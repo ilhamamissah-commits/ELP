@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  CheckCircle, XCircle, RefreshCw, 
-  ArrowRight, Plus, Minus, Zap
+  CheckCircle, XCircle, RefreshCw, Plus, Minus, Zap
 } from 'lucide-react';
 
 // --- 1. Types & Interfaces ---

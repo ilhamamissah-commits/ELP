@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback } from 'react';
 
-export const useTracing = (strokeWidth: number = 6) => {
+export const useTracing = ( ) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
