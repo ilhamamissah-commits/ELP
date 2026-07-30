@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Montessori Color Mappings */
+.bg-montessori-noun { background-color: #000000; }
+.bg-montessori-verb { background-color: #E74C3C; }
+.bg-montessori-adj { background-color: #1B365D; }
+.bg-montessori-article { background-color: #87CEEB; }
+.bg-montessori-prep { background-color: #2ECC71; }
+.bg-montessori-adv { background-color: #F39C12; }
