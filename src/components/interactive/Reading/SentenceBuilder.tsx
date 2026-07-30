@@ -27,11 +27,11 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({ onComplete }) 
   const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0);
   const [constructed, setConstructed] = useState<string[]>([]);
   const [bank, setBank] = useState<string[]>([]);
-  const [isCorrect, setIsCorrect] = useState(false);
   const [aiMessage, setAiMessage] = useState("Build the sentence by tapping words...");
   const [isTiredMode, setIsTiredMode] = useState(false);
   const [score, setScore] = useState(0);
   const [completedSentences, setCompletedSentences] = useState<string[]>([]);
+  const [isCorrect, setIsCorrect] = useState(false);
 
   const TARGET = SENTENCE_BANK[currentSentenceIndex].text;
 
