@@ -3,6 +3,7 @@ import { useProgressStore } from '../../store/useProgressStore';
 import { Card } from '../UI/Card';
 import { BackButton } from '../core/BackButton';
 import { useClassroomStore } from '../../store/useClassroomStore';
+import { AbacusAcademyReport } from './AbacusAcademyReport';
 
 
 interface ParentPortalProps {
@@ -70,6 +71,7 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ onBack }) => {
               <p className="text-gray-400 text-sm">No major weaknesses detected. {childName} is doing great!</p>
             )}
           </div>
+          <AbacusAcademyReport />
         </div>
       )}
       <div className="mt-4">

@@ -4,18 +4,21 @@ import { CheckCircle, Lock, ChevronRight } from 'lucide-react';
 
 export interface LessonItem {
   id: string;
+  lessonId: string;
   title: string;
   description: string;
   tag: string;
   tagColor: string; 
   status: 'complete' | 'available' | 'locked';
   componentId: string; 
+  recommended?: boolean;
+  prerequisiteNote?: string;
 }
 
 interface SubjectLessonListProps {
   subjectName: string;
   lessons: LessonItem[];
-  onSelectLesson: (componentId: string) => void;
+  onSelectLesson: (lesson: LessonItem) => void;
   onBack: () => void;
 }
 
@@ -25,6 +28,7 @@ export const SubjectLessonList: React.FC<SubjectLessonListProps> = ({
   onSelectLesson, 
   onBack 
 }) => {
+  const orderedLessons = [...lessons].sort((a, b) => Number(b.recommended) - Number(a.recommended));
   return (
     // 1. min-h-screen ensures it takes full height.
     // 2. flex-col ensures we can stack elements vertically.
@@ -49,14 +53,16 @@ export const SubjectLessonList: React.FC<SubjectLessonListProps> = ({
       <div className="flex-1 w-full max-w-lg">
         {/* The Lesson Cards: No external padding needed since the spacer handles the flow */}
         <div className="space-y-4 w-full px-4 pb-8">
-          {lessons.map((lesson, index) => (
+          {orderedLessons.map((lesson, index) => (
+            <React.Fragment key={lesson.id}>
+            {index === 0 && lesson.recommended && <p className="px-1 text-xs font-bold uppercase tracking-wider text-emerald-300">Current learning</p>}
+            {index > 0 && orderedLessons[index - 1].recommended && <p className="px-1 pt-3 text-xs font-bold uppercase tracking-wider text-indigo-300">Explore levels</p>}
             <motion.div
-              key={lesson.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
               onClick={() => {
-                if (lesson.status !== 'locked') onSelectLesson(lesson.componentId);
+                if (lesson.status !== 'locked') onSelectLesson(lesson);
               }}
               className={`bg-app-card border rounded-2xl p-4 flex items-center gap-4 transition-all w-full
                 ${lesson.status === 'locked' ? 'border-gray-700 opacity-70 cursor-not-allowed' : 'border-app-border hover:border-indigo-500/50 cursor-pointer'}
@@ -73,6 +79,8 @@ export const SubjectLessonList: React.FC<SubjectLessonListProps> = ({
               <div className="flex-1">
                 <h4 className="text-white font-bold text-base">{lesson.title}</h4>
                 <p className="text-gray-400 text-xs mt-0.5">{lesson.description}</p>
+                {lesson.recommended && <p className="mt-1 text-xs font-bold text-emerald-300">Recommended next</p>}
+                {lesson.prerequisiteNote && <p className="mt-1 text-xs text-amber-200">{lesson.prerequisiteNote}</p>}
                 <div className={`mt-2 inline-block px-2 py-0.5 rounded border text-[10px] font-bold ${lesson.tagColor}`}>
                   {lesson.tag}
                 </div>
@@ -83,6 +91,7 @@ export const SubjectLessonList: React.FC<SubjectLessonListProps> = ({
                 <ChevronRight className="w-5 h-5 text-gray-500" />
               )}
             </motion.div>
+            </React.Fragment>
           ))}
         </div>
       </div>

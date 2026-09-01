@@ -1,92 +1,57 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getAIFeedback, getLessonModifiers } from '../../../services/AITeacher';
+import { Volume2, CheckCircle, ArrowRight } from 'lucide-react';
+import { SENTENCE_CURRICULUM } from '../../../data/sentenceCurriculum';
+import { speakWord } from '../../../services/audioEngine';
 
 interface SentenceBuilderProps {
   onComplete?: (score: number) => void;
 }
 
 export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({ onComplete }) => {
-  // --- EXPANDED SENTENCE BANK (12 Sentences) ---
-  const SENTENCE_BANK = [
-    { id: '1', text: "the cat sat on the mat" },
-    { id: '2', text: "a dog ran in the park" },
-    { id: '3', text: "the sun is hot today" },
-    { id: '4', text: "i like to eat apples" },
-    { id: '5', text: "the bird flies in the sky" },
-    { id: '6', text: "we can go to the zoo" },
-    { id: '7', text: "my mom cooks good food" },
-    { id: '8', text: "the big fish swims fast" },
-    { id: '9', text: "she has a red hat" },
-    { id: '10', text: "he is reading a book" },
-    { id: '11', text: "look at the funny monkey" },
-    { id: '12', text: "the little frog jumped high" },
-  ];
-
-  // --- STATE ---
-  const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [constructed, setConstructed] = useState<string[]>([]);
   const [bank, setBank] = useState<string[]>([]);
-  const [aiMessage, setAiMessage] = useState("Build the sentence by tapping words...");
-  const [isTiredMode, setIsTiredMode] = useState(false);
-  const [score, setScore] = useState(0);
-  const [completedSentences, setCompletedSentences] = useState<string[]>([]);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [score, setScore] = useState(0);
+  const [completedIds, setCompletedIds] = useState<string[]>([]);
 
-  const TARGET = SENTENCE_BANK[currentSentenceIndex].text;
+  const currentSentence = SENTENCE_CURRICULUM[currentIndex];
+  const targetWords = currentSentence.text.split(' ');
 
-  // Load the AI Mood Modifier when component mounts
+  // Shuffle bank on new sentence
   useEffect(() => {
-    const modifiers = getLessonModifiers();
-    if (modifiers.theme === 'calm-mode') setIsTiredMode(true);
-  }, []);
-
-  // Setup new sentence on load or index change
-  useEffect(() => {
-    const modifiers = getLessonModifiers();
-    let targetWords = TARGET.split(' ');
-    if (modifiers.questionCount === 3) {
-      targetWords = targetWords.slice(0, 4);
-    }
-    const shuffled = targetWords.sort(() => Math.random() - 0.5);
+    const shuffled = [...targetWords].sort(() => Math.random() - 0.5);
+    setBank(shuffled);
     setConstructed([]);
     setIsCorrect(false);
-    setAiMessage("Build the sentence by tapping words...");
-    setBank(shuffled);
-  }, [currentSentenceIndex, TARGET]);
+  }, [currentIndex]);
 
-  // Auto-Check Logic
+  // Auto-Check & Audio Celebration
   useEffect(() => {
-    const current = constructed.join(' ');
-    const shortTarget = TARGET.split(' ').slice(0, 4).join(' ');
-    
-    if (current === TARGET || (isTiredMode && current === shortTarget)) {
+    const currentBuilt = constructed.join(' ');
+    if (currentBuilt === currentSentence.text) {
       setIsCorrect(true);
-      const feedback = getAIFeedback(true);
-      setAiMessage(`🧑‍🏫 ${feedback}`);
       setScore(prev => prev + 10);
-      
-      // Mark as completed
-      if (!completedSentences.includes(TARGET)) {
-        setCompletedSentences([...completedSentences, TARGET]);
+
+      // Pronounce the full sentence
+      speakWord(currentSentence.text, 0.8);
+
+      // Track completion
+      if (!completedIds.includes(currentSentence.id)) {
+        setCompletedIds([...completedIds, currentSentence.id]);
       }
 
+      // Move to next after 2.5 seconds
       setTimeout(() => {
-        // Move to next sentence
-        const nextIndex = (currentSentenceIndex + 1) % SENTENCE_BANK.length;
-        
-        // If they finished all 12 sentences, trigger completion
-        if (completedSentences.length >= SENTENCE_BANK.length - 1) {
-          if(onComplete) onComplete(score);
-          return;
+        if (currentIndex < SENTENCE_CURRICULUM.length - 1) {
+          setCurrentIndex(currentIndex + 1);
+        } else {
+          if (onComplete) onComplete(score);
         }
-        
-        setCurrentSentenceIndex(nextIndex);
       }, 2500);
-    } else {
-      setIsCorrect(false);
     }
-  }, [constructed, isTiredMode, TARGET]);
+  }, [constructed]);
 
   const addWord = (word: string) => {
     if (isCorrect) return;
@@ -101,24 +66,44 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({ onComplete }) 
     setBank([...bank, word]);
   };
 
+  const speakEachSound = () => {
+    targetWords.forEach((word, index) => {
+      setTimeout(() => speakWord(word, 0.9), index * 500);
+    });
+  };
+
   return (
-    <div className={`w-full max-w-xl mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl ${isTiredMode ? 'bg-blue-900/50 border-blue-500/30' : ''}`}>
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="text-xl font-bold text-white">Build the Sentence</h3>
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-gray-400">Score: </span>
-          <span className="text-yellow-400 font-bold">{score}</span>
+    <div className="w-full max-w-xl mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl">
+      
+      {/* HEADER & PROGRESS */}
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl font-bold text-white">📝 Sentence Builder</h3>
+        <div className="flex gap-3 items-center">
+          <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-full">
+            Level {currentSentence.level}
+          </span>
+          <span className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-full">
+            {currentIndex + 1} / {SENTENCE_CURRICULUM.length}
+          </span>
         </div>
       </div>
-      
-      {/* AI Teacher Message Display */}
-      <div className={`mb-4 p-3 rounded-xl text-center transition-all duration-300 ${isCorrect ? 'bg-green-500/20 border border-green-500/50' : 'bg-indigo-500/10 border border-indigo-500/30'}`}>
-        <span className={`text-sm ${isCorrect ? 'text-green-400' : 'text-indigo-300'}`}>
-          {isCorrect ? '🌟 ' : '🧑‍🏫 '}{aiMessage}
-        </span>
+
+      <div className="flex justify-between items-center mb-4">
+        <div className="text-yellow-400 font-bold">⭐ {score}</div>
+        <button 
+          onClick={speakEachSound}
+          className="p-2 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
+        >
+          <Volume2 className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* Built Zone */}
+      {/* QUESTION PROMPT */}
+      <div className="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800 mb-4 text-center">
+        <p className="text-gray-400 text-sm">Build the sentence: <span className="text-white font-bold">{currentSentence.pattern}</span></p>
+      </div>
+
+      {/* BUILT ZONE */}
       <div className="min-h-[80px] bg-[#1a1a1a] border border-gray-700 rounded-xl p-3 mb-4 flex flex-wrap gap-2 items-center">
         <AnimatePresence>
           {constructed.map((word, i) => (
@@ -135,7 +120,7 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({ onComplete }) 
         {constructed.length === 0 && <span className="text-gray-500 text-sm italic w-full text-center">Tap words below to build...</span>}
       </div>
 
-      {/* Word Bank */}
+      {/* WORD BANK */}
       <div className="flex flex-wrap gap-2 justify-center min-h-[60px] p-2 bg-[#111] rounded-lg">
         {bank.map((word, i) => (
           <motion.button
@@ -149,6 +134,21 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({ onComplete }) 
             {word}
           </motion.button>
         ))}
+      </div>
+
+      {/* FEEDBACK */}
+      <div className="mt-4 flex justify-center h-10">
+        {isCorrect && (
+          <motion.div 
+            initial={{ scale: 0 }} animate={{ scale: 1 }} 
+            className="flex items-center gap-2 bg-green-500/20 border border-green-500/50 rounded-full px-4 py-2 text-green-400 font-bold"
+          >
+            <CheckCircle className="w-5 h-5" /> Perfect! Moving to next...
+          </motion.div>
+        )}
+        {constructed.length > 0 && !isCorrect && (
+          <div className="text-gray-500 text-sm">Keep going... You're doing great!</div>
+        )}
       </div>
     </div>
   );

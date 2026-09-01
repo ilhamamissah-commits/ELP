@@ -1,17 +1,9 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
+import { SpeechOptions, initializeAudio, isSpeechSupported, pauseSpeech, replaySpeech, resumeSpeech, speak as speakText, stopSpeech } from '../services/audio';
 
 export const useAudioPrompt = () => {
-  const speak = useCallback((text: string, rate: number = 0.7, pitch: number = 1.2) => {
-    // Cancel any currently speaking text to prevent overlapping audio
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = rate; // Slower for kids
-      utterance.pitch = pitch; // Higher pitch is friendlier
-      window.speechSynthesis.speak(utterance);
-    }
-  }, []);
+  useEffect(() => () => stopSpeech(), []);
+  const speak = useCallback((text: string, options: SpeechOptions = {}) => speakText(text, options), []);
 
-  return { speak };
+  return { speak, stop: stopSpeech, pause: pauseSpeech, resume: resumeSpeech, replay: replaySpeech, isSupported: isSpeechSupported, initialize: initializeAudio };
 };

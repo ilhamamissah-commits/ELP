@@ -6,42 +6,74 @@ import { SentenceBuilder } from './components/interactive/Reading/SentenceBuilde
 import { SoundLottery } from './components/interactive/Reading/SoundLottery';
 import { VocabularyBuilder } from './components/interactive/Reading/VocabularyBuilder';
 import { WordFamilies } from './components/interactive/Reading/WordFamilies';
+import { PhonicsBlender } from './components/interactive/Reading/PhonicsBlender';
+import { StoryReader } from './components/interactive/Reading/StoryReader';
 import { GoldenBeads } from './components/interactive/Maths/GoldenBeads';
 import { AbacusWidget } from './components/interactive/Maths/AbacusWidget';
+import { NumberOperations } from './components/interactive/Maths/NumberOperations';
+import { TracingNumbers } from './components/interactive/Maths/TracingNumbers';
 import { ScienceLab } from './components/interactive/Science/ScienceLab';
-import { VirtualLab } from './components/interactive/Science/VirtualLab';
 import { TracingCanvas } from './components/interactive/Writing/TracingCanvas';
-import { ProfileSwitcher } from './components/onboarding/ProfileSwitcher';
+import { LetterTracing } from './components/interactive/Writing/LetterTracing';
+import { NumberTracing } from './components/interactive/Writing/NumberTracing';
+import { WordBuilder } from './components/interactive/Writing/WordBuilder';
+import { SightWords } from './components/interactive/Writing/SightWords';
+import { CreativeWriting } from './components/interactive/Writing/CreativeWriting';
+import { HandwritingPractice } from './components/interactive/Writing/HandwritingPractice';
+import { WashingHands } from './components/interactive/PracticalLife/WashingHands';
+import { BrushingTeeth } from './components/interactive/PracticalLife/BrushingTeeth';
+import { SettingTable } from './components/interactive/PracticalLife/SettingTable';
+import { FoldingClothes } from './components/interactive/PracticalLife/FoldingClothes';
+import { TyingShoes } from './components/interactive/PracticalLife/TyingShoes';
+import { WateringPlants } from './components/interactive/PracticalLife/WateringPlants';
+import { PinkTower } from './components/interactive/Sensorial/PinkTower';
+import { BrownStair } from './components/interactive/Sensorial/BrownStair';
+import { RedRods } from './components/interactive/Sensorial/RedRods';
+import { ColorTablets } from './components/interactive/Sensorial/ColorTablets';
+import { SoundBoxes } from './components/interactive/Sensorial/SoundBoxes';
+import { RoughSmooth } from './components/interactive/Sensorial/RoughSmooth';
+import { ThermicTablets } from './components/interactive/Sensorial/ThermicTablets';
+import { ContinentExplorer } from './components/interactive/Geography/ContinentExplorer';
+import { Landforms } from './components/interactive/Geography/Landforms';
+import { FlagMatch } from './components/interactive/Geography/FlagMatch';
+import { MapReader } from './components/interactive/Geography/MapReader';
+import { OceanExplorer } from './components/interactive/Geography/OceanExplorer';
+import { NaturalWonders } from './components/interactive/Geography/NaturalWonders';
+import { GlobeExplorer } from './components/interactive/Geography/GlobeExplorer';
+import { ColorMixer } from './components/interactive/Art/ColorMixer';
+import { ShapesPainter } from './components/interactive/Art/ShapesPainter';
+import { DrawingCanvas } from './components/interactive/Art/DrawingCanvas';
+import { StickerBoard } from './components/interactive/Art/StickerBoard';
+import { PatternMaker } from './components/interactive/Art/PatternMaker';
+import { ArtGallery } from './components/interactive/Art/ArtGallery';
+import { ParentPortal } from './components/dashboard/ParentPortal';
+import { EmotionCheck } from './components/core/EmotionCheck';
 import { useProgressStore } from './store/useProgressStore';
 import { useProfileStore } from './store/useProfileStore';
 import { BackButton } from './components/core/BackButton';
 import { HelpGuide } from './components/core/HelpGuide';
-import { PhonicsBlender } from './components/interactive/Reading/PhonicsBlender';
-import { StoryReader } from './components/interactive/Reading/StoryReader';
-import { WashingHands } from './components/interactive/PracticalLife/WashingHands';
-import { PinkTower } from './components/interactive/Sensorial/PinkTower';
-import { GlobeExplorer } from './components/interactive/Geography/GlobeExplorer';
-import { ColorMixer } from './components/interactive/Art/ColorMixer';
-import { ParentPortal } from './components/dashboard/ParentPortal';
-import { EmotionCheck } from './components/core/EmotionCheck';
-import { NumberOperations } from './components/interactive/Maths/NumberOperations';
-import { TracingNumbers } from './components/interactive/Maths/TracingNumbers';
-
-
+import { NumberSense } from './components/interactive/Maths/NumberSense';
+import { AdditionGame } from './components/interactive/Maths/AdditionGame';
+import { SubtractionGame } from './components/interactive/Maths/SubtractionGame';
+import { MultiplicationGame } from './components/interactive/Maths/MultiplicationGame';
+import { DivisionGame } from './components/interactive/Maths/DivisionGame';
+import { FractionsGame } from './components/interactive/Maths/FractionsGame';
+import { MoneyGame } from './components/interactive/Maths/MoneyGame';
+import { ClockGame } from './components/interactive/Maths/ClockGame';
+// --- TYPES ---
 type Screen = 'age' | 'subjects' | 'list' | 'activity' | 'profiles' | 'portal';
 
 function App() {
   const [screen, setScreen] = useState<Screen>('age');
   const [currentList, setCurrentList] = useState<string>('');
   const [currentActivityId, setCurrentActivityId] = useState<string>('');
-  const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  
+
   const { setProfile, childName, childAge } = useProgressStore();
   const { currentProfileId, profiles, setCurrentProfile, addProfile } = useProfileStore();
   const [showEmotionCheck, setShowEmotionCheck] = useState(true);
- 
-  // Auto-login logic
+
+  // --- AUTO-LOGIN: If a profile exists, skip AgeGate and go straight to the map ---
   useEffect(() => {
     if (currentProfileId && profiles[currentProfileId]) {
       const p = profiles[currentProfileId];
@@ -50,115 +82,12 @@ function App() {
     }
   }, [currentProfileId, profiles]);
 
-  // --- GET HELP STEPS ---
-  const getHelpSteps = (id: string): string[] => {
-    switch(id) {
-      case 'SentenceBuilder': 
-        return ['Look at the target sentence.', 'Tap the words below to build the sentence.', 'The screen will turn green when you get it right!'];
-      case 'SoundLottery':
-        return ['Tap the speaker button to hear the target sound.', 'Tap a card to flip it.', 'Find all 3 cards with the correct sound!'];
-      case 'VocabularyBuilder':
-        return ['Look at the word and emoji.', 'Listen to the pronunciation.', 'Tap "Next Word" to learn more!'];
-      case 'GoldenBeads':
-        return ['Use the + and - buttons to add or remove beads.', 'Build the target number shown at the top.', 'Click "Check Answer" to see if you are right!'];
-      case 'AbacusWidget':
-        return ['Click the beads to move them up and down.', 'Heaven beads (top) = 5. Earth beads (bottom) = 1.', 'Use the Quiz mode to test your skills!'];
-      case 'VirtualLab':
-        return ['Read the question.', 'Click "Next Step" to perform the experiment.', 'Read the conclusion at the end!'];
-      default:
-        return ['Select an activity and start learning!'];
-    }
-  };
-
-     // --- MASTER CURRICULUM REGISTRY (AGE AWARE) ---
-  const getCurriculumForAge = (): Record<string, LessonItem[]> => {
-    const { childAge } = useProgressStore.getState();
-    
-    // SHARED ART CONTENT (Available to everyone - Perfectly Typed)
-    const artLessons: LessonItem[] = [
-      { id: '1', title: 'Color Mixing', description: 'Mix primary colors to make new ones', tag: 'Art', tagColor: 'border-pink-500 text-pink-400', status: 'available', componentId: 'ColorMixer' },
-      { id: '2', title: 'Drawing Basics', description: 'Learn to draw basic shapes', tag: 'Art', tagColor: 'border-pink-500 text-pink-400', status: 'available', componentId: 'TracingCanvas' },
-    ];
-
-    // LITTLE EXPLORER (2-4)
-    if (childAge <= 4) {
-      return {
-        'art': artLessons,
-        'english': [
-          { id: '1', title: 'Sound Awareness', description: 'Listen and identify sounds', tag: 'Phonics', tagColor: 'border-blue-500 text-blue-400', status: 'available', componentId: 'SoundLottery' },
-          { id: '2', title: 'Word Families', description: 'Group words with similar endings', tag: 'Phonics', tagColor: 'border-blue-500 text-blue-400', status: 'available', componentId: 'WordFamilies' },
-        ],
-        'practical-life': [
-          { id: '1', title: 'Washing Hands', description: 'Learn to clean your hands', tag: 'Hygiene', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'WashingHands' },
-        ],
-        'sensorial': [
-          { id: '1', title: 'Pink Tower', description: 'Arrange blocks by size', tag: 'Sensorial', tagColor: 'border-pink-500 text-pink-400', status: 'available', componentId: 'PinkTower' },
-        ]
-      };
-    }
-
-    // CURIOUS THINKER (4-6)
-    if (childAge <= 6) {
-      return {
-        'art': artLessons,
-        'english': [
-          { id: '1', title: 'Sentence Builder', description: 'Construct sentences', tag: 'Grammar', tagColor: 'border-red-500 text-red-400', status: 'available', componentId: 'SentenceBuilder' },
-          { id: '2', title: 'Describing Words', description: 'Learn adjectives', tag: 'Vocabulary', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'VocabularyBuilder' },
-        ],
-        'maths': [
-          { id: '1', title: 'Golden Beads', description: 'Build numbers', tag: 'Counting', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'GoldenBeads' },
-          { id: '2', title: 'Number Operations', description: 'Add and subtract', tag: 'Arithmetic', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'NumberOperations' },
-        ],
-        'science': [
-          { id: '1', title: 'Biology Lab', description: 'Explore plants and animals', tag: 'Life Science', tagColor: 'border-emerald-500 text-emerald-400', status: 'available', componentId: 'BiologyLab' },
-        ],
-        'geography': [
-          { id: '1', title: 'Globe Explorer', description: 'Tap countries', tag: 'Geography', tagColor: 'border-cyan-500 text-cyan-400', status: 'available', componentId: 'GlobeExplorer' },
-        ]
-      };
-    }
-
-    // CONFIDENT SCHOLAR (6-8)
-    if (childAge <= 8) {
-      return {
-        'art': artLessons,
-        'english': [
-          { id: '1', title: 'Phonics Blender', description: 'Blend sounds to read', tag: 'Reading', tagColor: 'border-blue-500 text-blue-400', status: 'available', componentId: 'PhonicsBlender' },
-          { id: '2', title: 'Story Time', description: 'Interactive stories', tag: 'Reading', tagColor: 'border-pink-500 text-pink-400', status: 'available', componentId: 'StoryReader' },
-        ],
-        'maths': [
-          { id: '1', title: 'Tracing Numbers', description: 'Write numbers 0-9', tag: 'Writing', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'TracingNumbers' },
-        ],
-        'geography': [
-          { id: '1', title: 'Globe Explorer', description: 'Tap countries', tag: 'Geography', tagColor: 'border-cyan-500 text-cyan-400', status: 'available', componentId: 'GlobeExplorer' },
-        ]
-      };
-    }
-
-    // MASTER LEARNER (8-10)
-    return {
-      'art': artLessons,
-      'abacus': [
-        { id: '1', title: 'Mental Math', description: 'Solve sums in your head', tag: 'Mental', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'AbacusWidget' },
-      ],
-      'english': [
-        { id: '1', title: 'Creative Writing', description: 'Write your own stories', tag: 'Writing', tagColor: 'border-indigo-500 text-indigo-400', status: 'available', componentId: 'TracingCanvas' },
-      ],
-      'science': [
-        { id: '1', title: 'Physics Lab', description: 'Sink/Float & Magnets', tag: 'Physical Science', tagColor: 'border-blue-500 text-blue-400', status: 'available', componentId: 'PhysicsLab' },
-      ],
-      'geography': [
-          { id: '1', title: 'Globe Explorer', description: 'Tap countries', tag: 'Geography', tagColor: 'border-cyan-500 text-cyan-400', status: 'available', componentId: 'GlobeExplorer' },
-        ]
-    };
-  };
-
-  // --- GET LESSONS ---
-  const getLessonsForSubject = (subject: string): LessonItem[] => {
-    const curriculum = getCurriculumForAge();
-    return curriculum[subject] || [];
-  };
   // --- HANDLERS ---
+  const handleStartOver = () => {
+    setCurrentProfile("");
+    setScreen('age');
+  };
+
   const handleAgeSelect = (age: number, name: string) => {
     const newId = `child-${Date.now()}`;
     const avatar = age <= 4 ? '🐣' : age <= 7 ? '🦊' : '🦉';
@@ -173,8 +102,8 @@ function App() {
     setScreen('list');
   };
 
-  const handleLessonSelect = (componentId: string) => {
-    setCurrentActivityId(componentId);
+  const handleLessonSelect = (lesson: LessonItem) => {
+    setCurrentActivityId(lesson.componentId);
     setScreen('activity');
   };
 
@@ -184,11 +113,10 @@ function App() {
     } else if (screen === 'list') {
       setScreen('subjects');
     } else if (screen === 'subjects') {
-      setCurrentProfile(""); 
       setScreen('age');
     }
   };
-  
+
   const handleActivityComplete = () => {
     setTimeout(() => {
       if (currentList) setScreen('list');
@@ -201,7 +129,6 @@ function App() {
     if(p) {
       setCurrentProfile(id);
       setProfile(p.age, p.name);
-      setShowProfileSwitcher(false);
       setScreen('subjects');
     }
   };
@@ -215,137 +142,263 @@ function App() {
     setScreen('activity');
   };
 
+  // --- GET HELP STEPS ---
+  const getHelpSteps = (id: string): string[] => {
+    switch(id) {
+      case 'SentenceBuilder': return ['Look at the target sentence.', 'Tap the words below to build.', 'The screen will turn green when you get it right!'];
+      case 'SoundLottery': return ['Tap the speaker button to hear the sound.', 'Tap a card to flip it.', 'Find all 3 cards with the correct sound!'];
+      case 'VocabularyBuilder': return ['Look at the word and emoji.', 'Listen to the pronunciation.', 'Tap "Next Word" to learn more!'];
+      case 'GoldenBeads': return ['Use the + and - buttons.', 'Build the target number.', 'Click "Check Answer" to see if you are right!'];
+      case 'AbacusWidget': return ['Click the beads to move them.', 'Heaven beads (top) = 5. Earth beads (bottom) = 1.', 'Use the Quiz mode to test your skills!'];
+      case 'ScienceLab': return ['Pick an experiment.', 'Follow the steps.', 'Read the conclusion at the end!'];
+      default: return ['Select an activity and start learning!'];
+    }
+  };
+
+  // --- MASTER CURRICULUM REGISTRY (ALL NEW COMPONENTS ADDED) ---
+  const getCurriculumForAge = (): Record<string, LessonItem[]> => {
+    return {
+      'english': [
+        { id: '1', lessonId: '1', title: 'Sound Awareness', description: 'Level 1: Listen and identify sounds', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'SoundLottery' },
+        { id: '2', lessonId: '2', title: 'Word Families', description: 'Level 1: Group words with similar endings', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'WordFamilies' },
+        { id: '3', lessonId: '3', title: 'Sentence Builder', description: 'Level 2: Construct basic sentences', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'SentenceBuilder' },
+        { id: '4', lessonId: '4', title: 'Phonics Blender', description: 'Level 2: Blend sounds to read', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'PhonicsBlender' },
+        { id: '5', lessonId: '5', title: 'Story Time', description: 'Level 3: Read interactive stories', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'StoryReader' },
+        { id: '6', lessonId: '6', title: 'Word Explorer', description: 'Level 3: Learn 100+ words', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'VocabularyBuilder' },
+      ],
+      'maths': [
+        { id: '1', lessonId: '1', title: 'Number Sense', description: 'Count and compare numbers', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'NumberSense' },
+        { id: '2', lessonId: '2', title: 'Golden Beads', description: 'Build numbers with beads', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'GoldenBeads' },
+        { id: '3', lessonId: '3', title: 'Tracing Numbers', description: 'Write numbers 0-9', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'TracingNumbers' },
+        { id: '4', lessonId: '4', title: 'Addition', description: 'Add groups together', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'AdditionGame' },
+        { id: '5', lessonId: '5', title: 'Subtraction', description: 'Take away objects', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'SubtractionGame' },
+        { id: '6', lessonId: '6', title: 'Multiplication', description: 'Count groups', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'MultiplicationGame' },
+        { id: '7', lessonId: '7', title: 'Division', description: 'Share equally', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'DivisionGame' },
+        { id: '8', lessonId: '8', title: 'Fractions', description: 'Pizza & shapes', tag: 'Level 4', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'FractionsGame' },
+        { id: '9', lessonId: '9', title: 'Money', description: 'Count coins', tag: 'Level 4', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'MoneyGame' },
+        { id: '10', lessonId: '10', title: 'Time', description: 'Read the clock', tag: 'Level 4', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'ClockGame' },
+      ],
+      'abacus': [
+        { id: '1', lessonId: '1', title: 'Soroban Basics', description: 'Level 1: Move beads', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'AbacusWidget' },
+        { id: '2', lessonId: '2', title: 'Mental Math', description: 'Level 3: Calculate in head', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'AbacusWidget' },
+      ],
+      'science': [
+        { id: '1', lessonId: '1', title: 'Biology Lab', description: '50 Biology Experiments', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'BiologyLab' },
+        { id: '2', lessonId: '2', title: 'Physics Lab', description: '50 Physics Experiments', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'PhysicsLab' },
+        { id: '3', lessonId: '3', title: 'Chemistry Lab', description: '50 Chemistry Experiments', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'ChemistryLab' },
+      ],
+      'vocabulary': [
+        { id: '1', lessonId: '1', title: 'Word Explorer', description: 'Learn 100+ words with meanings', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'VocabularyBuilder' },
+        { id: '2', lessonId: '2', title: 'Story Time', description: 'Read interactive stories', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'StoryReader' },
+      ],
+      'practical-life': [
+        { id: '1', lessonId: '1', title: 'Washing Hands', description: 'Learn the 7 steps', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'WashingHands' },
+        { id: '2', lessonId: '2', title: 'Brushing Teeth', description: 'Keep your teeth clean', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'BrushingTeeth' },
+        { id: '3', lessonId: '3', title: 'Setting Table', description: 'Set the table right', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'SettingTable' },
+        { id: '4', lessonId: '4', title: 'Folding Clothes', description: 'Fold neatly', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'FoldingClothes' },
+        { id: '5', lessonId: '5', title: 'Tying Shoes', description: 'Tie your laces', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'TyingShoes' },
+        { id: '6', lessonId: '6', title: 'Watering Plants', description: 'Care for nature', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'WateringPlants' },
+      ],
+      'art': [
+        { id: '1', lessonId: '1', title: 'Color Mixer', description: 'Mix colors', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'ColorMixer' },
+        { id: '2', lessonId: '2', title: 'Shapes Painter', description: 'Create with shapes', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'ShapesPainter' },
+        { id: '3', lessonId: '3', title: 'Drawing Canvas', description: 'Free drawing', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'DrawingCanvas' },
+        { id: '4', lessonId: '4', title: 'Sticker Board', description: 'Create scenes', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'StickerBoard' },
+        { id: '5', lessonId: '5', title: 'Pattern Maker', description: 'Make patterns', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'PatternMaker' },
+        { id: '6', lessonId: '6', title: 'Art Gallery', description: 'Showcase artwork', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'ArtGallery' },
+      ],
+      'geography': [
+        { id: '1', lessonId: '1', title: 'Globe Explorer', description: 'Tap the world', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'GlobeExplorer' },
+        { id: '2', lessonId: '2', title: 'Continents', description: 'Learn 7 continents', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'ContinentExplorer' },
+        { id: '3', lessonId: '3', title: 'Landforms', description: 'Mountains & rivers', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'Landforms' },
+        { id: '4', lessonId: '4', title: 'Flags', description: 'Countries & capitals', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'FlagMatch' },
+        { id: '5', lessonId: '5', title: 'Map Reading', description: 'Find your way', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'MapReader' },
+        { id: '6', lessonId: '6', title: 'Oceans', description: '5 oceans of the world', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'OceanExplorer' },
+        { id: '7', lessonId: '7', title: 'Natural Wonders', description: 'Amazing places', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'NaturalWonders' },
+      ],
+      'sensorial': [
+        { id: '1', lessonId: '1', title: 'Pink Tower', description: 'Build by size', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'PinkTower' },
+        { id: '2', lessonId: '2', title: 'Brown Stair', description: 'Build thick to thin', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'BrownStair' },
+        { id: '3', lessonId: '3', title: 'Red Rods', description: 'Sort by length', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'RedRods' },
+        { id: '4', lessonId: '4', title: 'Color Tablets', description: 'Learn colors', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'ColorTablets' },
+        { id: '5', lessonId: '5', title: 'Sound Boxes', description: 'Listen and learn', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'SoundBoxes' },
+        { id: '6', lessonId: '6', title: 'Rough & Smooth', description: 'Feel the difference', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'RoughSmooth' },
+        { id: '7', lessonId: '7', title: 'Thermic Tablets', description: 'Touch temperatures', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'ThermicTablets' },
+      ],
+      'writing': [
+        { id: '1', lessonId: '1', title: 'Letter Tracing', description: 'Trace A-Z', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'LetterTracing' },
+        { id: '2', lessonId: '2', title: 'Number Tracing', description: 'Trace 0-9', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'NumberTracing' },
+        { id: '3', lessonId: '3', title: 'Word Builder', description: 'Build words', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'WordBuilder' },
+        { id: '4', lessonId: '4', title: 'Sight Words', description: 'Spell common words', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'SightWords' },
+        { id: '5', lessonId: '5', title: 'Creative Writing', description: 'Build stories', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'CreativeWriting' },
+        { id: '6', lessonId: '6', title: 'Handwriting', description: 'Write full words', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'HandwritingPractice' },
+      ],
+    };
+  };
+
+  // --- GET LESSONS ---
+  const getLessonsForSubject = (subject: string): LessonItem[] => {
+    return getCurriculumForAge()[subject] || [];
+  };
+
   // --- RENDER ---
   return (
-    <div className="min-h-screen bg-app-bg text-white font-sans pt-20 pb-20 relative">
-      
-      {/* --- TOP HEADER / PROFILE (Appears on ALL screens except Age) --- */}
-      {screen !== 'age' && (
-        <div className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 py-3 bg-app-bg/90 backdrop-blur-md border-b border-app-border">
-          
-          {/* Left: Back Button (Only for List and Activity) */}
-          <div className="min-w-[60px]">
-            {(screen === 'list' || screen === 'activity') && (
-              <BackButton onClick={handleBack} label="Back" />
-            )}
-            {screen === 'subjects' && (
-              <button onClick={handleBack} className="text-xs bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-full text-gray-300 transition">
-                Switch Child
-              </button>
-            )}
-            {screen === 'portal' && (
-              <BackButton onClick={() => setScreen('subjects')} label="Back to World" />
-            )}
-          </div>
-
-          {/* Center: Profile Info */}
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{currentProfileId ? profiles[currentProfileId]?.avatar : '👤'}</span>
-            <span className="font-bold">{childName || 'Guest'}</span>
-            <span className="text-xs bg-gray-800 px-2 py-0.5 rounded text-gray-400">Age {childAge}</span>
-          </div>
-
-          {/* Right: Switch Button */}
-          <div className="min-w-[60px] flex justify-end">
-            <button 
-              onClick={() => setShowProfileSwitcher(true)}
-              className="text-xs bg-indigo-600 px-3 py-1.5 rounded-full hover:bg-indigo-500 transition text-white"
-            >
-              Switch
-            </button>
-          </div>
+    <>
+      {showEmotionCheck && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md">
+          <EmotionCheck onComplete={() => setShowEmotionCheck(false)} />
         </div>
       )}
 
-      {/* --- MAIN SCREENS --- */}
-      {screen === 'age' && <AgeGate onSelect={handleAgeSelect} />}
-      
-      {screen === 'subjects' && (
-        <LearningWorld 
-          onSelect={handleSubjectSelect} 
-          onOpenPortal={handleOpenPortal} 
-        />
-      )}
-
-            {screen === 'list' && (
-        <SubjectLessonList 
-          subjectName={
-            currentList === 'practical-life' ? 'The Garden' : 
-            currentList === 'art' ? 'Art Studio' : 
-            currentList === 'sensorial' ? 'Sensorial Room' : 
-            currentList === 'geography' ? 'Globe Corner' : 
-            currentList === 'vocabulary' ? 'Library' :
-            currentList.charAt(0).toUpperCase() + currentList.slice(1)
-          } 
-          lessons={getLessonsForSubject(currentList)} 
-          onSelectLesson={handleLessonSelect} 
-          onBack={handleBack}
-        />
-      )}
-
-      {screen === 'activity' && (
-        <div className="flex flex-col items-center justify-center pt-4 relative w-full min-h-[70vh]">
-          
-          {/* Emotion Check */}
-          {showEmotionCheck && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-              <EmotionCheck onComplete={() => setShowEmotionCheck(false)} />
+      <div className="min-h-screen bg-app-bg text-white font-sans pt-16 pb-20 relative">
+        
+        {/* Top Profile Info */}
+        {screen !== 'age' && (
+          <div className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 py-3 bg-app-bg/90 backdrop-blur-md border-b border-app-border">
+            <div className="min-w-[60px]">
+              {(screen === 'list' || screen === 'activity') && (
+                <BackButton onClick={handleBack} label="Back" />
+              )}
             </div>
-          )}
 
-          <button 
-            onClick={() => setShowHelp(true)}
-            className="absolute top-0 right-0 w-10 h-10 bg-gray-800 hover:bg-gray-700 rounded-full text-white flex items-center justify-center text-xl font-bold transition"
-          >
-            ?
-          </button>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{currentProfileId ? profiles[currentProfileId]?.avatar : '👤'}</span>
+              <span className="font-bold">{childName || 'Guest'}</span>
+              <span className="text-xs bg-gray-800 px-2 py-0.5 rounded text-gray-400">Age {childAge}</span>
+            </div>
 
-          <div className="w-full flex justify-center">
-            {/* Core Components */}
-            {currentActivityId === 'SentenceBuilder' && <SentenceBuilder onComplete={handleActivityComplete} />}
-            {currentActivityId === 'SoundLottery' && <SoundLottery onComplete={handleActivityComplete} />}
-            {currentActivityId === 'VocabularyBuilder' && <VocabularyBuilder onComplete={handleActivityComplete} />}
-            {currentActivityId === 'GoldenBeads' && <GoldenBeads onComplete={handleActivityComplete} />}
-            {currentActivityId === 'NumberOperations' && <NumberOperations />}
-            {currentActivityId === 'TracingNumbers' && <TracingNumbers />}
-            {currentActivityId === 'AbacusWidget' && <AbacusWidget _onComplete={handleActivityComplete} />}
-            {currentActivityId === 'VirtualLab' && <VirtualLab onComplete={handleActivityComplete} />}
-            {currentActivityId === 'WordFamilies' && <WordFamilies />}
-            {currentActivityId === 'BiologyLab' && <ScienceLab type="biology" onSelectExperiment={handleExperimentSelect} />}
-            {currentActivityId === 'PhysicsLab' && <ScienceLab type="physics" onSelectExperiment={handleExperimentSelect} />}
-
-            {/* Newly Connected Components */}
-            {currentActivityId === 'PhonicsBlender' && <PhonicsBlender />}
-            {currentActivityId === 'StoryReader' && <StoryReader />}
-            {currentActivityId === 'TracingCanvas' && <TracingCanvas />}
-            {currentActivityId === 'WashingHands' && <WashingHands />}
-            {currentActivityId === 'PinkTower' && <PinkTower />}
-            {currentActivityId === 'GlobeExplorer' && <GlobeExplorer />}
-            {currentActivityId === 'ColorMixer' && <ColorMixer />}
+            <div className="min-w-[60px] flex justify-end gap-2">
+              {screen === 'subjects' && (
+                <>
+                  <button onClick={handleOpenPortal} className="text-xs bg-indigo-600 px-3 py-1 rounded-full hover:bg-indigo-500 text-white">👨‍👩‍👧‍👦 Parents</button>
+                  <button onClick={handleStartOver} className="text-xs bg-gray-700 px-3 py-1 rounded-full hover:bg-gray-600 text-white">🔄 Start Over</button>
+                </>
+              )}
+            </div>
           </div>
-          
-          <HelpGuide 
-            isOpen={showHelp} 
-            onClose={() => setShowHelp(false)} 
-            title={currentActivityId}
-            steps={getHelpSteps(currentActivityId)}
+        )}
+
+        {/* SCREENS */}
+        {screen === 'age' && <AgeGate onSelect={handleAgeSelect} />}
+        {screen === 'subjects' && <LearningWorld onSelect={handleSubjectSelect} />}
+
+        {screen === 'list' && (
+          <SubjectLessonList 
+            subjectName={currentList === 'practical-life' ? 'The Garden' : currentList === 'art' ? 'Art Studio' : currentList === 'sensorial' ? 'Sensorial Room' : currentList === 'geography' ? 'Globe Corner' : currentList === 'vocabulary' ? 'Library' : currentList === 'writing' ? 'Writing Studio' : currentList.charAt(0).toUpperCase() + currentList.slice(1)} 
+            lessons={getLessonsForSubject(currentList)} 
+            onSelectLesson={handleLessonSelect} 
+            onBack={handleBack}
           />
-        </div>
-      )}
+        )}
 
-      {/* Parent Portal Screen */}
-      {screen === 'portal' && (
-        <div className="flex justify-center pt-4">
-          <ParentPortal onBack={() => setScreen('subjects')} />
-        </div>
-      )}
+        {screen === 'activity' && (
+          <div className="flex flex-col items-center justify-center pt-4 relative w-full min-h-[70vh]">
+            <button 
+              onClick={() => setShowHelp(true)}
+              className="absolute top-0 right-0 w-10 h-10 bg-gray-800 hover:bg-gray-700 rounded-full text-white flex items-center justify-center text-xl font-bold transition"
+            >
+              ?
+            </button>
 
-      <ProfileSwitcher 
-        isOpen={showProfileSwitcher} 
-        onClose={() => setShowProfileSwitcher(false)} 
-        onSwitch={handleSwitchProfile} 
-      />
-    </div>
+            <div className="w-full flex justify-center">
+              {/* READING */}
+              {currentActivityId === 'SentenceBuilder' && <SentenceBuilder onComplete={handleActivityComplete} />}
+              {currentActivityId === 'SoundLottery' && <SoundLottery onComplete={handleActivityComplete} />}
+              {currentActivityId === 'VocabularyBuilder' && <VocabularyBuilder onComplete={handleActivityComplete} />}
+              {currentActivityId === 'WordFamilies' && <WordFamilies />}
+              {currentActivityId === 'PhonicsBlender' && <PhonicsBlender />}
+              {currentActivityId === 'StoryReader' && <StoryReader />}
+
+              {/* MATHS */}
+              {currentActivityId === 'GoldenBeads' && <GoldenBeads onComplete={handleActivityComplete} />}
+              {currentActivityId === 'NumberOperations' && <NumberOperations />}
+              {currentActivityId === 'TracingNumbers' && <TracingNumbers />}
+              {currentActivityId === 'AbacusWidget' && <AbacusWidget onComplete={handleActivityComplete} />}
+              {currentActivityId === 'NumberSense' && <NumberSense />}
+              {currentActivityId === 'AdditionGame' && <AdditionGame />}
+              {currentActivityId === 'SubtractionGame' && <SubtractionGame />}
+              {currentActivityId === 'MultiplicationGame' && <MultiplicationGame />}
+              {currentActivityId === 'DivisionGame' && <DivisionGame />}
+              {currentActivityId === 'FractionsGame' && <FractionsGame />}
+              {currentActivityId === 'MoneyGame' && <MoneyGame />}
+              {currentActivityId === 'ClockGame' && <ClockGame />}
+              {/* SCIENCE */}
+              {currentActivityId === 'BiologyLab' && <ScienceLab type="biology" />}
+              {currentActivityId === 'PhysicsLab' && <ScienceLab type="physics" />}
+              {currentActivityId === 'ChemistryLab' && <ScienceLab type="chemistry" />}
+
+              {/* WRITING */}
+              {currentActivityId === 'TracingCanvas' && <TracingCanvas />}
+              {currentActivityId === 'LetterTracing' && <LetterTracing />}
+              {currentActivityId === 'NumberTracing' && <NumberTracing />}
+              {currentActivityId === 'WordBuilder' && <WordBuilder />}
+              {currentActivityId === 'SightWords' && <SightWords />}
+              {currentActivityId === 'CreativeWriting' && <CreativeWriting />}
+              {currentActivityId === 'HandwritingPractice' && <HandwritingPractice />}
+
+              {/* PRACTICAL LIFE */}
+              {currentActivityId === 'WashingHands' && <WashingHands />}
+              {currentActivityId === 'BrushingTeeth' && <BrushingTeeth />}
+              {currentActivityId === 'SettingTable' && <SettingTable />}
+              {currentActivityId === 'FoldingClothes' && <FoldingClothes />}
+              {currentActivityId === 'TyingShoes' && <TyingShoes />}
+              {currentActivityId === 'WateringPlants' && <WateringPlants />}
+
+              {/* SENSORIAL */}
+              {currentActivityId === 'PinkTower' && <PinkTower />}
+              {currentActivityId === 'BrownStair' && <BrownStair />}
+              {currentActivityId === 'RedRods' && <RedRods />}
+              {currentActivityId === 'ColorTablets' && <ColorTablets />}
+              {currentActivityId === 'SoundBoxes' && <SoundBoxes />}
+              {currentActivityId === 'RoughSmooth' && <RoughSmooth />}
+              {currentActivityId === 'ThermicTablets' && <ThermicTablets />}
+
+              {/* GEOGRAPHY */}
+              {currentActivityId === 'ContinentExplorer' && <ContinentExplorer />}
+              {currentActivityId === 'Landforms' && <Landforms />}
+              {currentActivityId === 'FlagMatch' && <FlagMatch />}
+              {currentActivityId === 'MapReader' && <MapReader />}
+              {currentActivityId === 'OceanExplorer' && <OceanExplorer />}
+              {currentActivityId === 'NaturalWonders' && <NaturalWonders />}
+              {currentActivityId === 'GlobeExplorer' && <GlobeExplorer />}
+
+              {/* ART */}
+              {currentActivityId === 'ColorMixer' && <ColorMixer />}
+              {currentActivityId === 'ShapesPainter' && <ShapesPainter />}
+              {currentActivityId === 'DrawingCanvas' && <DrawingCanvas />}
+              {currentActivityId === 'StickerBoard' && <StickerBoard />}
+              {currentActivityId === 'PatternMaker' && <PatternMaker />}
+              {currentActivityId === 'ArtGallery' && <ArtGallery />}
+            </div>
+            
+            <HelpGuide 
+              isOpen={showHelp} 
+              onClose={() => setShowHelp(false)} 
+              title={currentActivityId}
+              steps={getHelpSteps(currentActivityId)}
+            />
+          </div>
+        )}
+
+        {/* Parent Portal Screen */}
+        {screen === 'portal' && (
+          <div className="flex justify-center pt-4">
+            <ParentPortal onBack={() => setScreen('subjects')} />
+          </div>
+        )}
+
+        {/* Bottom Right Circular Switch Button */}
+        {screen !== 'age' && screen !== 'portal' && (
+          <button
+            onClick={() => setScreen('age')}
+            className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-500 shadow-2xl border-2 border-white/20 text-white text-2xl font-bold flex items-center justify-center transition-all"
+            title="Switch Profile"
+          >
+            👤
+          </button>
+        )}
+      </div>
+    </>
   );
 }
 

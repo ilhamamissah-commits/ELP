@@ -1,38 +1,39 @@
-import { AgeGroup, LearningObjective, Subject } from './types';
-import { ENGLISH_CURRICULUM } from './strands/english';
-import { MATHS_CURRICULUM } from './strands/maths';
+import { CORE_LESSONS } from './data/coreLessons';
+import { Lesson, Subject } from './types';
+import { buildCoursePath, presentationProfileForAge } from './progression';
 import { SCIENCE_CURRICULUM } from './strands/science';
-import { ABACUS_CURRICULUM } from './strands/abacus';
 
-// Combine all subjects into one master registry
-const MASTER_CURRICULUM: LearningObjective[] = [
-  ...ENGLISH_CURRICULUM,
-  ...MATHS_CURRICULUM,
-  ...SCIENCE_CURRICULUM,
-  ...ABACUS_CURRICULUM
+// Merge the new 30-lesson Science curriculum into the main list
+export const ALL_LESSONS: Lesson[] = [
+  ...CORE_LESSONS,
+  ...SCIENCE_CURRICULUM
 ];
-
-export function ageToGroup(age: number): AgeGroup {
-  if (age <= 3) return '2-3';
-  if (age <= 4) return '3-4';
-  if (age <= 5) return '4-5';
-  if (age <= 6) return '5-6';
-  if (age <= 7) return '6-7';
-  if (age <= 8) return '7-8';
-  if (age <= 9) return '8-9';
-  return '9-10';
+// --- 1. All Lessons (Sorted by Level) ---
+export function getAllLessons(): Lesson[] {
+  return [...CORE_LESSONS].sort((a, b) => a.title.localeCompare(b.title));
 }
 
-// The actual function your App will use to find lessons
-export function getObjectivesForAge(age: number, subject?: Subject): LearningObjective[] {
-  const group = ageToGroup(age);
-  return MASTER_CURRICULUM.filter(o => 
-    o.ageGroup === group && 
-    (!subject || o.subject === subject)
-  );
+// --- 2. Get Lessons by Subject (Sorted by Level) ---
+export function getLessonsForSubject(subject: Subject): Lesson[] {
+  return CORE_LESSONS.filter((lesson) => lesson.subject === subject);
 }
 
-// Helper to get an objective by specific ID
-export function getObjectiveById(id: string): LearningObjective | undefined {
-  return MASTER_CURRICULUM.find(o => o.id === id);
+// --- 3. Course Path with Recommendations (Uses Progression Engine) ---
+export function getCoursePath(lessons: Lesson[], skills: Record<string, any>) {
+  return buildCoursePath(lessons, skills);
+}
+
+// --- 4. Get Lesson by ID ---
+export function getLessonById(id: string): Lesson | undefined {
+  return CORE_LESSONS.find((lesson) => lesson.id === id);
+}
+
+// --- 5. Presentation Profile ---
+export function getPresentationProfile(age: number) {
+  return presentationProfileForAge(age);
+}
+
+// --- 6. Deprecated (Kept for backwards compatibility) ---
+export function ageToGroup(age: number): string {
+  return 'all-levels';
 }

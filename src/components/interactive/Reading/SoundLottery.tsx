@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, CheckCircle, RotateCcw } from 'lucide-react';
+import { useAudioPrompt } from '../../../hooks/useAudioPrompt';
 
 // --- 1. Types & Interfaces ---
 interface SoundCard {
@@ -33,6 +34,7 @@ const PHONICS_BANK: SoundCard[] = [
 
 // --- 3. Component Implementation ---
 export const SoundLottery: React.FC<SoundLotteryProps> = ({ onComplete }) => {
+  const { speak } = useAudioPrompt();
   // -- Game State --
   const [currentSound, setCurrentSound] = useState<string>('s');
   const [cards, setCards] = useState<SoundCard[]>([]);
@@ -78,13 +80,7 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({ onComplete }) => {
 
   // -- Play the Sound using Speech Synthesis --
   const playSound = (sound: string) => {
-    // Stop any currently playing speech
-    window.speechSynthesis.cancel();
-    
-    const utterance = new SpeechSynthesisUtterance(sound);
-    utterance.rate = 0.5; // Slow down for children
-    utterance.pitch = 1.2; // Slightly higher pitch is easier for kids to hear
-    window.speechSynthesis.speak(utterance);
+    speak(sound, { rate: 0.5, pitch: 1.2, userInitiated: true });
   };
 
   // -- Handle Card Click --

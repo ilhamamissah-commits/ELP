@@ -1,107 +1,167 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Volume2 } from 'lucide-react';
-
-const VOCAB_WORDS = [
-  { word: 'Enormous', meaning: 'Very, very big!', emoji: '🐘' },
-  { word: 'Tiny', meaning: 'Very small!', emoji: '🐜' },
-  { word: 'Delicious', meaning: 'Tastes really, really good!', emoji: '🍕' },
-  { word: 'Ancient', meaning: 'From a very long time ago.', emoji: '🏛️' },
-  { word: 'Courageous', meaning: 'Brave and not afraid.', emoji: '🦁' },
-  { word: 'Fragile', meaning: 'Easy to break, must be gentle.', emoji: '🥚' },
-  { word: 'Gigantic', meaning: 'Huge, really big!', emoji: '🦕' },
-  { word: 'Furious', meaning: 'Very, very angry!', emoji: '😡' },
-];
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Volume2, CheckCircle, XCircle, ArrowRight } from 'lucide-react';
+import { VOCABULARY_CURRICULUM } from '../../../data/vocabularyCurriculum';
 
 interface VocabularyBuilderProps {
   onComplete?: (score: number) => void;
 }
 
 export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({ onComplete }) => {
-  const [index, setIndex] = useState(0);
-  const [completed, setCompleted] = useState<string[]>([]);
+  const [currentLevel, setCurrentLevel] = useState(0);
+  const [mode, setMode] = useState<'learn' | 'quiz'>('learn');
+  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [score, setScore] = useState(0);
+  const [feedback, setFeedback] = useState<'idle' | 'correct' | 'incorrect'>('idle');
 
-  const currentWord = VOCAB_WORDS[index % VOCAB_WORDS.length];
+  const level = VOCABULARY_CURRICULUM[currentLevel];
+  const currentWord = level.words[currentWordIndex];
 
-  // --- 1. AUTO-PLAY VOICE WHEN THE CARD CHANGES ---
-  useEffect(() => {
-    // Small delay to make sure the card animation starts before the voice
-    const timer = setTimeout(() => {
-      speakWord(currentWord.word);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [index]);
-
-  // --- 2. THE PRONUNCIATION ENGINE ---
-  const speakWord = (text: string) => {
-    // Cancel any currently speaking audio to prevent overlapping
+  // --- AUDIO ---
+  const speak = (text: string) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.8; // Slightly slower so kids can catch the syllables
-      utterance.pitch = 1.1; // Slightly brighter tone for child engagement
-      
-      // Try to find a US English voice, as it usually sounds clearer
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(v => v.lang.includes('en-US'));
-      if (preferredVoice) utterance.voice = preferredVoice;
-
+      utterance.rate = 0.8;
       window.speechSynthesis.speak(utterance);
     }
   };
 
-  const handleNext = () => {
-    if (!completed.includes(currentWord.word)) {
-      setCompleted([...completed, currentWord.word]);
-    }
-    if (index < VOCAB_WORDS.length - 1) {
-      setIndex(index + 1);
+  // --- LEARNING MODE ---
+  const handleNextWord = () => {
+    if (currentWordIndex < level.words.length - 1) {
+      setCurrentWordIndex(currentWordIndex + 1);
+      speak(level.words[currentWordIndex + 1].word);
     } else {
-      if (onComplete) onComplete(completed.length * 10);
+      setMode('quiz');
+      setCurrentWordIndex(0);
+      speak(`Let's see if you remember!`);
     }
   };
 
+  // --- QUIZ MODE: WORD FAMILY SELECTION ---
+  const shuffledWords = [...level.words].sort(() => Math.random() - 0.5);
+  const [selectedWords, setSelectedWords] = useState<string[]>([]);
+
+  const targetFamily = level.words[0].family; // e.g., "at"
+
+  const toggleSelection = (id: string) => {
+    if (feedback === 'correct') return;
+    if (selectedWords.includes(id)) {
+      setSelectedWords(selectedWords.filter(w => w !== id));
+    } else {
+      setSelectedWords([...selectedWords, id]);
+    }
+  };
+
+  const handleCheck = () => {
+    const correctIds = level.words.filter(w => w.family === targetFamily).map(w => w.id);
+    const allCorrect = correctIds.every(id => selectedWords.includes(id)) && selectedWords.length === correctIds.length;
+    
+    if (allCorrect) {
+      setFeedback('correct');
+      setScore(score + 10);
+    } else {
+      setFeedback('incorrect');
+    }
+  };
+
+  const handleNextLevel = () => {
+    // If it's the very last level, call onComplete
+    if (currentLevel === VOCABULARY_CURRICULUM.length - 1) {
+      if (onComplete) onComplete(score);
+      return;
+    }
+    
+    setCurrentLevel(currentLevel + 1);
+    setMode('learn');
+    setCurrentWordIndex(0);
+    setScore(0);
+    setFeedback('idle');
+    setSelectedWords([]);
+  };
+
   return (
-    <div className="w-full max-w-md mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl text-center">
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="text-xl font-bold text-white">📚 Word Explorer</h3>
-        <div className="text-xs text-gray-400">{completed.length} / {VOCAB_WORDS.length}</div>
+    <div className="max-w-lg mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl text-center">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl font-bold text-white">📚 {level.title}</h3>
+        <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-full">{level.syllabusFocus}</span>
       </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div 
-          key={index}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          className="bg-[#1a1a1a] p-8 rounded-xl border border-gray-800 mb-6"
-        >
-          <div className="text-6xl mb-4">{currentWord.emoji}</div>
-          
-          {/* Word & Speaker Button */}
-          <div className="flex items-center justify-center gap-4 mb-2">
-            <h2 className="text-3xl font-bold text-white">{currentWord.word}</h2>
-            <button 
-              onClick={() => speakWord(currentWord.word)}
-              className="p-2 bg-indigo-600 rounded-full hover:bg-indigo-500 transition-colors text-white"
-              aria-label="Pronounce word"
-            >
-              <Volume2 className="w-5 h-5" />
-            </button>
+      {/* --- MODE 1: LEARN THE WORDS --- */}
+      {mode === 'learn' && (
+        <div className="flex flex-col items-center gap-4">
+          <div className="bg-[#1a1a1a] p-8 rounded-xl border border-gray-800 w-full">
+            <div className="text-6xl mb-4">{currentWord.emoji}</div>
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <h2 className="text-4xl font-bold text-white">{currentWord.word}</h2>
+              <button onClick={() => speak(currentWord.word)} className="p-2 bg-indigo-600 rounded-full hover:bg-indigo-500 text-white">
+                <Volume2 className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-gray-400">{currentWord.meaning}</p>
+            <div className="mt-4 text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-full inline-block">
+              Family: "{currentWord.family}"
+            </div>
+          </div>
+          <button onClick={handleNextWord} className="w-full py-3 bg-indigo-600 rounded-xl text-white font-bold hover:bg-indigo-500 flex justify-center items-center gap-2">
+            {currentWordIndex < level.words.length - 1 ? 'Next Word' : 'Begin Quiz!'} <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* --- MODE 2: QUIZ - FIND THE FAMILY --- */}
+      {mode === 'quiz' && (
+        <div className="flex flex-col items-center gap-4">
+          <div className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800 w-full">
+            <h3 className="text-lg font-bold text-white mb-2">Find the words from the <span className="text-yellow-400">"{targetFamily}"</span> family!</h3>
+            <p className="text-gray-400 text-sm mb-4">Tap all the words that belong to the family, then check.</p>
+            
+            <div className="grid grid-cols-2 gap-3">
+              {shuffledWords.map((word) => (
+                <motion.button
+                  key={word.id}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => toggleSelection(word.id)}
+                  className={`p-3 rounded-xl text-sm font-bold transition-all border-2 ${
+                    selectedWords.includes(word.id) 
+                      ? 'bg-green-600 border-green-400 text-white' 
+                      : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'
+                  }`}
+                >
+                  <span className="text-2xl block mb-1">{word.emoji}</span>
+                  {word.word}
+                </motion.button>
+              ))}
+            </div>
           </div>
 
-          <p className="text-gray-400 text-lg">"{currentWord.meaning}"</p>
-        </motion.div>
-      </AnimatePresence>
+          <button 
+            onClick={handleCheck} 
+            disabled={feedback === 'correct'}
+            className="w-full py-3 bg-indigo-600 rounded-xl text-white font-bold hover:bg-indigo-500 disabled:opacity-50"
+          >
+            Check Answer
+          </button>
 
-      <button 
-        onClick={handleNext}
-        className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-bold flex justify-center items-center gap-2 transition-colors"
-      >
-        {index < VOCAB_WORDS.length - 1 ? 'Next Word' : 'Finish Lesson'} <ArrowRight className="w-4 h-4" />
-      </button>
+          {feedback === 'correct' && (
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="w-full p-3 bg-green-500/20 border border-green-500/50 rounded-xl text-green-400 font-bold">
+              <CheckCircle className="w-6 h-6 inline mr-2" />
+              Excellent! You found them all! Score: {score}
+              <button onClick={handleNextLevel} className="w-full mt-3 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-white">
+                {currentLevel === VOCABULARY_CURRICULUM.length - 1 ? 'Finish Course' : 'Next Level ➜'}
+              </button>
+            </motion.div>
+          )}
+
+          {feedback === 'incorrect' && (
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="w-full p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 font-bold">
+              <XCircle className="w-6 h-6 inline mr-2" />
+              Not quite. Try tapping different words.
+            </motion.div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
