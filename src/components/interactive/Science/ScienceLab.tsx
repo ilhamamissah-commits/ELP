@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
-  FlaskConical, Dna, Atom, Activity, Wind, Leaf, 
-  TestTube2, Flower2, Brain, Rocket, Magnet, Droplets, 
-  Flame, Sun, Moon, Star, Microscope, Heart, Bug, Sprout, 
-  Waves, Cloud, Snowflake, Home, Apple, Shield, 
-  Bone, Globe, ArrowRight, 
-  ArrowDown, Thermometer, Zap, Building2, Rainbow, 
-  Sparkles, TreePine, Fish, Bird, Cat
+  Leaf, Activity, Dna, Bug, Home, Flower2, Apple, Bone, 
+  Brain, Wind, Magnet, Waves, TreePine, Sun, Snowflake, 
+  Heart, Droplets, Shield, Microscope, Sprout, Bird, Fish, Cat, 
+  Globe, FlaskConical, Atom, Rocket, Star, Moon, Cloud, TestTube2, 
+  Thermometer, Zap, Building2, Flame, Sparkles, 
+  ArrowRight, ArrowDown, Rainbow
 } from 'lucide-react';
 
-// --- Define Experiment ---
 interface Experiment {
   id: string;
   title: string;
@@ -185,7 +183,6 @@ const CHEMISTRY_EXPERIMENTS: Experiment[] = [
   { id: 'chem-50', title: 'Chemistry in Nature', icon: <Leaf className="w-8 h-8" />, color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'The chemistry of the world!', level: 4, steps: ['Nature is full of chemistry.', 'Photosynthesis is chemistry.', 'Digestion is chemistry.', 'Chemistry is everywhere!'], conclusion: 'Chemistry is everywhere in nature, from the air we breathe to the food we eat!' },
 ];
 
-// --- Component ---
 interface ScienceLabProps {
   type: 'biology' | 'physics' | 'chemistry';
 }
@@ -193,10 +190,18 @@ interface ScienceLabProps {
 export const ScienceLab: React.FC<ScienceLabProps> = ({ type }) => {
   const [selectedExperiment, setSelectedExperiment] = useState<Experiment | null>(null);
 
-  const experiments = type === 'biology' ? BIOLOGY_EXPERIMENTS : type === 'physics' ? PHYSICS_EXPERIMENTS : CHEMISTRY_EXPERIMENTS;
-  const title = type === 'biology' ? '🔬 Biology Lab' : type === 'physics' ? '⚛️ Physics Lab' : '🧪 Chemistry Lab';
+  // Pull the correct data
+  const experiments = 
+    type === 'biology' ? BIOLOGY_EXPERIMENTS : 
+    type === 'physics' ? PHYSICS_EXPERIMENTS : 
+    CHEMISTRY_EXPERIMENTS;
+    
+  const title = 
+    type === 'biology' ? '🔬 Biology Lab' : 
+    type === 'physics' ? '⚛️ Physics Lab' : 
+    '🧪 Chemistry Lab';
 
-  // --- EXPERIMENT PLAYER (Inside the same component) ---
+  // --- EXPERIMENT PLAYER ---
   if (selectedExperiment) {
     const [step, setStep] = useState(0);
     return (
@@ -270,6 +275,3 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({ type }) => {
     </div>
   );
 };
-
-// Export for use in VirtualLab.tsx (if needed)
-export { BIOLOGY_EXPERIMENTS, PHYSICS_EXPERIMENTS, CHEMISTRY_EXPERIMENTS };

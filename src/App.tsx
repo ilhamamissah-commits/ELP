@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AgeGate } from './components/onboarding/AgeGate';
 import { LearningWorld } from './components/dashboard/LearningWorld';
+import { SubjectDashboard } from './components/dashboard/SubjectDashboard';
 import { SubjectLessonList, LessonItem } from './components/dashboard/SubjectLessonList';
 import { SentenceBuilder } from './components/interactive/Reading/SentenceBuilder';
 import { SoundLottery } from './components/interactive/Reading/SoundLottery';
@@ -12,6 +13,14 @@ import { GoldenBeads } from './components/interactive/Maths/GoldenBeads';
 import { AbacusWidget } from './components/interactive/Maths/AbacusWidget';
 import { NumberOperations } from './components/interactive/Maths/NumberOperations';
 import { TracingNumbers } from './components/interactive/Maths/TracingNumbers';
+import { NumberSense } from './components/interactive/Maths/NumberSense';
+import { AdditionGame } from './components/interactive/Maths/AdditionGame';
+import { SubtractionGame } from './components/interactive/Maths/SubtractionGame';
+import { MultiplicationGame } from './components/interactive/Maths/MultiplicationGame';
+import { DivisionGame } from './components/interactive/Maths/DivisionGame';
+import { FractionsGame } from './components/interactive/Maths/FractionsGame';
+import { MoneyGame } from './components/interactive/Maths/MoneyGame';
+import { ClockGame } from './components/interactive/Maths/ClockGame';
 import { ScienceLab } from './components/interactive/Science/ScienceLab';
 import { TracingCanvas } from './components/interactive/Writing/TracingCanvas';
 import { LetterTracing } from './components/interactive/Writing/LetterTracing';
@@ -52,22 +61,40 @@ import { useProgressStore } from './store/useProgressStore';
 import { useProfileStore } from './store/useProfileStore';
 import { BackButton } from './components/core/BackButton';
 import { HelpGuide } from './components/core/HelpGuide';
-import { NumberSense } from './components/interactive/Maths/NumberSense';
-import { AdditionGame } from './components/interactive/Maths/AdditionGame';
-import { SubtractionGame } from './components/interactive/Maths/SubtractionGame';
-import { MultiplicationGame } from './components/interactive/Maths/MultiplicationGame';
-import { DivisionGame } from './components/interactive/Maths/DivisionGame';
-import { FractionsGame } from './components/interactive/Maths/FractionsGame';
-import { MoneyGame } from './components/interactive/Maths/MoneyGame';
-import { ClockGame } from './components/interactive/Maths/ClockGame';
+import { PatternRecognizer } from './components/interactive/Logic/PatternRecognizer';
+import { SpatialPuzzle } from './components/interactive/Logic/SpatialPuzzle';
+import { ClassificationSorter } from './components/interactive/Logic/ClassificationSorter';
+import { MemoryMatch } from './components/interactive/Logic/MemoryMatch';
+import { BridgeBuilder } from './components/interactive/Engineering/BridgeBuilder';
+import { TowerBuilder } from './components/interactive/Engineering/TowerBuilder';
+import { AnimalCrossing } from './components/interactive/Engineering/AnimalCrossing';
+import { ArabicLetters } from './components/interactive/Arabic/ArabicLetters';
+import { ArabicWords } from './components/interactive/Arabic/ArabicWords';
+import { ArabicReading } from './components/interactive/Arabic/ArabicReading';
+import { EmotionMatch } from './components/interactive/Wellbeing/EmotionMatch';
+import { FeelingsJournal } from './components/interactive/Wellbeing/FeelingsJournal';
+import { EmpathyBuilder } from './components/interactive/Wellbeing/EmpathyBuilder';
+import { CalmCorner } from './components/interactive/Wellbeing/CalmCorner';
+import { RobotExplorer } from './components/interactive/Robotics/RobotExplorer';
+import { Sequencer } from './components/interactive/Robotics/Sequencer';
+import { RobotDesigner } from './components/interactive/Robotics/RobotDesigner';
+import { LegoBuilder } from './components/interactive/Engineering/LegoBuilder';
+import { PuzzleBuilder } from './components/interactive/Engineering/PuzzleBuilder';
+import { ComputationalThinking } from './components/interactive/DigitalWorld/ComputationalThinking';
+import { CodingBasics } from './components/interactive/DigitalWorld/CodingBasics';
+import { DigitalSafety } from './components/interactive/DigitalWorld/DigitalSafety';
+import { ComputerBasics } from './components/interactive/DigitalWorld/ComputerBasics';
+
 // --- TYPES ---
-type Screen = 'age' | 'subjects' | 'list' | 'activity' | 'profiles' | 'portal';
+// Added 'dashboard' to the list
+type Screen = 'age' | 'subjects' | 'dashboard' | 'list' | 'activity' | 'profiles' | 'portal';
 
 function App() {
   const [screen, setScreen] = useState<Screen>('age');
   const [currentList, setCurrentList] = useState<string>('');
   const [currentActivityId, setCurrentActivityId] = useState<string>('');
   const [showHelp, setShowHelp] = useState(false);
+  const [currentWorld, setCurrentWorld] = useState('');
 
   const { setProfile, childName, childAge } = useProgressStore();
   const { currentProfileId, profiles, setCurrentProfile, addProfile } = useProfileStore();
@@ -97,7 +124,14 @@ function App() {
     setScreen('subjects');
   };
 
-  const handleSubjectSelect = (subjectId: string) => {
+  // World Select -> Go to Dashboard
+  const handleSubjectSelect = (worldId: string) => {
+    setCurrentWorld(worldId);
+    setScreen('dashboard');
+  };
+
+  // Dashboard Subject Select -> Go to Lesson List
+  const handleWorldSubjectSelect = (subjectId: string) => {
     setCurrentList(subjectId);
     setScreen('list');
   };
@@ -111,6 +145,8 @@ function App() {
     if (screen === 'activity') {
       setScreen('list');
     } else if (screen === 'list') {
+      setScreen('dashboard');
+    } else if (screen === 'dashboard') {
       setScreen('subjects');
     } else if (screen === 'subjects') {
       setScreen('age');
@@ -150,12 +186,11 @@ function App() {
       case 'VocabularyBuilder': return ['Look at the word and emoji.', 'Listen to the pronunciation.', 'Tap "Next Word" to learn more!'];
       case 'GoldenBeads': return ['Use the + and - buttons.', 'Build the target number.', 'Click "Check Answer" to see if you are right!'];
       case 'AbacusWidget': return ['Click the beads to move them.', 'Heaven beads (top) = 5. Earth beads (bottom) = 1.', 'Use the Quiz mode to test your skills!'];
-      case 'ScienceLab': return ['Pick an experiment.', 'Follow the steps.', 'Read the conclusion at the end!'];
       default: return ['Select an activity and start learning!'];
     }
   };
 
-  // --- MASTER CURRICULUM REGISTRY (ALL NEW COMPONENTS ADDED) ---
+  // --- MASTER CURRICULUM REGISTRY ---
   const getCurriculumForAge = (): Record<string, LessonItem[]> => {
     return {
       'english': [
@@ -187,9 +222,13 @@ function App() {
         { id: '2', lessonId: '2', title: 'Physics Lab', description: '50 Physics Experiments', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'PhysicsLab' },
         { id: '3', lessonId: '3', title: 'Chemistry Lab', description: '50 Chemistry Experiments', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'ChemistryLab' },
       ],
-      'vocabulary': [
-        { id: '1', lessonId: '1', title: 'Word Explorer', description: 'Learn 100+ words with meanings', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'VocabularyBuilder' },
-        { id: '2', lessonId: '2', title: 'Story Time', description: 'Read interactive stories', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'StoryReader' },
+      'writing': [
+        { id: '1', lessonId: '1', title: 'Letter Tracing', description: 'Trace A-Z', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'LetterTracing' },
+        { id: '2', lessonId: '2', title: 'Number Tracing', description: 'Trace 0-9', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'NumberTracing' },
+        { id: '3', lessonId: '3', title: 'Word Builder', description: 'Build words', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'WordBuilder' },
+        { id: '4', lessonId: '4', title: 'Sight Words', description: 'Spell common words', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'SightWords' },
+        { id: '5', lessonId: '5', title: 'Creative Writing', description: 'Build stories', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'CreativeWriting' },
+        { id: '6', lessonId: '6', title: 'Handwriting', description: 'Write full words', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'HandwritingPractice' },
       ],
       'practical-life': [
         { id: '1', lessonId: '1', title: 'Washing Hands', description: 'Learn the 7 steps', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'WashingHands' },
@@ -225,13 +264,40 @@ function App() {
         { id: '6', lessonId: '6', title: 'Rough & Smooth', description: 'Feel the difference', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'RoughSmooth' },
         { id: '7', lessonId: '7', title: 'Thermic Tablets', description: 'Touch temperatures', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'ThermicTablets' },
       ],
-      'writing': [
-        { id: '1', lessonId: '1', title: 'Letter Tracing', description: 'Trace A-Z', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'LetterTracing' },
-        { id: '2', lessonId: '2', title: 'Number Tracing', description: 'Trace 0-9', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'NumberTracing' },
-        { id: '3', lessonId: '3', title: 'Word Builder', description: 'Build words', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'WordBuilder' },
-        { id: '4', lessonId: '4', title: 'Sight Words', description: 'Spell common words', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'SightWords' },
-        { id: '5', lessonId: '5', title: 'Creative Writing', description: 'Build stories', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'CreativeWriting' },
-        { id: '6', lessonId: '6', title: 'Handwriting', description: 'Write full words', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'HandwritingPractice' },
+      'logic': [
+        { id: '1', lessonId: '1', title: 'Pattern Recognizer', description: 'What comes next?', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'PatternRecognizer' },
+        { id: '2', lessonId: '2', title: 'Spatial Puzzle', description: 'Guide the robot', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'SpatialPuzzle' },
+        { id: '3', lessonId: '3', title: 'Classification Sorter', description: 'Sort objects', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'ClassificationSorter' },
+        { id: '4', lessonId: '4', title: 'Memory Match', description: 'Find matching pairs', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'MemoryMatch' },
+      ],
+      'engineering': [
+        { id: '1', lessonId: '1', title: 'Bridge Builder', description: 'Build a strong bridge', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'BridgeBuilder' },
+        { id: '2', lessonId: '2', title: 'Tower Builder', description: 'Build a tall tower', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'TowerBuilder' },
+        { id: '3', lessonId: '3', title: 'Animal Crossing', description: 'Help the fox cross', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'AnimalCrossing' },
+        { id: '4', lessonId: '4', title: 'Lego Builder', description: 'Build 50 Lego towers', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'LegoBuilder' },
+        { id: '5', lessonId: '5', title: 'Puzzle Builder', description: 'Assemble 50 puzzles', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'PuzzleBuilder' },
+      ],
+      'arabic': [
+        { id: '1', lessonId: '1', title: 'Arabic Letters', description: 'Learn the alphabet', tag: 'Level 1', tagColor: 'border-emerald-500 text-emerald-400', status: 'available', componentId: 'ArabicLetters' },
+        { id: '2', lessonId: '2', title: 'Arabic Words', description: 'Learn basic vocabulary', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'ArabicWords' },
+        { id: '3', lessonId: '3', title: 'Arabic Reading', description: 'Read with Harakat', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'ArabicReading' },
+      ],
+      'wellbeing': [
+        { id: '1', lessonId: '1', title: 'Emotion Match', description: 'Recognize different feelings', tag: 'Level 1', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'EmotionMatch' },
+        { id: '2', lessonId: '2', title: 'Feelings Journal', description: 'Express how you feel', tag: 'Level 1', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'FeelingsJournal' },
+        { id: '3', lessonId: '3', title: 'Empathy Builder', description: 'Understanding others', tag: 'Level 2', tagColor: 'border-teal-500 text-teal-400', status: 'available', componentId: 'EmpathyBuilder' },
+        { id: '4', lessonId: '4', title: 'Calm Corner', description: 'Practice mindful breathing', tag: 'Level 2', tagColor: 'border-teal-500 text-teal-400', status: 'available', componentId: 'CalmCorner' },
+      ],
+      'robotics': [
+        { id: '1', lessonId: '1', title: 'Robot Explorer', description: 'Learn robot parts & sensors', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'RobotExplorer' },
+        { id: '2', lessonId: '2', title: 'Robot Sequencer', description: 'Program the robot to move', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'Sequencer' },
+        { id: '3', lessonId: '3', title: 'Robot Designer', description: 'Build a robot within budget', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'RobotDesigner' },
+      ],
+      'digital': [
+        { id: '1', lessonId: '1', title: 'Computational Thinking', description: 'Solve code puzzles', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'ComputationalThinking' },
+        { id: '2', lessonId: '2', title: 'Coding Basics', description: 'Program the robot', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'CodingBasics' },
+        { id: '3', lessonId: '3', title: 'Digital Safety', description: 'Stay safe online', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'DigitalSafety' },
+        { id: '4', lessonId: '4', title: 'Computer Basics', description: 'Learn computer parts', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'ComputerBasics' },
       ],
     };
   };
@@ -256,7 +322,7 @@ function App() {
         {screen !== 'age' && (
           <div className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 py-3 bg-app-bg/90 backdrop-blur-md border-b border-app-border">
             <div className="min-w-[60px]">
-              {(screen === 'list' || screen === 'activity') && (
+              {(screen === 'list' || screen === 'activity' || screen === 'dashboard') && (
                 <BackButton onClick={handleBack} label="Back" />
               )}
             </div>
@@ -282,12 +348,21 @@ function App() {
         {screen === 'age' && <AgeGate onSelect={handleAgeSelect} />}
         {screen === 'subjects' && <LearningWorld onSelect={handleSubjectSelect} />}
 
+        {/* NEW: Dashboard (Inside a World) */}
+        {screen === 'dashboard' && (
+          <SubjectDashboard 
+            worldId={currentWorld} 
+            onSelect={handleWorldSubjectSelect} 
+            onBack={() => setScreen('subjects')}
+          />
+        )}
+
         {screen === 'list' && (
           <SubjectLessonList 
-            subjectName={currentList === 'practical-life' ? 'The Garden' : currentList === 'art' ? 'Art Studio' : currentList === 'sensorial' ? 'Sensorial Room' : currentList === 'geography' ? 'Globe Corner' : currentList === 'vocabulary' ? 'Library' : currentList === 'writing' ? 'Writing Studio' : currentList.charAt(0).toUpperCase() + currentList.slice(1)} 
+            subjectName={currentList === 'practical-life' ? 'The Garden' : currentList === 'art' ? 'Art Studio' : currentList === 'sensorial' ? 'Sensorial Room' : currentList === 'geography' ? 'Globe Corner' : currentList === 'writing' ? 'Writing Studio' : currentList === 'logic' ? 'Logic Lab' : currentList === 'engineering' ? 'Build Lab' : currentList === 'arabic' ? 'Arabic Language' : currentList === 'wellbeing' ? 'Wellbeing' : currentList.charAt(0).toUpperCase() + currentList.slice(1)} 
             lessons={getLessonsForSubject(currentList)} 
             onSelectLesson={handleLessonSelect} 
-            onBack={handleBack}
+            onBack={() => setScreen('dashboard')}
           />
         )}
 
@@ -301,15 +376,12 @@ function App() {
             </button>
 
             <div className="w-full flex justify-center">
-              {/* READING */}
               {currentActivityId === 'SentenceBuilder' && <SentenceBuilder onComplete={handleActivityComplete} />}
               {currentActivityId === 'SoundLottery' && <SoundLottery onComplete={handleActivityComplete} />}
               {currentActivityId === 'VocabularyBuilder' && <VocabularyBuilder onComplete={handleActivityComplete} />}
               {currentActivityId === 'WordFamilies' && <WordFamilies />}
               {currentActivityId === 'PhonicsBlender' && <PhonicsBlender />}
               {currentActivityId === 'StoryReader' && <StoryReader />}
-
-              {/* MATHS */}
               {currentActivityId === 'GoldenBeads' && <GoldenBeads onComplete={handleActivityComplete} />}
               {currentActivityId === 'NumberOperations' && <NumberOperations />}
               {currentActivityId === 'TracingNumbers' && <TracingNumbers />}
@@ -322,12 +394,9 @@ function App() {
               {currentActivityId === 'FractionsGame' && <FractionsGame />}
               {currentActivityId === 'MoneyGame' && <MoneyGame />}
               {currentActivityId === 'ClockGame' && <ClockGame />}
-              {/* SCIENCE */}
               {currentActivityId === 'BiologyLab' && <ScienceLab type="biology" />}
               {currentActivityId === 'PhysicsLab' && <ScienceLab type="physics" />}
               {currentActivityId === 'ChemistryLab' && <ScienceLab type="chemistry" />}
-
-              {/* WRITING */}
               {currentActivityId === 'TracingCanvas' && <TracingCanvas />}
               {currentActivityId === 'LetterTracing' && <LetterTracing />}
               {currentActivityId === 'NumberTracing' && <NumberTracing />}
@@ -335,16 +404,12 @@ function App() {
               {currentActivityId === 'SightWords' && <SightWords />}
               {currentActivityId === 'CreativeWriting' && <CreativeWriting />}
               {currentActivityId === 'HandwritingPractice' && <HandwritingPractice />}
-
-              {/* PRACTICAL LIFE */}
               {currentActivityId === 'WashingHands' && <WashingHands />}
               {currentActivityId === 'BrushingTeeth' && <BrushingTeeth />}
               {currentActivityId === 'SettingTable' && <SettingTable />}
               {currentActivityId === 'FoldingClothes' && <FoldingClothes />}
               {currentActivityId === 'TyingShoes' && <TyingShoes />}
               {currentActivityId === 'WateringPlants' && <WateringPlants />}
-
-              {/* SENSORIAL */}
               {currentActivityId === 'PinkTower' && <PinkTower />}
               {currentActivityId === 'BrownStair' && <BrownStair />}
               {currentActivityId === 'RedRods' && <RedRods />}
@@ -352,8 +417,6 @@ function App() {
               {currentActivityId === 'SoundBoxes' && <SoundBoxes />}
               {currentActivityId === 'RoughSmooth' && <RoughSmooth />}
               {currentActivityId === 'ThermicTablets' && <ThermicTablets />}
-
-              {/* GEOGRAPHY */}
               {currentActivityId === 'ContinentExplorer' && <ContinentExplorer />}
               {currentActivityId === 'Landforms' && <Landforms />}
               {currentActivityId === 'FlagMatch' && <FlagMatch />}
@@ -361,14 +424,35 @@ function App() {
               {currentActivityId === 'OceanExplorer' && <OceanExplorer />}
               {currentActivityId === 'NaturalWonders' && <NaturalWonders />}
               {currentActivityId === 'GlobeExplorer' && <GlobeExplorer />}
-
-              {/* ART */}
               {currentActivityId === 'ColorMixer' && <ColorMixer />}
               {currentActivityId === 'ShapesPainter' && <ShapesPainter />}
               {currentActivityId === 'DrawingCanvas' && <DrawingCanvas />}
               {currentActivityId === 'StickerBoard' && <StickerBoard />}
               {currentActivityId === 'PatternMaker' && <PatternMaker />}
               {currentActivityId === 'ArtGallery' && <ArtGallery />}
+              {currentActivityId === 'PatternRecognizer' && <PatternRecognizer />}
+              {currentActivityId === 'SpatialPuzzle' && <SpatialPuzzle />}
+              {currentActivityId === 'ClassificationSorter' && <ClassificationSorter />}
+              {currentActivityId === 'MemoryMatch' && <MemoryMatch />}
+              {currentActivityId === 'BridgeBuilder' && <BridgeBuilder />}
+              {currentActivityId === 'TowerBuilder' && <TowerBuilder />}
+              {currentActivityId === 'AnimalCrossing' && <AnimalCrossing />}
+              {currentActivityId === 'ArabicLetters' && <ArabicLetters />}
+              {currentActivityId === 'ArabicWords' && <ArabicWords />}
+              {currentActivityId === 'ArabicReading' && <ArabicReading />}
+              {currentActivityId === 'EmotionMatch' && <EmotionMatch />}
+              {currentActivityId === 'FeelingsJournal' && <FeelingsJournal />}
+              {currentActivityId === 'EmpathyBuilder' && <EmpathyBuilder />}
+              {currentActivityId === 'CalmCorner' && <CalmCorner />}
+              {currentActivityId === 'RobotExplorer' && <RobotExplorer />}
+              {currentActivityId === 'Sequencer' && <Sequencer />}
+              {currentActivityId === 'RobotDesigner' && <RobotDesigner />}
+              {currentActivityId === 'LegoBuilder' && <LegoBuilder />}
+              {currentActivityId === 'PuzzleBuilder' && <PuzzleBuilder />}
+              {currentActivityId === 'ComputationalThinking' && <ComputationalThinking />}
+              {currentActivityId === 'CodingBasics' && <CodingBasics />}
+              {currentActivityId === 'DigitalSafety' && <DigitalSafety />}
+              {currentActivityId === 'ComputerBasics' && <ComputerBasics />}
             </div>
             
             <HelpGuide 

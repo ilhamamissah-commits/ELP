@@ -1,4 +1,4 @@
-﻿import { BookOpen, Calculator, FlaskConical, Sigma, Layers, Leaf, Paintbrush, Blocks, Globe } from 'lucide-react';
+﻿import { BookOpen, Calculator, FlaskConical, Sigma, Layers, Leaf, Paintbrush, Blocks, Globe, BrainCircuit } from 'lucide-react';
 
 export interface WorldBuilding {
   id: string;
@@ -21,4 +21,5 @@ export const WORLD_BUILDINGS: WorldBuilding[] = [
   // --- NEW BUILDINGS ---
   { id: 'sensorial', label: 'Sensorial Room', icon: <Blocks size={32} />, x: 50, y: 15, color: 'bg-indigo-500' },
   { id: 'geography', label: 'Globe Corner', icon: <Globe size={32} />, x: 20, y: 55, color: 'bg-cyan-600' },
+  { id: 'logic', label: 'Logic Lab', icon: <BrainCircuit size={32} />, x: 35, y: 55, color: 'bg-teal-500' },
 ];
