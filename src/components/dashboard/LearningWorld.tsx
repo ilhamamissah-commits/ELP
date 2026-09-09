@@ -1,109 +1,203 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import {
+  BookOpen,
+  Calculator,
+  FlaskConical,
+  Monitor,
+  Globe2,
+  Palette,
+  HeartPulse,
+  Wallet,
+  Brain,
+  Sprout,
+  Moon,
+  Puzzle,
+} from 'lucide-react';
 
-// Define 7 Learning Worlds (With their existing subjects)
-const LEARNING_WORLDS = [
+interface LearningAcademy {
+  id: string;
+  title: string;
+  icon: React.ElementType;
+  color: string;
+  description: string;
+}
+
+const LEARNING_ACADEMIES: LearningAcademy[] = [
   {
-    id: 'language', 
-    title: 'Language World', 
-    emoji: '📚', 
-    color: 'bg-blue-500',
-    description: 'English, Arabic, Reading & Stories'
+    id: 'language',
+    title: 'Language & Literacy',
+    icon: BookOpen,
+    color: 'bg-blue-500/20 text-blue-300 border-blue-400/20',
+    description: 'English, Arabic, reading & writing',
   },
   {
-    id: 'maths', 
-    title: 'Math World', 
-    emoji: '🔢', 
-    color: 'bg-yellow-500',
-    description: 'Numbers, Operations, Abacus & Logic'
+    id: 'maths',
+    title: 'Mathematics & Thinking',
+    icon: Calculator,
+    color: 'bg-yellow-500/20 text-yellow-300 border-yellow-400/20',
+    description: 'Mathematics, abacus & logic',
   },
   {
-    id: 'stem', 
-    title: 'STEM World', 
-    emoji: '🔬', 
-    color: 'bg-red-500',
-    description: 'Science, Engineering & Robotics'
+    id: 'stem',
+    title: 'STEM Discovery',
+    icon: FlaskConical,
+    color: 'bg-red-500/20 text-red-300 border-red-400/20',
+    description: 'Science, engineering & robotics',
   },
   {
-    id: 'digital', 
-    title: 'Digital World', 
-    emoji: '💻', 
-    color: 'bg-purple-500',
-    description: 'Computing, AI & Digital Safety'
+    id: 'digital',
+    title: 'Computing & Digital',
+    icon: Monitor,
+    color: 'bg-purple-500/20 text-purple-300 border-purple-400/20',
+    description: 'Computing, digital literacy & media',
   },
   {
-    id: 'creative', 
-    title: 'Creative World', 
-    emoji: '🎨', 
-    color: 'bg-pink-500',
-    description: 'Art & Design'
+    id: 'global',
+    title: 'Global Perspectives',
+    icon: Globe2,
+    color: 'bg-teal-500/20 text-teal-300 border-teal-400/20',
+    description: 'Geography, history & civics',
   },
   {
-    id: 'global', 
-    title: 'Global World', 
-    emoji: '🌍', 
-    color: 'bg-teal-500',
-    description: 'Geography, Cultures & Humanities'
+    id: 'creative',
+    title: 'Creative Arts',
+    icon: Palette,
+    color: 'bg-pink-500/20 text-pink-300 border-pink-400/20',
+    description: 'Art, design & creative studio',
   },
   {
-    id: 'life', 
-    title: 'Life World', 
-    emoji: '❤️', 
-    color: 'bg-emerald-500',
-    description: 'Wellbeing, Practical Life & PE'
-  }
+    id: 'life',
+    title: 'Life & Wellbeing',
+    icon: HeartPulse,
+    color: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/20',
+    description: 'Practical life, health & PE',
+  },
+  {
+    id: 'finance',
+    title: 'Financial Literacy',
+    icon: Wallet,
+    color: 'bg-amber-600/20 text-amber-300 border-amber-500/20',
+    description: 'Money, saving & budgeting',
+  },
+  {
+    id: 'thinking',
+    title: 'Thinking Lab',
+    icon: Brain,
+    color: 'bg-cyan-500/20 text-cyan-300 border-cyan-400/20',
+    description: 'Critical thinking, memory & puzzles',
+  },
+  {
+    id: 'nature',
+    title: 'Nature & Agriculture',
+    icon: Sprout,
+    color: 'bg-green-600/20 text-green-300 border-green-500/20',
+    description: 'Plants, soil & farming',
+  },
+  {
+    id: 'islamic',
+    title: 'Islamic Studies',
+    icon: Moon,
+    color: 'bg-indigo-600/20 text-indigo-300 border-indigo-500/20',
+    description: 'Aqeedah, Seerah & Adab',
+  },
+  {
+    id: 'montessori',
+    title: 'Montessori Foundations',
+    icon: Puzzle,
+    color: 'bg-orange-500/20 text-orange-300 border-orange-500/20',
+    description: 'Practical life, sensorial & independence',
+  },
 ];
 
 interface LearningWorldProps {
-  onSelect: (subjectId: string) => void;
+  onSelect: (academyId: string) => void;
 }
 
-export const LearningWorld: React.FC<LearningWorldProps> = ({ onSelect }) => {
+export const LearningWorld: React.FC<LearningWorldProps> = ({
+  onSelect,
+}) => {
   return (
-    <div className="w-full max-w-4xl mx-auto relative flex-1 min-h-[70vh] bg-gradient-to-br from-[#0b132b] via-[#1a1a3e] to-[#0d1f1f] rounded-3xl overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col items-center justify-center py-8 px-4">
-      
-      {/* Background */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute w-96 h-96 bg-blue-500/10 rounded-full blur-[100px] top-[-10%] left-[-10%] animate-pulse" />
-        <div className="absolute w-96 h-96 bg-purple-500/10 rounded-full blur-[100px] bottom-[-10%] right-[-10%] animate-pulse delay-1000" />
-        {[...Array(20)].map((_, i) => (
-          <div 
-            key={i} 
-            className="absolute bg-white rounded-full opacity-20 animate-float"
-            style={{ 
-              width: Math.random() * 3 + 1 + 'px', 
-              height: Math.random() * 3 + 1 + 'px',
-              left: Math.random() * 100 + '%', 
-              top: Math.random() * 100 + '%',
-              animationDuration: Math.random() * 10 + 10 + 's',
-              animationDelay: Math.random() * 5 + 's'
-            }}
-          />
-        ))}
+    <div className="relative flex min-h-[70vh] w-full max-w-6xl flex-1 flex-col items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-[#0b132b] px-4 py-10 shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
+
+      {/* Ambient background */}
+      <div
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+        aria-hidden="true"
+      >
+        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-blue-500/10 blur-[120px]" />
+        <div className="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-purple-500/10 blur-[120px]" />
+        <div className="absolute left-1/2 top-1/3 h-72 w-72 -translate-x-1/2 rounded-full bg-emerald-500/5 blur-[120px]" />
       </div>
 
-      <h2 className="relative z-10 text-3xl font-bold text-white mb-2">Choose Your Learning World</h2>
-      <p className="relative z-10 text-gray-400 mb-8">Tap a world to begin your adventure!</p>
+      {/* Header */}
+      <div className="relative z-10 mb-8 max-w-2xl text-center">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
+          Learning Environment
+        </p>
 
-      {/* 7 Learning Zones Grid */}
-      <div className="relative z-20 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full max-w-3xl">
-        {LEARNING_WORLDS.map((world, index) => (
-          <motion.button
-            key={world.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            whileHover={{ scale: 1.05, y: -5 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => onSelect(world.id)}
-            className={`${world.color} bg-opacity-20 border-2 border-white/10 hover:border-white/40 rounded-2xl p-4 flex flex-col items-center text-center transition-all`}
-          >
-            <span className="text-5xl mb-2">{world.emoji}</span>
-            <h3 className="text-white font-bold text-sm">{world.title}</h3>
-            <p className="text-gray-400 text-[10px] mt-1 leading-tight">{world.description}</p>
-          </motion.button>
-        ))}
+        <h2 className="text-3xl font-bold tracking-tight text-white md:text-4xl">
+          Choose an Academy
+        </h2>
+
+        <p className="mt-3 text-sm leading-relaxed text-gray-400 md:text-base">
+          Explore different areas of learning. Your progress in each academy
+          develops independently as your skills grow.
+        </p>
       </div>
+
+      {/* Academy Grid */}
+      <div className="relative z-10 grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 md:gap-4 lg:grid-cols-4">
+        {LEARNING_ACADEMIES.map((academy, index) => {
+          const Icon = academy.icon;
+
+          return (
+            <motion.button
+              key={academy.id}
+              type="button"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.35,
+                delay: index * 0.04,
+              }}
+              whileHover={{
+                y: -3,
+                scale: 1.015,
+              }}
+              whileTap={{
+                scale: 0.985,
+              }}
+              onClick={() => onSelect(academy.id)}
+              className={`group min-h-[150px] rounded-2xl border p-4 text-left transition-all duration-200 hover:border-white/30 hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ${academy.color}`}
+              aria-label={`Open ${academy.title} Academy`}
+            >
+              <div className="mb-4 flex items-start justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-black/20">
+                  <Icon className="h-6 w-6" strokeWidth={1.8} />
+                </div>
+
+                <span className="text-xs text-white/30 transition-colors group-hover:text-white/60">
+                  →
+                </span>
+              </div>
+
+              <h3 className="text-sm font-bold leading-tight text-white">
+                {academy.title}
+              </h3>
+
+              <p className="mt-2 text-[11px] leading-relaxed text-gray-400">
+                {academy.description}
+              </p>
+            </motion.button>
+          );
+        })}
+      </div>
+
+      {/* Footer note */}
+      <p className="relative z-10 mt-8 text-center text-xs text-gray-500">
+        Learning adapts to demonstrated ability — not age alone.
+      </p>
     </div>
   );
 };

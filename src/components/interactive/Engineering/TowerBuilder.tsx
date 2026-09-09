@@ -1,59 +1,384 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, RotateCcw } from 'lucide-react';
+import {
+  CheckCircle,
+  RotateCcw,
+  ArrowRight,
+  Blocks,
+  Star,
+} from 'lucide-react';
+
+type BlockColor = 'red' | 'blue' | 'yellow';
+
+type TowerBlock = {
+  id: number;
+  color: BlockColor;
+};
+
+const BLOCK_STYLES: Record<BlockColor, string> = {
+  red: 'bg-red-500 border-red-300',
+  blue: 'bg-blue-500 border-blue-300',
+  yellow: 'bg-yellow-400 border-yellow-200',
+};
+
+const BLOCK_LABELS: Record<BlockColor, string> = {
+  red: 'Red',
+  blue: 'Blue',
+  yellow: 'Yellow',
+};
+
+const MIN_BLOCKS = 6;
+const MIN_RED_BLOCKS = 1;
+const MAX_BLOCKS = 12;
 
 export const TowerBuilder: React.FC = () => {
-  const [blocks, setBlocks] = useState<number[]>([]);
+  const [blocks, setBlocks] = useState<TowerBlock[]>([]);
   const [tested, setTested] = useState(false);
   const [passed, setPassed] = useState(false);
-  const [redBlockAdded, setRedBlockAdded] = useState(false);
+  const [score, setScore] = useState(0);
+  const [attempts, setAttempts] = useState(0);
+  const [showHint, setShowHint] = useState(false);
 
-  const addBlock = (color: string) => {
+  const redCount = useMemo(
+    () => blocks.filter((block) => block.color === 'red').length,
+    [blocks]
+  );
+
+  const heightProgress = Math.min(
+    (blocks.length / MIN_BLOCKS) * 100,
+    100
+  );
+
+  const addBlock = (color: BlockColor) => {
+    if (blocks.length >= MAX_BLOCKS) return;
+
     setTested(false);
-    setBlocks([...blocks, blocks.length + 1]);
-    if (color === 'red') setRedBlockAdded(true);
+    setPassed(false);
+
+    setBlocks((previous) => [
+      ...previous,
+      {
+        id: Date.now() + Math.random(),
+        color,
+      },
+    ]);
   };
 
-  const handleReset = () => {
-    setBlocks([]); setTested(false); setPassed(false); setRedBlockAdded(false);
+  const removeBlock = () => {
+    if (blocks.length === 0) return;
+
+    setTested(false);
+    setPassed(false);
+
+    setBlocks((previous) => previous.slice(0, -1));
   };
 
   const handleTest = () => {
     setTested(true);
-    setPassed(blocks.length >= 5 && redBlockAdded);
+    setAttempts((previous) => previous + 1);
+
+    const hasEnoughBlocks = blocks.length >= MIN_BLOCKS;
+    const hasRedBlock = redCount >= MIN_RED_BLOCKS;
+
+    const success = hasEnoughBlocks && hasRedBlock;
+
+    setPassed(success);
+
+    if (success) {
+      setScore((previous) => previous + 10);
+    }
+  };
+
+  const handleReset = () => {
+    setBlocks([]);
+    setTested(false);
+    setPassed(false);
+    setAttempts(0);
+    setShowHint(false);
+  };
+
+  const nextChallenge = () => {
+    handleReset();
   };
 
   return (
     <div className="max-w-lg mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl text-center">
-      <h3 className="text-2xl font-bold text-white mb-2">🗼 Tower Builder</h3>
-      <p className="text-gray-400 text-sm mb-4">Build a tower taller than the red block! <br/> <span className="text-indigo-400">Use: 5+ blocks, 1 must be RED.</span></p>
+      {/* Header */}
+      <div className="flex justify-between items-start mb-2">
+        <div className="text-left">
+          <div className="flex items-center gap-2">
+            <Blocks className="w-6 h-6 text-indigo-400" />
 
-      <div className="flex flex-col-reverse items-center gap-1 mb-6 min-h-[150px] bg-[#1a1a1a] rounded-xl border border-gray-800 p-4">
-        {blocks.map((block, index) => (
+            <h3 className="text-2xl font-bold text-white">
+              Tower Builder
+            </h3>
+          </div>
+
+          <p className="text-gray-400 text-sm mt-1">
+            Build a tall tower that follows the engineering rules.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-1 text-yellow-400 text-sm font-bold">
+          <Star className="w-4 h-4" />
+          {score}
+        </div>
+      </div>
+
+      {/* Mission */}
+      <div className="bg-gray-900/70 border border-gray-800 rounded-xl p-4 mt-5 mb-5 text-left">
+        <p className="text-indigo-300 text-xs uppercase tracking-wide font-semibold mb-2">
+          Engineering Challenge
+        </p>
+
+        <p className="text-white font-semibold mb-2">
+          Build a stable tower.
+        </p>
+
+        <ul className="space-y-1 text-sm text-gray-400">
+          <li>• Use at least {MIN_BLOCKS} blocks.</li>
+          <li>• Include at least one red block.</li>
+          <li>• Build from the bottom upward.</li>
+          <li>• Try to make your tower tall and balanced.</li>
+        </ul>
+      </div>
+
+      {/* Progress */}
+      <div className="mb-5">
+        <div className="flex justify-between text-xs text-gray-400 mb-2">
+          <span>Tower height</span>
+
+          <span>
+            {blocks.length} / {MIN_BLOCKS} blocks
+          </span>
+        </div>
+
+        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
           <motion.div
-            key={block}
-            initial={{ scale: 0 }} animate={{ scale: 1 }}
-            className={`w-20 h-6 rounded-sm ${index === 3 ? 'bg-red-500' : index % 2 === 0 ? 'bg-blue-500' : 'bg-yellow-400'}`}
+            className="h-full bg-indigo-500"
+            animate={{ width: `${heightProgress}%` }}
+            transition={{ duration: 0.3 }}
           />
-        ))}
+        </div>
       </div>
 
-      <div className="flex justify-center gap-3 mb-6">
-        <button onClick={() => addBlock('red')} className="px-4 py-2 bg-red-600 rounded-lg text-white font-bold hover:bg-red-500">Red Block</button>
-        <button onClick={() => addBlock('blue')} className="px-4 py-2 bg-blue-600 rounded-lg text-white font-bold hover:bg-blue-500">Blue Block</button>
-        <button onClick={() => addBlock('yellow')} className="px-4 py-2 bg-yellow-600 rounded-lg text-white font-bold hover:bg-yellow-500">Yellow Block</button>
+      {/* Tower Area */}
+      <div className="relative min-h-[300px] bg-[#111111] rounded-xl border-2 border-dashed border-gray-700 p-4 mb-5 overflow-hidden">
+        {/* Ground */}
+        <div className="absolute bottom-4 left-4 right-4 h-2 bg-gray-700 rounded-full" />
+
+        {/* Tower */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col-reverse items-center gap-1">
+          <AnimatePresence initial={false}>
+            {blocks.map((block) => (
+              <motion.div
+                key={block.id}
+                initial={{
+                  scale: 0,
+                  opacity: 0,
+                  y: -20,
+                }}
+                animate={{
+                  scale: 1,
+                  opacity: 1,
+                  y: 0,
+                }}
+                exit={{
+                  scale: 0,
+                  opacity: 0,
+                }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 400,
+                  damping: 20,
+                }}
+                className={`w-24 h-7 rounded-md border shadow-lg ${BLOCK_STYLES[block.color]}`}
+              >
+                <span className="sr-only">
+                  {BLOCK_LABELS[block.color]} block
+                </span>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+
+        {blocks.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-sm">
+            Your tower will appear here.
+          </div>
+        )}
       </div>
 
-      <div className="flex justify-between gap-4">
-        <button onClick={handleReset} className="px-4 py-2 bg-gray-800 rounded-lg text-gray-300"><RotateCcw className="w-4 h-4" /></button>
-        <button onClick={handleTest} className="flex-1 py-2 bg-indigo-600 rounded-lg text-white font-bold hover:bg-indigo-500">Test Tower</button>
+      {/* Tower Stats */}
+      <div className="grid grid-cols-3 gap-2 mb-5">
+        <div className="bg-gray-900 rounded-lg p-2">
+          <p className="text-xs text-gray-500">Blocks</p>
+          <p className="text-white font-bold">
+            {blocks.length}
+          </p>
+        </div>
+
+        <div className="bg-gray-900 rounded-lg p-2">
+          <p className="text-xs text-gray-500">Red</p>
+          <p className="text-red-400 font-bold">
+            {redCount}
+          </p>
+        </div>
+
+        <div className="bg-gray-900 rounded-lg p-2">
+          <p className="text-xs text-gray-500">Attempts</p>
+          <p className="text-white font-bold">
+            {attempts}
+          </p>
+        </div>
       </div>
 
+      {/* Materials */}
+      <p className="text-gray-300 text-sm font-semibold mb-3">
+        Choose your building materials
+      </p>
+
+      <div className="flex justify-center gap-2 mb-4">
+        <button
+          onClick={() => addBlock('red')}
+          disabled={blocks.length >= MAX_BLOCKS}
+          className="px-4 py-2 bg-red-600 rounded-lg text-white font-bold hover:bg-red-500 disabled:opacity-40"
+        >
+          Red
+        </button>
+
+        <button
+          onClick={() => addBlock('blue')}
+          disabled={blocks.length >= MAX_BLOCKS}
+          className="px-4 py-2 bg-blue-600 rounded-lg text-white font-bold hover:bg-blue-500 disabled:opacity-40"
+        >
+          Blue
+        </button>
+
+        <button
+          onClick={() => addBlock('yellow')}
+          disabled={blocks.length >= MAX_BLOCKS}
+          className="px-4 py-2 bg-yellow-500 rounded-lg text-gray-900 font-bold hover:bg-yellow-400 disabled:opacity-40"
+        >
+          Yellow
+        </button>
+      </div>
+
+      {/* Controls */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={removeBlock}
+          disabled={blocks.length === 0}
+          className="flex-1 py-2 bg-gray-800 rounded-lg text-gray-300 font-semibold hover:bg-gray-700 disabled:opacity-40"
+        >
+          Remove
+        </button>
+
+        <button
+          onClick={handleReset}
+          className="px-4 py-2 bg-gray-800 rounded-lg text-gray-300 hover:bg-gray-700"
+          aria-label="Reset tower"
+        >
+          <RotateCcw className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={handleTest}
+          disabled={blocks.length === 0}
+          className="flex-[2] py-2 bg-indigo-600 rounded-lg text-white font-bold hover:bg-indigo-500 disabled:opacity-40"
+        >
+          Test Tower
+        </button>
+      </div>
+
+      {/* Hint */}
+      <div className="mb-4">
+        <button
+          onClick={() =>
+            setShowHint((previous) => !previous)
+          }
+          className="text-xs text-indigo-300 hover:text-indigo-200"
+        >
+          {showHint ? 'Hide hint' : 'Need a hint?'}
+        </button>
+
+        {showHint && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mt-2 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg"
+          >
+            <p className="text-sm text-indigo-200">
+              A strong tower needs a good foundation. Build
+              carefully from the bottom and think about balance
+              as the tower gets taller.
+            </p>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Test Result */}
       {tested && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`mt-4 p-3 rounded-xl font-bold ${passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-          {passed ? <><CheckCircle className="w-5 h-5 inline mr-1" /> Amazing! Your tower is super tall!</> : 'Not tall enough. Add more blocks and make sure there is a red one!'}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mt-4 p-4 rounded-xl ${
+            passed
+              ? 'bg-green-500/20 text-green-400'
+              : 'bg-red-500/20 text-red-400'
+          }`}
+        >
+          {passed ? (
+            <>
+              <CheckCircle className="w-5 h-5 inline mr-1" />
+
+              <span className="font-bold">
+                Excellent engineering!
+              </span>
+
+              <p className="text-sm mt-2">
+                Your tower meets the challenge requirements.
+                You used planning, construction and testing.
+              </p>
+
+              <button
+                onClick={nextChallenge}
+                className="mt-3 px-4 py-2 bg-green-600 rounded-lg text-white font-semibold hover:bg-green-500"
+              >
+                Try Again
+                <ArrowRight className="w-4 h-4 inline ml-1" />
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="font-bold">
+                Your tower needs improvement.
+              </p>
+
+              <p className="text-sm mt-1">
+                {blocks.length < MIN_BLOCKS
+                  ? `You need at least ${MIN_BLOCKS} blocks.`
+                  : redCount < MIN_RED_BLOCKS
+                  ? 'Add at least one red block.'
+                  : 'Check your design and try testing again.'}
+              </p>
+            </>
+          )}
         </motion.div>
       )}
+
+      {/* Learning Point */}
+      <div className="mt-5 pt-4 border-t border-gray-800">
+        <p className="text-xs text-gray-500 uppercase tracking-wide">
+          What Engineers Learn
+        </p>
+
+        <p className="text-sm text-gray-400 mt-1">
+          Engineers think about <strong className="text-gray-300">
+            stability, foundations, materials and constraints
+          </strong> when designing structures.
+        </p>
+      </div>
     </div>
   );
 };

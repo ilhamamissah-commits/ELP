@@ -1,78 +1,931 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { RotateCcw } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ArrowRight,
+  CheckCircle,
+  Eye,
+  FlaskConical,
+  Lightbulb,
+  Palette,
+  RotateCcw,
+  Sparkles,
+  Target,
+} from 'lucide-react';
+
+type ColorStage =
+  | 'observe'
+  | 'explore'
+  | 'mix'
+  | 'predict'
+  | 'compare'
+  | 'create'
+  | 'reflect'
+  | 'master';
+
+interface ColorChoice {
+  id: string;
+  name: string;
+  value: string;
+}
+
+const PRIMARY_COLORS: ColorChoice[] = [
+  {
+    id: 'red',
+    name: 'Red',
+    value: '#ef4444',
+  },
+  {
+    id: 'yellow',
+    name: 'Yellow',
+    value: '#facc15',
+  },
+  {
+    id: 'blue',
+    name: 'Blue',
+    value: '#3b82f6',
+  },
+];
+
+const MIXING_EXAMPLES = [
+  {
+    id: 'orange',
+    name: 'Orange',
+    first: 'red',
+    second: 'yellow',
+    result: '#f97316',
+  },
+  {
+    id: 'green',
+    name: 'Green',
+    first: 'yellow',
+    second: 'blue',
+    result: '#22c55e',
+  },
+  {
+    id: 'purple',
+    name: 'Purple',
+    first: 'red',
+    second: 'blue',
+    result: '#a855f7',
+  },
+];
+
+const STAGE_LABELS: Record<ColorStage, string> = {
+  observe: 'Observe',
+  explore: 'Explore',
+  mix: 'Mix',
+  predict: 'Predict',
+  compare: 'Compare',
+  create: 'Create',
+  reflect: 'Reflect',
+  master: 'Master',
+};
+
+const STAGES: ColorStage[] = [
+  'observe',
+  'explore',
+  'mix',
+  'predict',
+  'compare',
+  'create',
+  'reflect',
+  'master',
+];
+
+const getMixedColor = (first: string, second: string): string => {
+  const color1 = PRIMARY_COLORS.find((color) => color.id === first);
+  const color2 = PRIMARY_COLORS.find((color) => color.id === second);
+
+  if (!color1 || !color2) return '#6b7280';
+
+  const hexToRgb = (hex: string) => {
+    const value = hex.replace('#', '');
+
+    return {
+      r: parseInt(value.substring(0, 2), 16),
+      g: parseInt(value.substring(2, 4), 16),
+      b: parseInt(value.substring(4, 6), 16),
+    };
+  };
+
+  const rgb1 = hexToRgb(color1.value);
+  const rgb2 = hexToRgb(color2.value);
+
+  const r = Math.round((rgb1.r + rgb2.r) / 2);
+  const g = Math.round((rgb1.g + rgb2.g) / 2);
+  const b = Math.round((rgb1.b + rgb2.b) / 2);
+
+  return `rgb(${r}, ${g}, ${b})`;
+};
 
 export const ColorMixer: React.FC = () => {
-  const [red, setRed] = useState(0);
-  const [green, setGreen] = useState(0);
-  const [blue, setBlue] = useState(0);
+  const [stage, setStage] = useState<ColorStage>('observe');
 
-  const mixedColor = `rgb(${red}, ${green}, ${blue})`;
+  const [firstColor, setFirstColor] = useState<string | null>(null);
+  const [secondColor, setSecondColor] = useState<string | null>(null);
 
-  const handleReset = () => {
-    setRed(0);
-    setGreen(0);
-    setBlue(0);
+  const [prediction, setPrediction] = useState<string | null>(null);
+  const [reflection, setReflection] = useState('');
+
+  const [attempts, setAttempts] = useState(0);
+  const [experimentCount, setExperimentCount] = useState(0);
+
+  const stageIndex = STAGES.indexOf(stage);
+
+  const progress = useMemo(
+    () => ((stageIndex + 1) / STAGES.length) * 100,
+    [stageIndex]
+  );
+
+  const mixedColor = useMemo(() => {
+    if (!firstColor || !secondColor) return '#1f2937';
+
+    return getMixedColor(firstColor, secondColor);
+  }, [firstColor, secondColor]);
+
+  const mixedName = useMemo(() => {
+    if (!firstColor || !secondColor) return null;
+
+    const match = MIXING_EXAMPLES.find(
+      (example) =>
+        (example.first === firstColor && example.second === secondColor) ||
+        (example.first === secondColor && example.second === firstColor)
+    );
+
+    return match?.name ?? 'A new colour';
+  }, [firstColor, secondColor]);
+
+  const reset = () => {
+    setStage('observe');
+    setFirstColor(null);
+    setSecondColor(null);
+    setPrediction(null);
+    setReflection('');
+    setAttempts(0);
+    setExperimentCount(0);
   };
 
-  const handleColor = (color: 'red' | 'green' | 'blue', value: number) => {
-    if (color === 'red') setRed(value);
-    if (color === 'green') setGreen(value);
-    if (color === 'blue') setBlue(value);
+  const chooseFirstColor = (color: string) => {
+    setFirstColor(color);
+    setSecondColor(null);
+    setPrediction(null);
   };
+
+  const chooseSecondColor = (color: string) => {
+    if (!firstColor || color === firstColor) return;
+
+    setSecondColor(color);
+    setPrediction(null);
+    setExperimentCount((previous) => previous + 1);
+  };
+
+  const handlePrediction = (colorName: string) => {
+    setPrediction(colorName);
+    setAttempts((previous) => previous + 1);
+  };
+
+  const predictionIsCorrect =
+    prediction?.toLowerCase() === mixedName?.toLowerCase();
 
   return (
-    <div className="max-w-md mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl text-center">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-white">🎨 Color Mixer</h2>
-        <button onClick={handleReset} className="p-2 bg-gray-800 rounded-lg text-gray-300 hover:bg-gray-700">
-          <RotateCcw className="w-4 h-4" />
-        </button>
-      </div>
+    <div className="max-w-3xl mx-auto">
+      <div className="bg-app-card rounded-3xl border border-app-border shadow-xl overflow-hidden">
+        {/* Header */}
+        <div className="p-6 border-b border-app-border">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-indigo-400 text-sm font-semibold mb-1">
+                <Palette className="w-4 h-4" />
+                Creative Arts
+              </div>
 
-      <p className="text-gray-400 text-sm mb-6">Slide to mix your perfect color!</p>
+              <h2 className="text-2xl font-bold text-white">
+                Colour Mixer
+              </h2>
 
-      <div className="mb-6 flex items-center justify-center">
-        <div 
-          className="w-40 h-40 rounded-full border-4 border-white/20 shadow-2xl transition-all duration-300" 
-          style={{ backgroundColor: mixedColor }}
-        />
-      </div>
+              <p className="text-gray-400 text-sm mt-1">
+                Explore what happens when colours come together.
+              </p>
+            </div>
 
-      <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <span className="text-red-400 font-bold w-12">🔴 Red</span>
-          <input 
-            type="range" min="0" max="255" value={red}
-            onChange={(e) => handleColor('red', Number(e.target.value))}
-            className="flex-1 accent-red-500"
-          />
-          <span className="text-white w-8 text-right">{red}</span>
+            <button
+              type="button"
+              onClick={reset}
+              className="p-2.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition"
+              aria-label="Reset colour mixer"
+            >
+              <RotateCcw className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Progress */}
+          <div className="mt-5">
+            <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+              <span>
+                Step {stageIndex + 1} of {STAGES.length}
+              </span>
+
+              <span className="text-indigo-400">
+                {STAGE_LABELS[stage]}
+              </span>
+            </div>
+
+            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+              <motion.div
+                className="h-full bg-indigo-500 rounded-full"
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+          </div>
+
+          {/* Progression */}
+          <div className="flex flex-wrap gap-2 mt-4">
+            {STAGES.map((stageName, index) => (
+              <div
+                key={stageName}
+                className={`px-2.5 py-1 rounded-full text-xs border ${
+                  index <= stageIndex
+                    ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300'
+                    : 'bg-gray-900 border-gray-800 text-gray-600'
+                }`}
+              >
+                {index + 1}. {STAGE_LABELS[stageName]}
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <span className="text-green-400 font-bold w-12">🟢 Green</span>
-          <input 
-            type="range" min="0" max="255" value={green}
-            onChange={(e) => handleColor('green', Number(e.target.value))}
-            className="flex-1 accent-green-500"
-          />
-          <span className="text-white w-8 text-right">{green}</span>
-        </div>
+        <div className="p-6">
+          <AnimatePresence mode="wait">
+            {/* OBSERVE */}
+            {stage === 'observe' && (
+              <motion.div
+                key="observe"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center"
+              >
+                <Eye className="w-9 h-9 text-indigo-400 mx-auto mb-4" />
 
-        <div className="flex items-center gap-4">
-          <span className="text-blue-400 font-bold w-12">🔵 Blue</span>
-          <input 
-            type="range" min="0" max="255" value={blue}
-            onChange={(e) => handleColor('blue', Number(e.target.value))}
-            className="flex-1 accent-blue-500"
-          />
-          <span className="text-white w-8 text-right">{blue}</span>
+                <h3 className="text-xl font-bold text-white">
+                  Observe the colours
+                </h3>
+
+                <p className="text-gray-400 text-sm mt-2 max-w-xl mx-auto">
+                  Look carefully at the three primary colours. They are
+                  important starting points for exploring many other colours.
+                </p>
+
+                <div className="grid grid-cols-3 gap-4 mt-7">
+                  {PRIMARY_COLORS.map((color) => (
+                    <div
+                      key={color.id}
+                      className="p-4 bg-gray-900 border border-gray-800 rounded-2xl"
+                    >
+                      <div
+                        className="w-20 h-20 rounded-full mx-auto shadow-lg"
+                        style={{ backgroundColor: color.value }}
+                      />
+
+                      <p className="text-white font-semibold mt-3">
+                        {color.name}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setStage('explore')}
+                  className="mt-7 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold inline-flex items-center gap-2"
+                >
+                  Explore the Colours
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+
+            {/* EXPLORE */}
+            {stage === 'explore' && (
+              <motion.div
+                key="explore"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="text-center">
+                  <Sparkles className="w-9 h-9 text-indigo-400 mx-auto mb-4" />
+
+                  <h3 className="text-xl font-bold text-white">
+                    Explore each colour
+                  </h3>
+
+                  <p className="text-gray-400 text-sm mt-2">
+                    Tap a colour to explore it.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mt-7">
+                  {PRIMARY_COLORS.map((color) => (
+                    <motion.button
+                      key={color.id}
+                      type="button"
+                      whileHover={{ y: -4 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => chooseFirstColor(color.id)}
+                      className="p-5 rounded-2xl bg-gray-900 border border-gray-800 hover:border-indigo-500/40 transition"
+                    >
+                      <div
+                        className="w-24 h-24 rounded-full mx-auto shadow-xl"
+                        style={{ backgroundColor: color.value }}
+                      />
+
+                      <p className="text-white font-bold mt-4">
+                        {color.name}
+                      </p>
+                    </motion.button>
+                  ))}
+                </div>
+
+                {firstColor && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-6 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-center"
+                  >
+                    <p className="text-indigo-300 text-sm">
+                      You explored{' '}
+                      <strong>
+                        {
+                          PRIMARY_COLORS.find(
+                            (color) => color.id === firstColor
+                          )?.name
+                        }
+                      </strong>
+                      .
+                    </p>
+                  </motion.div>
+                )}
+
+                <div className="text-center mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setStage('mix')}
+                    className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold inline-flex items-center gap-2"
+                  >
+                    Start Mixing
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* MIX */}
+            {stage === 'mix' && (
+              <motion.div
+                key="mix"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="text-center">
+                  <FlaskConical className="w-9 h-9 text-indigo-400 mx-auto mb-4" />
+
+                  <h3 className="text-xl font-bold text-white">
+                    Mix two colours
+                  </h3>
+
+                  <p className="text-gray-400 text-sm mt-2">
+                    Choose two different colours and see what happens.
+                  </p>
+                </div>
+
+                {/* Colour choices */}
+                <div className="grid grid-cols-3 gap-3 mt-7">
+                  {PRIMARY_COLORS.map((color) => {
+                    const selected =
+                      firstColor === color.id || secondColor === color.id;
+
+                    return (
+                      <button
+                        key={color.id}
+                        type="button"
+                        onClick={() => {
+                          if (!firstColor) {
+                            chooseFirstColor(color.id);
+                          } else if (!secondColor) {
+                            chooseSecondColor(color.id);
+                          }
+                        }}
+                        disabled={selected}
+                        className={`p-4 rounded-2xl border transition ${
+                          selected
+                            ? 'border-indigo-400 bg-indigo-500/10'
+                            : 'border-gray-800 bg-gray-900 hover:border-gray-700'
+                        }`}
+                      >
+                        <div
+                          className="w-16 h-16 rounded-full mx-auto"
+                          style={{ backgroundColor: color.value }}
+                        />
+
+                        <p className="text-white font-semibold mt-2">
+                          {color.name}
+                        </p>
+
+                        {selected && (
+                          <p className="text-xs text-indigo-400 mt-1">
+                            Selected
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Selected colours */}
+                <div className="mt-7 flex items-center justify-center gap-5">
+                  <div
+                    className="w-24 h-24 rounded-full border-4 border-white/10 shadow-xl"
+                    style={{
+                      backgroundColor:
+                        firstColor
+                          ? PRIMARY_COLORS.find(
+                              (color) => color.id === firstColor
+                            )?.value
+                          : '#1f2937',
+                    }}
+                  />
+
+                  <span className="text-gray-500 text-2xl">+</span>
+
+                  <div
+                    className="w-24 h-24 rounded-full border-4 border-white/10 shadow-xl"
+                    style={{
+                      backgroundColor:
+                        secondColor
+                          ? PRIMARY_COLORS.find(
+                              (color) => color.id === secondColor
+                            )?.value
+                          : '#1f2937',
+                    }}
+                  />
+
+                  <span className="text-gray-500 text-2xl">=</span>
+
+                  <motion.div
+                    animate={{
+                      scale: secondColor ? [0.9, 1.05, 1] : 1,
+                    }}
+                    className="w-28 h-28 rounded-full border-4 border-white/20 shadow-2xl"
+                    style={{ backgroundColor: mixedColor }}
+                  />
+                </div>
+
+                {secondColor && (
+                  <div className="mt-6 text-center">
+                    <p className="text-gray-400 text-sm">
+                      Your mixed colour looks like:
+                    </p>
+
+                    <p className="text-2xl font-bold text-white mt-1">
+                      {mixedName}
+                    </p>
+                  </div>
+                )}
+
+                {firstColor && secondColor && (
+                  <div className="text-center mt-6">
+                    <button
+                      type="button"
+                      onClick={() => setStage('predict')}
+                      className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold inline-flex items-center gap-2"
+                    >
+                      Make a Prediction
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* PREDICT */}
+            {stage === 'predict' && (
+              <motion.div
+                key="predict"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center"
+              >
+                <Target className="w-9 h-9 text-indigo-400 mx-auto mb-4" />
+
+                <h3 className="text-xl font-bold text-white">
+                  Predict the result
+                </h3>
+
+                <p className="text-gray-400 text-sm mt-2">
+                  Before looking at the answer, what colour do you think you
+                  made?
+                </p>
+
+                <div className="mt-7 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {['Orange', 'Green', 'Purple'].map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => handlePrediction(color)}
+                      className={`p-4 rounded-xl border transition ${
+                        prediction === color
+                          ? predictionIsCorrect
+                            ? 'border-green-500 bg-green-500/10'
+                            : 'border-amber-500 bg-amber-500/10'
+                          : 'border-gray-800 bg-gray-900 hover:border-gray-700'
+                      }`}
+                    >
+                      <div
+                        className="w-12 h-12 rounded-full mx-auto mb-2"
+                        style={{
+                          backgroundColor:
+                            color === 'Orange'
+                              ? '#f97316'
+                              : color === 'Green'
+                                ? '#22c55e'
+                                : '#a855f7',
+                        }}
+                      />
+
+                      <span className="text-white font-semibold">
+                        {color}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {prediction && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`mt-5 p-4 rounded-xl border ${
+                      predictionIsCorrect
+                        ? 'bg-green-500/10 border-green-500/20 text-green-300'
+                        : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+                    }`}
+                  >
+                    {predictionIsCorrect
+                      ? 'Excellent prediction! Your observation helped you anticipate the result.'
+                      : `Good thinking! The colour you made is ${mixedName}. Try noticing which two colours created it.`}
+                  </motion.div>
+                )}
+
+                {prediction && (
+                  <button
+                    type="button"
+                    onClick={() => setStage('compare')}
+                    className="mt-6 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold inline-flex items-center gap-2"
+                  >
+                    Compare Colours
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
+              </motion.div>
+            )}
+
+            {/* COMPARE */}
+            {stage === 'compare' && (
+              <motion.div
+                key="compare"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="text-center">
+                  <Eye className="w-9 h-9 text-indigo-400 mx-auto mb-4" />
+
+                  <h3 className="text-xl font-bold text-white">
+                    Compare your colours
+                  </h3>
+
+                  <p className="text-gray-400 text-sm mt-2">
+                    Look at the starting colours and the colour they made.
+                  </p>
+                </div>
+
+                <div className="mt-7 grid md:grid-cols-3 gap-4">
+                  <div className="p-5 bg-gray-900 border border-gray-800 rounded-2xl text-center">
+                    <div
+                      className="w-24 h-24 rounded-full mx-auto"
+                      style={{
+                        backgroundColor:
+                          PRIMARY_COLORS.find(
+                            (color) => color.id === firstColor
+                          )?.value,
+                      }}
+                    />
+
+                    <p className="text-gray-400 text-sm mt-3">
+                      First colour
+                    </p>
+                  </div>
+
+                  <div className="p-5 bg-gray-900 border border-gray-800 rounded-2xl text-center">
+                    <div
+                      className="w-24 h-24 rounded-full mx-auto"
+                      style={{
+                        backgroundColor:
+                          PRIMARY_COLORS.find(
+                            (color) => color.id === secondColor
+                          )?.value,
+                      }}
+                    />
+
+                    <p className="text-gray-400 text-sm mt-3">
+                      Second colour
+                    </p>
+                  </div>
+
+                  <div className="p-5 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl text-center">
+                    <div
+                      className="w-24 h-24 rounded-full mx-auto"
+                      style={{ backgroundColor: mixedColor }}
+                    />
+
+                    <p className="text-indigo-300 text-sm mt-3">
+                      New colour
+                    </p>
+
+                    <p className="text-white font-bold mt-1">
+                      {mixedName}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 p-4 bg-gray-900 rounded-xl border border-gray-800 text-center">
+                  <p className="text-gray-300 text-sm">
+                    Two colours can combine to create a different colour.
+                    Artists can experiment with these relationships to make
+                    new visual choices.
+                  </p>
+                </div>
+
+                <div className="text-center mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setStage('create')}
+                    className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold inline-flex items-center gap-2"
+                  >
+                    Create a Colour
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* CREATE */}
+            {stage === 'create' && (
+              <motion.div
+                key="create"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="text-center">
+                  <Sparkles className="w-9 h-9 text-indigo-400 mx-auto mb-4" />
+
+                  <h3 className="text-xl font-bold text-white">
+                    Experiment freely
+                  </h3>
+
+                  <p className="text-gray-400 text-sm mt-2">
+                    Choose another pair and see what you can discover.
+                  </p>
+                </div>
+
+                <div className="grid sm:grid-cols-3 gap-4 mt-7">
+                  {MIXING_EXAMPLES.map((example) => (
+                    <button
+                      key={example.id}
+                      type="button"
+                      onClick={() => {
+                        setFirstColor(example.first);
+                        setSecondColor(example.second);
+                        setExperimentCount((previous) => previous + 1);
+                      }}
+                      className="p-5 bg-gray-900 border border-gray-800 rounded-2xl hover:border-indigo-500/40 transition"
+                    >
+                      <div className="flex justify-center items-center gap-2">
+                        <div
+                          className="w-10 h-10 rounded-full"
+                          style={{
+                            backgroundColor:
+                              PRIMARY_COLORS.find(
+                                (color) => color.id === example.first
+                              )?.value,
+                          }}
+                        />
+
+                        <span className="text-gray-500">+</span>
+
+                        <div
+                          className="w-10 h-10 rounded-full"
+                          style={{
+                            backgroundColor:
+                              PRIMARY_COLORS.find(
+                                (color) => color.id === example.second
+                              )?.value,
+                          }}
+                        />
+                      </div>
+
+                      <div className="mt-4">
+                        <span className="text-white font-bold">
+                          {example.name}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-6 text-center">
+                  <p className="text-xs text-gray-600">
+                    Experiments made: {experimentCount}
+                  </p>
+                </div>
+
+                <div className="text-center mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setStage('reflect')}
+                    className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold inline-flex items-center gap-2"
+                  >
+                    Reflect on Your Experiment
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* REFLECT */}
+            {stage === 'reflect' && (
+              <motion.div
+                key="reflect"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="text-center">
+                  <Lightbulb className="w-9 h-9 text-indigo-400 mx-auto mb-4" />
+
+                  <h3 className="text-xl font-bold text-white">
+                    Think like an artist
+                  </h3>
+
+                  <p className="text-gray-400 text-sm mt-2">
+                    Tell us about your colour experiment.
+                  </p>
+                </div>
+
+                <div className="mt-7 space-y-5">
+                  <div>
+                    <label
+                      htmlFor="colour-reflection"
+                      className="block text-sm font-semibold text-gray-300 mb-2"
+                    >
+                      Which colour combination did you enjoy?
+                    </label>
+
+                    <textarea
+                      id="colour-reflection"
+                      value={reflection}
+                      onChange={(event) =>
+                        setReflection(event.target.value)
+                      }
+                      placeholder="I liked..."
+                      className="w-full min-h-[120px] bg-gray-950 border border-gray-800 rounded-xl p-4 text-white placeholder:text-gray-600 resize-none outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-6 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <Lightbulb className="w-5 h-5 text-indigo-400 mt-0.5 shrink-0" />
+
+                    <p className="text-sm text-gray-300">
+                      Artists often experiment. There does not have to be
+                      only one “right” colour choice.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-center mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setStage('master')}
+                    className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold inline-flex items-center gap-2"
+                  >
+                    Complete Activity
+                    <CheckCircle className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* MASTER */}
+            {stage === 'master' && (
+              <motion.div
+                key="master"
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center"
+              >
+                <CheckCircle className="w-14 h-14 text-green-400 mx-auto mb-4" />
+
+                <h3 className="text-2xl font-bold text-white">
+                  Colour exploration complete
+                </h3>
+
+                <p className="text-gray-400 mt-2 max-w-lg mx-auto">
+                  You explored colour relationships, made predictions,
+                  experimented, and reflected on your creative choices.
+                </p>
+
+                <div className="mt-7 grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+                  {[
+                    ['Observe', 'Noticed colour differences'],
+                    ['Mix', 'Combined colours'],
+                    ['Predict', 'Made a prediction'],
+                    ['Reflect', 'Thought about choices'],
+                  ].map(([title, description]) => (
+                    <div
+                      key={title}
+                      className="p-4 bg-gray-900 border border-gray-800 rounded-xl"
+                    >
+                      <CheckCircle className="w-4 h-4 text-green-400 mb-2" />
+
+                      <p className="text-white text-sm font-semibold">
+                        {title}
+                      </p>
+
+                      <p className="text-xs text-gray-600 mt-1">
+                        {description}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {reflection.trim() && (
+                  <div className="mt-6 p-5 bg-gray-900 border border-gray-800 rounded-2xl">
+                    <p className="text-xs uppercase tracking-wider text-gray-600">
+                      Artist reflection
+                    </p>
+
+                    <p className="text-gray-300 italic mt-2">
+                      “{reflection.trim()}”
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-6 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                  <p className="text-sm text-indigo-300">
+                    Experiments completed: {experimentCount}
+                  </p>
+
+                  <p className="text-xs text-gray-500 mt-1">
+                    Prediction attempts: {attempts}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="mt-6 px-5 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-semibold inline-flex items-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Explore Again
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
-      <div className="mt-6 text-white text-sm font-bold bg-gray-800 p-3 rounded-xl">
-        RGB: ({red}, {green}, {blue})
+      {/* Learning framework */}
+      <div className="mt-5 p-5 bg-app-card border border-app-border rounded-2xl">
+        <div className="flex items-start gap-3">
+          <Palette className="w-5 h-5 text-indigo-400 mt-0.5 shrink-0" />
+
+          <div>
+            <p className="text-sm font-semibold text-white">
+              Art learning progression
+            </p>
+
+            <p className="text-xs text-gray-500 mt-1">
+              Observe → Explore → Mix → Predict → Compare → Create → Reflect
+              → Master
+            </p>
+
+            <p className="text-xs text-gray-600 mt-2 leading-relaxed">
+              This activity develops colour recognition, visual observation,
+              prediction, experimentation, creative decision-making,
+              vocabulary, and reflection.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

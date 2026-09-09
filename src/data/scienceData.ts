@@ -1,170 +1,2186 @@
-export interface Experiment {
-  id: string;
-  title: string;
-  iconName: string; // Just the icon name as a string
-  color: string;
-  bgColor: string;
-  description: string;
-  level: number;
-  steps: string[];
-  conclusion: string;
+// src/data/scienceData.ts
+
+export type ScienceDifficulty = "Easy" | "Medium" | "Hard";
+
+export type ScienceSkill =
+  | "Observation"
+  | "Classification"
+  | "Life Processes"
+  | "Plants"
+  | "Animals"
+  | "Human Body"
+  | "Habitats"
+  | "Ecosystems"
+  | "Forces"
+  | "Motion"
+  | "Energy"
+  | "Light"
+  | "Sound"
+  | "Magnetism"
+  | "Heat"
+  | "Matter"
+  | "Materials"
+  | "Mixtures"
+  | "Solutions"
+  | "Changes"
+  | "Scientific Method"
+  | "Problem Solving"
+  | "Measurement"
+  | "Cause and Effect";
+
+export interface ScienceQuestion {
+  question: string;
+  options: string[];
+  answer: number;
 }
 
+export interface Experiment {
+  id: number;
+  title: string;
+  description: string;
+  level: number;
+  difficulty: ScienceDifficulty;
+  skill: ScienceSkill;
+
+  iconName: string;
+  color: string;
+  bgColor: string;
+
+  question: string;
+  objective: string;
+
+  materials: string[];
+
+  prediction?: ScienceQuestion;
+
+  steps: string[];
+
+  observation?: ScienceQuestion;
+
+  challenge?: ScienceQuestion;
+
+  explanation: string;
+
+  conclusion: string;
+
+  keyLearning: string[];
+}
+
+/* =========================================================
+   BIOLOGY
+   ========================================================= */
+
 export const BIOLOGY_EXPERIMENTS: Experiment[] = [
-  { id: 'bio-1', title: 'Plant Life Cycle', iconName: 'Leaf', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10', description: 'How does a tiny seed become a big plant?', level: 1, steps: ['Place the seed in soil.', 'Water it daily.', 'Watch it sprout!', 'It grows into a plant.'], conclusion: 'Plants need soil, water, and sunlight to grow!' },
-  { id: 'bio-2', title: 'My Amazing Heart', iconName: 'Activity', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'What does your heart do all day?', level: 1, steps: ['Feel your heartbeat.', 'Run in place.', 'Feel it beat faster.', 'Take deep breaths.'], conclusion: 'Your heart pumps blood to give your body energy!' },
-  { id: 'bio-3', title: '5 Senses', iconName: 'Dna', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'How do we experience the world?', level: 1, steps: ['See a flower.', 'Hear a bird.', 'Smell a lemon.', 'Touch a soft blanket.'], conclusion: 'We learn about the world using our eyes, ears, nose, skin, and tongue!' },
-  { id: 'bio-4', title: 'Living vs Non-Living', iconName: 'Bug', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'What is alive and what is not?', level: 1, steps: ['Look at a rock.', 'Look at a dog.', 'Does the rock grow?', 'Does the dog grow?'], conclusion: 'Living things grow, eat, breathe, and move!' },
-  { id: 'bio-5', title: 'Animal Habitats', iconName: 'Home', color: 'text-teal-400', bgColor: 'bg-teal-500/10', description: 'Where do animals live?', level: 1, steps: ['A fish lives in water.', 'A lion lives in the savanna.', 'A bear lives in the woods.', 'Animals need the right home.'], conclusion: 'Animals live in places where they can find food and shelter!' },
-  { id: 'bio-6', title: 'Frog Life Cycle', iconName: 'Bug', color: 'text-cyan-400', bgColor: 'bg-cyan-500/10', description: 'From egg to frog!', level: 2, steps: ['Frog lays eggs.', 'Eggs become tadpoles.', 'Tadpoles grow legs.', 'They become frogs!'], conclusion: 'Frogs go through amazing changes as they grow!' },
-  { id: 'bio-7', title: 'Butterfly Metamorphosis', iconName: 'Flower2', color: 'text-pink-400', bgColor: 'bg-pink-500/10', description: 'The most magical change!', level: 2, steps: ['A caterpillar eats.', 'It makes a cocoon.', 'It rests inside.', 'A butterfly emerges!'], conclusion: 'Caterpillars transform into butterflies through metamorphosis!' },
-  { id: 'bio-8', title: 'Parts of a Flower', iconName: 'Flower2', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'What makes a flower a flower?', level: 2, steps: ['Petals are colorful.', 'The stem holds it up.', 'Roots drink water.', 'The flower makes seeds.'], conclusion: 'Flowers have different parts that help them grow and reproduce!' },
-  { id: 'bio-9', title: 'Healthy Eating', iconName: 'Apple', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'Foods that make you strong!', level: 2, steps: ['Fruits give vitamins.', 'Vegetables give fiber.', 'Protein builds muscle.', 'Water keeps you hydrated.'], conclusion: 'Eating a variety of healthy foods helps your body grow strong!' },
-  { id: 'bio-10', title: 'My Skeleton', iconName: 'Bone', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'The frame of your body!', level: 2, steps: ['Bones hold you up.', 'Your skull protects your brain.', 'Your ribs protect your heart.', 'Bones help you move.'], conclusion: 'Your skeleton gives your body shape and protects your organs!' },
-  { id: 'bio-11', title: 'The Brain', iconName: 'Brain', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'Your body’s computer!', level: 3, steps: ['The brain thinks.', 'It controls movement.', 'It stores memories.', 'It is always working.'], conclusion: 'Your brain controls everything your body does!' },
-  { id: 'bio-12', title: 'The Lungs', iconName: 'Wind', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'How do you breathe?', level: 3, steps: ['You breathe in air.', 'Your lungs fill up.', 'Oxygen goes to blood.', 'You breathe out CO2.'], conclusion: 'Your lungs take in oxygen and remove carbon dioxide from your body!' },
-  { id: 'bio-13', title: 'Food Chains', iconName: 'Magnet', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'Who eats who?', level: 3, steps: ['The sun gives energy.', 'Plants make food.', 'Rabbits eat plants.', 'Foxes eat rabbits.'], conclusion: 'Energy moves through an ecosystem from the sun to plants to animals!' },
-  { id: 'bio-14', title: 'The Ocean', iconName: 'Waves', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Explore the deep blue sea!', level: 3, steps: ['Ocean covers most of Earth.', 'Fish live in the water.', 'Corals build reefs.', 'It is full of life!'], conclusion: 'The ocean is home to millions of plant and animal species!' },
-  { id: 'bio-15', title: 'The Rainforest', iconName: 'TreePine', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'The most diverse place on Earth!', level: 3, steps: ['It is warm and wet.', 'Many trees grow there.', 'Lots of animals live there.', 'It produces lots of oxygen.'], conclusion: 'Rainforests are essential for global biodiversity and climate!' },
-  { id: 'bio-16', title: 'The Desert', iconName: 'Sun', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'Where it is hot and dry!', level: 3, steps: ['It gets very little rain.', 'Cacti store water.', 'Camels survive heat.', 'Animals are nocturnal.'], conclusion: 'Desert plants and animals have special adaptations to survive the heat!' },
-  { id: 'bio-17', title: 'The Arctic', iconName: 'Snowflake', color: 'text-cyan-400', bgColor: 'bg-cyan-500/10', description: 'The frozen land!', level: 3, steps: ['It is freezing cold.', 'Ice covers the ground.', 'Polar bears live there.', 'Animals have thick fur.'], conclusion: 'Arctic animals are adapted to survive extreme cold!' },
-  { id: 'bio-18', title: 'The Human Body', iconName: 'Heart', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'A complex machine!', level: 4, steps: ['It has many systems.', 'The heart pumps blood.', 'The lungs breathe.', 'The brain thinks.'], conclusion: 'Your body is made of systems that work together to keep you alive!' },
-  { id: 'bio-19', title: 'The Muscles', iconName: 'Activity', color: 'text-rose-400', bgColor: 'bg-rose-500/10', description: 'How do you move?', level: 4, steps: ['Muscles pull bones.', 'They contract.', 'They relax.', 'They let you move.'], conclusion: 'Muscles work in pairs to help you move your body!' },
-  { id: 'bio-20', title: 'The Digestive System', iconName: 'Droplets', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'How your body uses food!', level: 4, steps: ['Food enters your mouth.', 'Your stomach breaks it down.', 'Your intestines absorb it.', 'Waste leaves the body.'], conclusion: 'Your digestive system breaks down food into nutrients your body can use!' },
-  { id: 'bio-21', title: 'The Blood', iconName: 'Droplets', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'Your body’s delivery system!', level: 4, steps: ['Blood carries oxygen.', 'It carries nutrients.', 'It fights infection.', 'It is red and liquid.'], conclusion: 'Blood transports essential materials throughout your body!' },
-  { id: 'bio-22', title: 'The Immune System', iconName: 'Shield', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'How you fight germs!', level: 4, steps: ['Germs enter your body.', 'White blood cells attack.', 'You get a fever.', 'You get better!'], conclusion: 'Your immune system protects you from harmful germs and viruses!' },
-  { id: 'bio-23', title: 'The Nervous System', iconName: 'Brain', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'Your body’s messenger!', level: 4, steps: ['Your brain sends signals.', 'Nerves carry them.', 'You feel and react.', 'It happens instantly!'], conclusion: 'Your nervous system sends messages between your brain and body!' },
-  { id: 'bio-24', title: 'Endangered Species', iconName: 'Heart', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'Animals that need our help!', level: 5, steps: ['Some animals are rare.', 'They lose their homes.', 'People hunt them.', 'We must protect them.'], conclusion: 'Conservation is crucial to protect endangered animals from extinction!' },
-  { id: 'bio-25', title: 'Ecosystems', iconName: 'Leaf', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10', description: 'A community of life!', level: 5, steps: ['Living and non-living things.', 'They interact.', 'They share resources.', 'They form an ecosystem.'], conclusion: 'Ecosystems are balanced communities where living and non-living things interact!' },
-  { id: 'bio-26', title: 'Photosynthesis', iconName: 'Sun', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'How plants make food!', level: 5, steps: ['Plants absorb sunlight.', 'They drink water.', 'They take in CO2.', 'They make sugar!'], conclusion: 'Plants use sunlight, water, and carbon dioxide to make their own food!' },
-  { id: 'bio-27', title: 'The Water Cycle', iconName: 'Waves', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Nature’s recycling!', level: 5, steps: ['Sun heats water.', 'Water evaporates.', 'It forms clouds.', 'It rains back down!'], conclusion: 'Water constantly cycles through evaporation, condensation, and precipitation!' },
-  { id: 'bio-28', title: 'Human Growth', iconName: 'Activity', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'From baby to adult!', level: 5, steps: ['You were a baby.', 'You grew into a child.', 'Your bones grow.', 'You become an adult.'], conclusion: 'Your body grows and changes throughout your life as you age!' },
-  { id: 'bio-29', title: 'Genetics Basics', iconName: 'Dna', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'Why you look like your family!', level: 5, steps: ['You have genes.', 'Genes come from parents.', 'They make you unique.', 'They determine traits.'], conclusion: 'Genes are the instructions inside your cells that make you who you are!' },
-  { id: 'bio-30', title: 'Microorganisms', iconName: 'Microscope', color: 'text-teal-400', bgColor: 'bg-teal-500/10', description: 'Tiny living things!', level: 5, steps: ['Bacteria are tiny.', 'Some are good.', 'Some cause illness.', 'We use them for food.'], conclusion: 'Microorganisms are so small they can only be seen with a microscope!' },
-  { id: 'bio-31', title: 'Animal Adaptations', iconName: 'Bug', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'How animals survive!', level: 5, steps: ['Camels store water.', 'Chameleons change color.', 'Bears hibernate.', 'Animals adapt to survive.'], conclusion: 'Animals have unique adaptations to survive in their environments!' },
-  { id: 'bio-32', title: 'Plant Adaptations', iconName: 'Sprout', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'How plants survive!', level: 5, steps: ['Cacti store water.', 'Ferns love shade.', 'Some plants eat bugs.', 'Plants adapt to their home.'], conclusion: 'Plants have specialized structures to survive in their specific environments!' },
-  { id: 'bio-33', title: 'Habitats', iconName: 'Home', color: 'text-teal-400', bgColor: 'bg-teal-500/10', description: 'Where animals belong!', level: 5, steps: ['Animals have homes.', 'They are called habitats.', 'They need food and shelter.', 'They protect them.'], conclusion: 'Animals live in habitats that provide their basic needs!' },
-  { id: 'bio-34', title: 'Food Webs', iconName: 'Magnet', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'Complex connections!', level: 5, steps: ['Plants are producers.', 'Animals are consumers.', 'Fungi are decomposers.', 'All are connected.'], conclusion: 'A food web shows the interconnected feeding relationships in an ecosystem!' },
-  { id: 'bio-35', title: 'The Bird', iconName: 'Bird', color: 'text-sky-400', bgColor: 'bg-sky-500/10', description: 'A flying vertebrate!', level: 5, steps: ['Birds have feathers.', 'They lay eggs.', 'They have hollow bones.', 'They can fly.'], conclusion: 'Birds are warm-blooded vertebrates that have feathers and lay eggs!' },
-  { id: 'bio-36', title: 'The Reptile', iconName: 'Bug', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'Cold-blooded animals!', level: 5, steps: ['Reptiles are cold-blooded.', 'They have scales.', 'They lay eggs.', 'Snakes are reptiles.'], conclusion: 'Reptiles are cold-blooded vertebrates with dry, scaly skin!' },
-  { id: 'bio-37', title: 'The Amphibian', iconName: 'Bug', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'Lives in water and on land!', level: 5, steps: ['Frogs live in water.', 'They also live on land.', 'They have wet skin.', 'They are amphibians.'], conclusion: 'Amphibians spend part of their lives in water and part on land!' },
-  { id: 'bio-38', title: 'The Fish', iconName: 'Fish', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Living underwater!', level: 5, steps: ['Fish live in water.', 'They have gills.', 'They have fins.', 'Fish are vertebrates.'], conclusion: 'Fish are aquatic vertebrates that breathe through gills!' },
-  { id: 'bio-39', title: 'The Mammal', iconName: 'Cat', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'Warm-blooded animals!', level: 5, steps: ['Mammals have fur.', 'They drink milk.', 'They are warm-blooded.', 'Humans are mammals.'], conclusion: 'Mammals are warm-blooded animals that have hair and feed milk to their young!' },
-  { id: 'bio-40', title: 'The Invertebrate', iconName: 'Bug', color: 'text-teal-400', bgColor: 'bg-teal-500/10', description: 'Animals without backbones!', level: 5, steps: ['Invertebrates have no bones.', 'Insects are invertebrates.', 'Spiders too.', 'Jellyfish too.'], conclusion: 'Invertebrates are animals that do not have a backbone!' },
-  { id: 'bio-41', title: 'The Vertebrate', iconName: 'Bone', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'Animals with backbones!', level: 5, steps: ['Vertebrates have bones.', 'Fish are vertebrates.', 'Birds are vertebrates.', 'Mammals are too.'], conclusion: 'Vertebrates are animals that have a backbone or spinal column!' },
-  { id: 'bio-42', title: 'The Natural World', iconName: 'Globe', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'The wonder of nature!', level: 5, steps: ['Nature is beautiful.', 'It has many species.', 'It is balanced.', 'We must protect it.'], conclusion: 'The natural world is an amazing, interconnected system!' },
-  { id: 'bio-43', title: 'Pollination', iconName: 'Flower2', color: 'text-pink-400', bgColor: 'bg-pink-500/10', description: 'How seeds are made!', level: 5, steps: ['Bees visit flowers.', 'They carry pollen.', 'Flowers make seeds.', 'New plants grow.'], conclusion: 'Pollination is essential for plants to reproduce and make seeds!' },
-  { id: 'bio-44', title: 'Seed Dispersal', iconName: 'Wind', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'How seeds travel!', level: 5, steps: ['Wind blows seeds.', 'Water carries seeds.', 'Animals drop seeds.', 'They grow far away.'], conclusion: 'Plants use various methods to spread their seeds to new locations!' },
-  { id: 'bio-45', title: 'The Environment', iconName: 'Globe', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10', description: 'Protecting our home!', level: 5, steps: ['We need clean air.', 'We need clean water.', 'We protect animals.', 'We reduce waste.'], conclusion: 'Protecting the environment is vital for the health of all living things!' },
-  { id: 'bio-46', title: 'Extinct Animals', iconName: 'Bone', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'Gone forever!', level: 5, steps: ['Dinosaurs are extinct.', 'They lived long ago.', 'They disappeared.', 'We learn from fossils.'], conclusion: 'Extinction means a species has disappeared forever!' },
-  { id: 'bio-47', title: 'Fossils', iconName: 'Bone', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'Clues from the past!', level: 5, steps: ['Fossils are old bones.', 'They are in rocks.', 'They tell us the past.', 'Scientists study them.'], conclusion: 'Fossils are the preserved remains of ancient living things!' },
-  { id: 'bio-48', title: 'Dinosaurs', iconName: 'Bone', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'The giant reptiles!', level: 5, steps: ['Dinosaurs were huge.', 'They lived long ago.', 'Some ate plants.', 'Some ate meat.'], conclusion: 'Dinosaurs were a diverse group of reptiles that lived millions of years ago!' },
-  { id: 'bio-49', title: 'The Human Heart', iconName: 'Heart', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'The strongest muscle!', level: 5, steps: ['Your heart beats.', 'It pumps blood.', 'It beats 100,000 times a day.', 'It never stops.'], conclusion: 'Your heart is a powerful muscle that never stops pumping blood!' },
-  { id: 'bio-50', title: 'Nature Walk', iconName: 'Leaf', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'Discover your local nature!', level: 5, steps: ['Look at trees.', 'Look at insects.', 'Look at the sky.', 'Explore and learn!'], conclusion: 'Nature is everywhere, just waiting to be discovered!' },
+  {
+    id: 101,
+    title: "Living or Non-Living?",
+    description:
+      "Discover some of the features that help us identify living things.",
+    level: 1,
+    difficulty: "Easy",
+    skill: "Classification",
+    iconName: "Leaf",
+    color: "text-emerald-400",
+    bgColor: "bg-emerald-500/10",
+
+    question: "How can we tell whether something is living?",
+
+    objective:
+      "Learn that living things carry out life processes such as growing, needing energy, responding to their surroundings and reproducing.",
+
+    materials: [
+      "Pictures of a plant",
+      "Picture of a rock",
+      "Picture of a cat",
+      "Picture of a toy car",
+    ],
+
+    prediction: {
+      question: "Which one is a living thing?",
+      options: ["A rock", "A cat", "A toy car"],
+      answer: 1,
+    },
+
+    steps: [
+      "Look carefully at each object.",
+      "Ask whether it grows or changes by itself.",
+      "Ask whether it needs energy or food.",
+      "Decide which objects are living.",
+    ],
+
+    observation: {
+      question: "Which feature is common to living things?",
+      options: [
+        "They can carry out life processes.",
+        "They are always made of metal.",
+        "They never change.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "A seed looks inactive. What can it become?",
+      options: ["A plant", "A stone", "A machine"],
+      answer: 0,
+    },
+
+    explanation:
+      "Living things carry out life processes. Plants and animals grow, use energy and respond to their surroundings.",
+
+    conclusion:
+      "Living things are different from non-living things because they carry out life processes.",
+
+    keyLearning: [
+      "Living things carry out life processes.",
+      "Plants and animals are living things.",
+      "Non-living objects do not carry out life processes.",
+    ],
+  },
+
+  {
+    id: 102,
+    title: "What Do Seeds Need?",
+    description:
+      "Investigate the conditions that help a seed begin growing.",
+    level: 1,
+    difficulty: "Easy",
+    skill: "Plants",
+    iconName: "Sprout",
+    color: "text-green-400",
+    bgColor: "bg-green-500/10",
+
+    question: "What conditions help a seed germinate?",
+
+    objective:
+      "Explore how water, air and suitable warmth help seeds begin to grow.",
+
+    materials: [
+      "Bean seeds",
+      "Cotton wool",
+      "Small containers",
+      "Water",
+    ],
+
+    prediction: {
+      question: "What is likely to happen to a dry seed?",
+      options: [
+        "It may not begin germinating.",
+        "It will immediately become a tree.",
+        "It will turn into an animal.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Place cotton wool inside two containers.",
+      "Place a seed in each container.",
+      "Add water to one container.",
+      "Leave the other container dry.",
+      "Observe both containers over several days.",
+    ],
+
+    observation: {
+      question: "Which seed is more likely to begin germinating?",
+      options: [
+        "The seed with suitable moisture.",
+        "The completely dry seed.",
+        "Neither seed can ever grow.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "What should you investigate next?",
+      options: [
+        "The effect of temperature or light.",
+        "The name of the container.",
+        "The colour of the table.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Seeds need suitable conditions, including moisture, air and an appropriate temperature, to germinate.",
+
+    conclusion:
+      "Seeds need suitable conditions before they can begin growing.",
+
+    keyLearning: [
+      "Seeds can germinate and develop into plants.",
+      "Water is important for germination.",
+      "Scientists can change one condition to investigate its effect.",
+    ],
+  },
+
+  {
+    id: 103,
+    title: "Parts of a Plant",
+    description:
+      "Explore the main parts of a flowering plant and their jobs.",
+    level: 2,
+    difficulty: "Easy",
+    skill: "Plants",
+    iconName: "Flower2",
+    color: "text-pink-400",
+    bgColor: "bg-pink-500/10",
+
+    question: "What jobs do different plant parts perform?",
+
+    objective:
+      "Identify roots, stems, leaves and flowers and understand their basic functions.",
+
+    materials: [
+      "A small plant",
+      "Plant diagram",
+      "Magnifying glass",
+    ],
+
+    prediction: {
+      question: "Which part usually takes in water from the soil?",
+      options: ["Roots", "Flowers", "Leaves"],
+      answer: 0,
+    },
+
+    steps: [
+      "Look at the whole plant.",
+      "Find the roots.",
+      "Find the stem.",
+      "Find the leaves.",
+      "Find the flowers if the plant has them.",
+    ],
+
+    observation: {
+      question: "Which part helps transport water through the plant?",
+      options: ["Stem", "Flower", "Seed"],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Why are leaves important?",
+      options: [
+        "They help the plant make food.",
+        "They turn into rocks.",
+        "They make the roots disappear.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Roots absorb water and minerals, stems support the plant and transport materials, and leaves help the plant make food using light.",
+
+    conclusion:
+      "Different parts of a plant have different jobs that help the plant survive.",
+
+    keyLearning: [
+      "Roots absorb water and minerals.",
+      "Stems support plants and transport materials.",
+      "Leaves help plants make food.",
+    ],
+  },
+
+  {
+    id: 104,
+    title: "Plants and Light",
+    description:
+      "Explore why light is important to green plants.",
+    level: 2,
+    difficulty: "Easy",
+    skill: "Plants",
+    iconName: "Sun",
+    color: "text-yellow-400",
+    bgColor: "bg-yellow-500/10",
+
+    question: "Why is light important to plants?",
+
+    objective:
+      "Discover that plants use light as part of the process of making food.",
+
+    materials: [
+      "Two similar plants",
+      "Water",
+      "A sunny location",
+      "A darker location",
+    ],
+
+    prediction: {
+      question: "What may happen to a plant kept without enough light?",
+      options: [
+        "Its growth may be affected.",
+        "It will become a rock.",
+        "It will never change at all.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Choose two similar plants.",
+      "Give both plants suitable water.",
+      "Place one where it receives light.",
+      "Place the other where it receives much less light.",
+      "Observe their growth over time.",
+    ],
+
+    observation: {
+      question: "What variable were you investigating?",
+      options: ["Light", "The plant's name", "The container's label"],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Why should both plants receive similar amounts of water?",
+      options: [
+        "To make the comparison fairer.",
+        "To make the plants identical.",
+        "Because water is not important.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Green plants use light to help make food. Changing the amount of light can affect plant growth.",
+
+    conclusion:
+      "Light is an important factor in the growth and life of green plants.",
+
+    keyLearning: [
+      "Plants need suitable light.",
+      "Green plants use light when making food.",
+      "Fair tests try to control other variables.",
+    ],
+  },
+
+  {
+    id: 105,
+    title: "Animal Groups",
+    description:
+      "Learn how scientists classify animals using observable features.",
+    level: 3,
+    difficulty: "Easy",
+    skill: "Animals",
+    iconName: "Bug",
+    color: "text-orange-400",
+    bgColor: "bg-orange-500/10",
+
+    question: "How can animals be grouped?",
+
+    objective:
+      "Use observable characteristics to classify animals into groups.",
+
+    materials: [
+      "Animal pictures",
+      "Classification cards",
+    ],
+
+    prediction: {
+      question: "Which animal is a mammal?",
+      options: ["Cat", "Fish", "Butterfly"],
+      answer: 0,
+    },
+
+    steps: [
+      "Look at each animal.",
+      "Observe its body covering.",
+      "Look at how it moves.",
+      "Look for features shared with other animals.",
+      "Group animals with similar characteristics.",
+    ],
+
+    observation: {
+      question: "Which feature is useful when classifying animals?",
+      options: ["Observable characteristics", "Their favourite food only", "Their names"],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Which pair belongs to the same broad animal group?",
+      options: ["Cat and dog", "Fish and butterfly", "Snake and whale"],
+      answer: 0,
+    },
+
+    explanation:
+      "Scientists classify animals by comparing characteristics such as body structures, coverings and ways of reproducing.",
+
+    conclusion:
+      "Classification helps scientists organize and compare living things.",
+
+    keyLearning: [
+      "Animals can be grouped by shared characteristics.",
+      "Classification helps organize scientific knowledge.",
+      "Scientists use evidence they can observe.",
+    ],
+  },
+
+  {
+    id: 106,
+    title: "Our Five Senses",
+    description:
+      "Investigate how our senses help us learn about the world.",
+    level: 3,
+    difficulty: "Easy",
+    skill: "Human Body",
+    iconName: "Eye",
+    color: "text-blue-400",
+    bgColor: "bg-blue-500/10",
+
+    question: "How do our senses help us investigate our surroundings?",
+
+    objective:
+      "Explore sight, hearing, smell, taste and touch as ways of receiving information.",
+
+    materials: [
+      "Safe textured objects",
+      "Sound source",
+      "Picture cards",
+    ],
+
+    prediction: {
+      question: "Which sense helps you notice a sound?",
+      options: ["Hearing", "Sight", "Touch"],
+      answer: 0,
+    },
+
+    steps: [
+      "Look at an object.",
+      "Listen to a safe sound.",
+      "Touch a safe textured object.",
+      "Notice a safe smell with adult guidance.",
+      "Discuss which sense provided each piece of information.",
+    ],
+
+    observation: {
+      question: "Which organ is mainly used for hearing?",
+      options: ["Ears", "Eyes", "Skin"],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Why do scientists use their senses during observations?",
+      options: [
+        "Senses provide information about what is happening.",
+        "Senses always give perfect measurements.",
+        "Senses replace every scientific instrument.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Our senses provide information about our surroundings. Scientific instruments can provide additional and more precise measurements.",
+
+    conclusion:
+      "Observation begins with noticing and describing what happens around us.",
+
+    keyLearning: [
+      "We have five main senses.",
+      "Different senses provide different information.",
+      "Scientific instruments can extend our ability to measure.",
+    ],
+  },
+
+  {
+    id: 107,
+    title: "Animal Habitats",
+    description:
+      "Discover how animals are suited to the places where they live.",
+    level: 4,
+    difficulty: "Medium",
+    skill: "Habitats",
+    iconName: "Bird",
+    color: "text-cyan-400",
+    bgColor: "bg-cyan-500/10",
+
+    question: "Why do different animals live in different habitats?",
+
+    objective:
+      "Understand that habitats provide organisms with resources and conditions needed for survival.",
+
+    materials: [
+      "Habitat pictures",
+      "Animal cards",
+    ],
+
+    prediction: {
+      question: "Where would a fish be best suited to live?",
+      options: ["Water", "Dry desert sand", "A tall building"],
+      answer: 0,
+    },
+
+    steps: [
+      "Choose an animal.",
+      "Identify its habitat.",
+      "Look for food and water sources.",
+      "Look for shelter.",
+      "Consider how its body helps it survive there.",
+    ],
+
+    observation: {
+      question: "What does a habitat provide?",
+      options: [
+        "Resources and suitable conditions for life.",
+        "Only sunlight.",
+        "Only shelter.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "What could happen if an animal loses an important part of its habitat?",
+      options: [
+        "Its survival may become more difficult.",
+        "Nothing could ever change.",
+        "It would automatically become a different species.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Habitats provide organisms with resources and conditions such as food, water, shelter and suitable environmental conditions.",
+
+    conclusion:
+      "Living things depend on their habitats for survival.",
+
+    keyLearning: [
+      "Habitats provide resources.",
+      "Animals have features that help them survive.",
+      "Changes to habitats can affect living things.",
+    ],
+  },
+
+  {
+    id: 108,
+    title: "Food Chains",
+    description:
+      "Explore how energy and food relationships connect living things.",
+    level: 5,
+    difficulty: "Medium",
+    skill: "Ecosystems",
+    iconName: "Apple",
+    color: "text-red-400",
+    bgColor: "bg-red-500/10",
+
+    question: "How are living things connected through food?",
+
+    objective:
+      "Build a simple food chain and identify producers and consumers.",
+
+    materials: [
+      "Plant cards",
+      "Animal cards",
+      "Arrow cards",
+    ],
+
+    prediction: {
+      question: "Which usually begins a simple food chain?",
+      options: ["A plant", "A lion", "A mushroom"],
+      answer: 0,
+    },
+
+    steps: [
+      "Choose a green plant.",
+      "Find an animal that eats the plant.",
+      "Find an animal that may eat that animal.",
+      "Arrange them in order.",
+      "Use arrows to show the feeding relationship.",
+    ],
+
+    observation: {
+      question: "What does the arrow in a food chain represent?",
+      options: [
+        "The direction of energy transfer through feeding.",
+        "The direction an animal walks.",
+        "The size of an animal.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "What could happen if a producer disappeared from a food chain?",
+      options: [
+        "Consumers depending on it could be affected.",
+        "Every animal would grow immediately.",
+        "Nothing could change.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Food chains show feeding relationships. Energy enters most ecosystems through producers such as green plants.",
+
+    conclusion:
+      "Living things in ecosystems are connected through feeding relationships.",
+
+    keyLearning: [
+      "Plants are important producers.",
+      "Animals can be consumers.",
+      "Changes to one part of a food chain can affect other organisms.",
+    ],
+  },
+
+  {
+    id: 109,
+    title: "Life Cycles",
+    description:
+      "Explore how living things change as they grow and develop.",
+    level: 6,
+    difficulty: "Medium",
+    skill: "Life Processes",
+    iconName: "Activity",
+    color: "text-purple-400",
+    bgColor: "bg-purple-500/10",
+
+    question: "How do living things change during their life cycles?",
+
+    objective:
+      "Compare stages in the life cycles of plants and animals.",
+
+    materials: [
+      "Life cycle cards",
+      "Plant growth pictures",
+      "Butterfly life cycle pictures",
+    ],
+
+    prediction: {
+      question: "What usually happens after a seed germinates?",
+      options: [
+        "The plant continues to grow.",
+        "It becomes a stone.",
+        "It disappears permanently.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Arrange the stages of a plant life cycle.",
+      "Arrange the stages of a butterfly life cycle.",
+      "Compare the two sequences.",
+      "Identify changes that occur as organisms develop.",
+    ],
+
+    observation: {
+      question: "What do life cycles show?",
+      options: [
+        "How organisms change and reproduce over time.",
+        "Only the colour of an organism.",
+        "Only where an organism lives.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Which sequence represents a plant life cycle?",
+      options: [
+        "Seed → seedling → mature plant → flowers/seeds",
+        "Adult → rock → seed",
+        "Flower → car → seed",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Living things pass through stages of growth and development. Different organisms have different life cycles.",
+
+    conclusion:
+      "Life cycles help us describe how organisms grow, develop and reproduce.",
+
+    keyLearning: [
+      "Living things change as they grow.",
+      "Different organisms have different life cycles.",
+      "Life cycles include growth and reproduction.",
+    ],
+  },
+
+  {
+    id: 110,
+    title: "Ecosystem Detective",
+    description:
+      "Investigate how plants, animals and the environment interact.",
+    level: 7,
+    difficulty: "Hard",
+    skill: "Ecosystems",
+    iconName: "Globe",
+    color: "text-emerald-400",
+    bgColor: "bg-emerald-500/10",
+
+    question: "How do living and non-living parts of an ecosystem interact?",
+
+    objective:
+      "Explore relationships between organisms and environmental factors.",
+
+    materials: [
+      "Ecosystem picture",
+      "Organism cards",
+      "Environment cards",
+    ],
+
+    prediction: {
+      question: "What could affect organisms in a habitat?",
+      options: [
+        "Food, water, temperature and shelter",
+        "Only their names",
+        "Nothing in their environment",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Identify living things in the ecosystem.",
+      "Identify non-living factors.",
+      "Find feeding relationships.",
+      "Identify resources organisms need.",
+      "Predict what could happen if one factor changes.",
+    ],
+
+    observation: {
+      question: "Which is a non-living environmental factor?",
+      options: ["Temperature", "Rabbit", "Tree"],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "If water becomes scarce, which organisms might be affected?",
+      options: [
+        "Many organisms in the ecosystem.",
+        "Only rocks.",
+        "No organisms.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Ecosystems contain living organisms and non-living environmental factors. These parts interact in many ways.",
+
+    conclusion:
+      "Ecosystems are interconnected systems in which organisms depend on resources and environmental conditions.",
+
+    keyLearning: [
+      "Ecosystems contain living and non-living components.",
+      "Organisms depend on environmental resources.",
+      "A change can affect connected parts of an ecosystem.",
+    ],
+  },
 ];
+
+/* =========================================================
+   PHYSICS
+   ========================================================= */
 
 export const PHYSICS_EXPERIMENTS: Experiment[] = [
-  { id: 'phy-1', title: 'Sink or Float?', iconName: 'Waves', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Why do some objects sink and others float?', level: 1, steps: ['Place a rock in water.', 'It sinks.', 'Place a leaf in water.', 'It floats.'], conclusion: 'Objects denser than water sink; lighter ones float!' },
-  { id: 'phy-2', title: 'Magnetic Force', iconName: 'Magnet', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'What sticks to a magnet?', level: 1, steps: ['Bring a magnet to a paperclip.', 'It sticks!', 'Bring it to a wood block.', 'It does not stick.'], conclusion: 'Magnets attract objects made of iron, steel, nickel, or cobalt!' },
-  { id: 'phy-3', title: 'Push and Pull', iconName: 'ArrowRight', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'The forces that move things!', level: 1, steps: ['Push a box.', 'It moves away.', 'Pull a box.', 'It moves toward you.'], conclusion: 'A push moves things away, and a pull moves things closer!' },
-  { id: 'phy-4', title: 'Gravity', iconName: 'ArrowDown', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'What makes things fall down?', level: 1, steps: ['Drop a ball.', 'It falls.', 'It falls faster.', 'Gravity pulls it down.'], conclusion: 'Gravity pulls everything toward the center of the Earth!' },
-  { id: 'phy-5', title: 'Light and Shadow', iconName: 'Sun', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'How shadows are formed!', level: 1, steps: ['Light shines.', 'An object blocks it.', 'A shadow appears.', 'Move the light, the shadow moves.'], conclusion: 'Shadows are formed when an object blocks light!' },
-  { id: 'phy-6', title: 'Sound Vibration', iconName: 'Activity', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'How sound travels!', level: 1, steps: ['Pluck a guitar string.', 'It vibrates.', 'You hear a sound.', 'Sound needs a medium.'], conclusion: 'Sound travels through vibrations in air, water, and solids!' },
-  { id: 'phy-7', title: 'Hot and Cold', iconName: 'Thermometer', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'Learn about temperature!', level: 1, steps: ['Touch ice.', 'It feels cold.', 'Touch warm water.', 'It feels hot.'], conclusion: 'Temperature measures the average kinetic energy of particles!' },
-  { id: 'phy-8', title: 'Friction', iconName: 'Activity', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'What slows things down!', level: 1, steps: ['Rub your hands.', 'They get warm.', 'Friction creates heat.', 'It slows things down.'], conclusion: 'Friction is a force that opposes motion between two surfaces!' },
-  { id: 'phy-9', title: 'Energy', iconName: 'Zap', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'The power to do work!', level: 1, steps: ['Energy makes things move.', 'Light is energy.', 'Sound is energy.', 'Heat is energy.'], conclusion: 'Energy is the ability to do work!' },
-  { id: 'phy-10', title: 'Ramps', iconName: 'Activity', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'How sloped surfaces help!', level: 1, steps: ['Put a ball on a ramp.', 'It rolls down.', 'Steeper ramps move faster.', 'Ramps make work easier.'], conclusion: 'Inclined planes or ramps make it easier to move objects up and down!' },
-  { id: 'phy-11', title: 'Towers', iconName: 'Building2', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'What makes buildings strong?', level: 2, steps: ['Build with blocks.', 'Make a tall tower.', 'Test it.', 'Strong bases make tall towers.'], conclusion: 'A stable base and balance are essential for strong structures!' },
-  { id: 'phy-12', title: 'Float and Sink', iconName: 'Waves', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Density experiment!', level: 2, steps: ['Oil floats on water.', 'Water is denser.', 'A heavy rock sinks.', 'Density determines floating.'], conclusion: 'Objects float if they are less dense than the liquid they are placed in!' },
-  { id: 'phy-13', title: 'Sound Pitch', iconName: 'Activity', color: 'text-indigo-400', bgColor: 'bg-indigo-500/10', description: 'High or low?', level: 2, steps: ['Tap a small cup.', 'It makes a high sound.', 'Tap a big pot.', 'It makes a low sound.'], conclusion: 'The size of an object affects the pitch of the sound it makes!' },
-  { id: 'phy-14', title: 'Magnetic Poles', iconName: 'Magnet', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'North and South!', level: 2, steps: ['Bring two N poles together.', 'They push apart!', 'Bring N and S together.', 'They pull together!'], conclusion: 'Like magnetic poles repel each other, and opposite poles attract!' },
-  { id: 'phy-15', title: 'Reflection', iconName: 'Activity', color: 'text-cyan-400', bgColor: 'bg-cyan-500/10', description: 'How mirrors work!', level: 2, steps: ['Look in a mirror.', 'You see your reflection.', 'Light bounces off.', 'Mirrors are very smooth.'], conclusion: 'Mirrors reflect light and allow us to see our own image!' },
-  { id: 'phy-16', title: 'Refraction', iconName: 'Droplets', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Light bends!', level: 2, steps: ['Put a pencil in water.', 'It looks bent.', 'Light bends in water.', 'This is refraction.'], conclusion: 'Light changes direction when it passes from one transparent medium to another!' },
-  { id: 'phy-17', title: 'Conductors', iconName: 'Zap', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'Materials that carry electricity!', level: 2, steps: ['Metal is a conductor.', 'It lets electricity flow.', 'Plastic is an insulator.', 'It blocks electricity.'], conclusion: 'Conductors allow electricity to flow, while insulators block it!' },
-  { id: 'phy-18', title: 'The Lever', iconName: 'Activity', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'A simple machine!', level: 2, steps: ['A seesaw is a lever.', 'You push on one side.', 'The other side lifts.', 'Levers make work easier.'], conclusion: 'A lever is a simple machine that helps lift heavy objects with less force!' },
-  { id: 'phy-19', title: 'The Pulley', iconName: 'Activity', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'A wheel and rope!', level: 2, steps: ['A pulley has a wheel.', 'The rope goes over it.', 'It helps lift heavy things.', 'It changes direction.'], conclusion: 'A pulley uses a wheel and rope to help lift objects more easily!' },
-  { id: 'phy-20', title: 'Air', iconName: 'Wind', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'The invisible force!', level: 2, steps: ['Air takes up space.', 'It fills a balloon.', 'It exerts pressure.', 'We need it to breathe.'], conclusion: 'Air is a mixture of gases that takes up space and exerts pressure!' },
-  { id: 'phy-21', title: 'Water Pressure', iconName: 'Waves', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'The deeper you go, the more pressure!', level: 3, steps: ['Swim to the bottom.', 'Your ears feel pressure.', 'Water pushes on you.', 'Deeper water = more pressure.'], conclusion: 'Water pressure increases the deeper you go!' },
-  { id: 'phy-22', title: 'The Wheel', iconName: 'Building2', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'A great invention!', level: 3, steps: ['Wheels roll.', 'They reduce friction.', 'Cars use them.', 'Bikes use them.'], conclusion: 'The wheel is one of the most important inventions in history!' },
-  { id: 'phy-23', title: 'The Axle', iconName: 'Building2', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'The center of the wheel!', level: 3, steps: ['The axle is the center.', 'The wheel spins around it.', 'It helps things move.', 'It reduces friction.'], conclusion: 'An axle is the rod that passes through the center of a wheel!' },
-  { id: 'phy-24', title: 'The Screw', iconName: 'Activity', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'A spiral simple machine!', level: 3, steps: ['A screw has threads.', 'It grips materials.', 'It holds things together.', 'It is a simple machine.'], conclusion: 'A screw is a simple machine that converts rotational motion into linear motion!' },
-  { id: 'phy-25', title: 'The Wedge', iconName: 'Activity', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'A simple machine for splitting!', level: 3, steps: ['A knife is a wedge.', 'It is thin at the edge.', 'It splits things apart.', 'It is a simple machine.'], conclusion: 'A wedge is a simple machine that gets thinner at one end and is used to split or cut!' },
-  { id: 'phy-26', title: 'Potential Energy', iconName: 'ArrowDown', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Stored energy!', level: 3, steps: ['Lift a ball.', 'It has stored energy.', 'Drop it.', 'It moves.'], conclusion: 'Potential energy is stored energy that can be used later!' },
-  { id: 'phy-27', title: 'Kinetic Energy', iconName: 'Zap', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'Energy in motion!', level: 3, steps: ['Roll a ball.', 'It is moving.', 'It has kinetic energy.', 'The faster it moves, the more energy.'], conclusion: 'Kinetic energy is the energy an object has because it is moving!' },
-  { id: 'phy-28', title: 'The Simple Circuit', iconName: 'Zap', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'A path for electricity!', level: 3, steps: ['Connect a battery.', 'Connect a bulb.', 'Connect a wire.', 'The bulb lights up!'], conclusion: 'A circuit is a closed path that allows electricity to flow!' },
-  { id: 'phy-29', title: 'Renewable Energy', iconName: 'Sun', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'Clean energy for the future!', level: 3, steps: ['Solar energy comes from the sun.', 'Wind energy comes from wind.', 'Water energy comes from rivers.', 'They never run out.'], conclusion: 'Renewable energy comes from natural sources that are constantly replenished!' },
-  { id: 'phy-30', title: 'The Rainbow', iconName: 'Rainbow', color: 'text-indigo-400', bgColor: 'bg-indigo-500/10', description: 'Colors in the sky!', level: 3, steps: ['Light hits raindrops.', 'The drops bend the light.', 'The light splits.', 'You see a rainbow.'], conclusion: 'A rainbow forms when sunlight is refracted and reflected in water droplets!' },
-  { id: 'phy-31', title: 'Wind Power', iconName: 'Wind', color: 'text-cyan-400', bgColor: 'bg-cyan-500/10', description: 'Harnessing the wind!', level: 3, steps: ['Wind blows.', 'It hits a turbine.', 'The turbine spins.', 'It makes electricity.'], conclusion: 'Wind turbines capture the kinetic energy of the wind and convert it into electricity!' },
-  { id: 'phy-32', title: 'Solar Power', iconName: 'Sun', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'Power from the sun!', level: 3, steps: ['Sunlight hits a panel.', 'The panel absorbs it.', 'It makes electricity.', 'It powers homes.'], conclusion: 'Solar panels convert sunlight into electricity!' },
-  { id: 'phy-33', title: 'Elasticity', iconName: 'Activity', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'What stretches and snaps back!', level: 3, steps: ['Pull a rubber band.', 'It stretches.', 'Let go.', 'It snaps back!'], conclusion: 'Elastic materials stretch when pulled and return to their original shape!' },
-  { id: 'phy-34', title: 'The Pendulum', iconName: 'Activity', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'A swinging weight!', level: 3, steps: ['Attach a weight to a string.', 'Let it swing.', 'It swings back and forth.', 'It is a pendulum.'], conclusion: 'A pendulum is a weight that swings back and forth due to gravity!' },
-  { id: 'phy-35', title: 'Newton’s First Law', iconName: 'Activity', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Objects in motion stay in motion!', level: 4, steps: ['Roll a ball.', 'It keeps rolling.', 'Friction stops it.', 'It is Newton’s Law.'], conclusion: 'An object in motion stays in motion unless acted on by an outside force!' },
-  { id: 'phy-36', title: 'Newton’s Second Law', iconName: 'Activity', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'Force equals mass times acceleration!', level: 4, steps: ['Push a light ball.', 'It moves fast.', 'Push a heavy ball.', 'It moves slower.'], conclusion: 'The acceleration of an object depends on the force applied and its mass!' },
-  { id: 'phy-37', title: 'Newton’s Third Law', iconName: 'Activity', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'For every action, there is a reaction!', level: 4, steps: ['Jump off a boat.', 'The boat moves back.', 'You move forward.', 'It is action and reaction.'], conclusion: 'For every action, there is an equal and opposite reaction!' },
-  { id: 'phy-38', title: 'Laws of Motion', iconName: 'Rocket', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'The rules of movement!', level: 4, steps: ['Objects move.', 'They need force.', 'They stay in motion.', 'These are Newton’s laws.'], conclusion: 'Newton’s laws of motion describe how objects move and interact!' },
-  { id: 'phy-39', title: 'The Atom', iconName: 'Atom', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'The building block of everything!', level: 4, steps: ['Everything is made of atoms.', 'Atoms have a nucleus.', 'They have electrons.', 'They are very small.'], conclusion: 'Atoms are the basic building blocks of all matter!' },
-  { id: 'phy-40', title: 'Electrons', iconName: 'Atom', color: 'text-cyan-400', bgColor: 'bg-cyan-500/10', description: 'The tiny particles with charge!', level: 4, steps: ['Electrons orbit the nucleus.', 'They have a negative charge.', 'They help create electricity.', 'They are very tiny.'], conclusion: 'Electrons are negatively charged particles that orbit the nucleus of an atom!' },
-  { id: 'phy-41', title: 'The Nucleus', iconName: 'Atom', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'The center of the atom!', level: 4, steps: ['The nucleus is in the middle.', 'It has protons.', 'It has neutrons.', 'It is positively charged.'], conclusion: 'The nucleus contains protons and neutrons and makes up most of an atom’s mass!' },
-  { id: 'phy-42', title: 'The Universe', iconName: 'Moon', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Everything that exists!', level: 4, steps: ['The universe is huge.', 'It contains galaxies.', 'It contains stars.', 'It contains planets.'], conclusion: 'The universe contains everything, including all matter, energy, and space!' },
-  { id: 'phy-43', title: 'The Earth', iconName: 'Globe', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'Our beautiful home!', level: 4, steps: ['Earth is a planet.', 'It orbits the sun.', 'It has water.', 'It has life.'], conclusion: 'Earth is the only known planet to support life!' },
-  { id: 'phy-44', title: 'The Moon', iconName: 'Moon', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'Our closest neighbor!', level: 4, steps: ['The moon orbits Earth.', 'It reflects sunlight.', 'It affects tides.', 'It has no atmosphere.'], conclusion: 'The moon is Earth’s only natural satellite and affects ocean tides!' },
-  { id: 'phy-45', title: 'The Sun', iconName: 'Sun', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'Our source of light and heat!', level: 4, steps: ['The sun is a star.', 'It is very hot.', 'It gives light.', 'It gives heat.'], conclusion: 'The sun is a star that provides light and heat, making life possible on Earth!' },
-  { id: 'phy-46', title: 'The Stars', iconName: 'Star', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Distant suns!', level: 4, steps: ['Stars are like our sun.', 'They are far away.', 'They look tiny.', 'They are huge.'], conclusion: 'Stars are giant balls of hot gas that emit light!' },
-  { id: 'phy-47', title: 'The Planets', iconName: 'Activity', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'The solar system!', level: 4, steps: ['Mercury is close.', 'Mars is the red planet.', 'Jupiter is the biggest.', 'There are 8 planets.'], conclusion: 'Our solar system has eight planets orbiting the sun!' },
-  { id: 'phy-48', title: 'Solar System', iconName: 'Moon', color: 'text-indigo-400', bgColor: 'bg-indigo-500/10', description: 'Our cosmic neighborhood!', level: 4, steps: ['The sun is the center.', 'Planets orbit it.', 'Asteroids also orbit.', 'It is huge.'], conclusion: 'Our solar system contains the sun, planets, moons, and other celestial bodies!' },
-  { id: 'phy-49', title: 'Space Exploration', iconName: 'Rocket', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'Traveling to the stars!', level: 4, steps: ['Rockets fly to space.', 'Astronauts explore.', 'They collect data.', 'They bring it home.'], conclusion: 'Humans have explored space using rockets and technology!' },
-  { id: 'phy-50', title: 'The Sky', iconName: 'Cloud', color: 'text-sky-400', bgColor: 'bg-sky-500/10', description: 'The world above us!', level: 4, steps: ['The sky is blue.', 'Clouds float in it.', 'Birds fly in it.', 'It is full of wonder.'], conclusion: 'The sky is a vast, dynamic part of our planet!' },
+  {
+    id: 201,
+    title: "Push and Pull",
+    description:
+      "Discover how pushes and pulls can change the movement of objects.",
+    level: 1,
+    difficulty: "Easy",
+    skill: "Forces",
+    iconName: "ArrowRight",
+    color: "text-blue-400",
+    bgColor: "bg-blue-500/10",
+
+    question: "What happens when we push or pull an object?",
+
+    objective:
+      "Explore how forces can start, stop or change the movement of objects.",
+
+    materials: ["Toy car", "Ball", "Small box"],
+
+    prediction: {
+      question: "What happens when you push a stationary toy car?",
+      options: [
+        "It may begin moving.",
+        "It becomes invisible.",
+        "It turns into water.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Place the toy car on a safe flat surface.",
+      "Push it gently.",
+      "Observe its movement.",
+      "Try pushing it in a different direction.",
+      "Try stopping it with your hand.",
+    ],
+
+    observation: {
+      question: "What can a force do?",
+      options: [
+        "Change an object's motion.",
+        "Only change its colour.",
+        "Make every object disappear.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Which is an example of a pull?",
+      options: ["Opening a drawer", "Kicking a ball", "Pushing a box"],
+      answer: 0,
+    },
+
+    explanation:
+      "A force is a push or pull. Forces can change the movement or direction of objects.",
+
+    conclusion:
+      "Pushes and pulls can change how objects move.",
+
+    keyLearning: [
+      "Forces can be pushes or pulls.",
+      "Forces can change movement.",
+      "The direction of a force matters.",
+    ],
+  },
+
+  {
+    id: 202,
+    title: "Ramp Racers",
+    description:
+      "Investigate how a ramp affects the movement of an object.",
+    level: 2,
+    difficulty: "Easy",
+    skill: "Motion",
+    iconName: "ArrowRight",
+    color: "text-cyan-400",
+    bgColor: "bg-cyan-500/10",
+
+    question: "How does the height of a ramp affect movement?",
+
+    objective:
+      "Explore how changing the height of a ramp can affect the motion of a rolling object.",
+
+    materials: [
+      "Toy car",
+      "Ramp",
+      "Books",
+      "Measuring tape",
+    ],
+
+    prediction: {
+      question: "What might happen when the ramp becomes steeper?",
+      options: [
+        "The car may move faster.",
+        "The car must become heavier.",
+        "The car stops being an object.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Make a gentle ramp.",
+      "Place the toy car at the same starting position.",
+      "Release it without pushing.",
+      "Raise the ramp.",
+      "Repeat the test.",
+      "Compare the results.",
+    ],
+
+    observation: {
+      question: "What variable did you change?",
+      options: ["Ramp height", "Car colour", "The car's name"],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Why should you release the car without pushing it?",
+      options: [
+        "To make the test fairer.",
+        "To make the car heavier.",
+        "Because cars cannot be pushed.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Changing the slope of a ramp can affect how an object moves. Fair tests control other important variables.",
+
+    conclusion:
+      "The conditions of a ramp can affect the movement of a rolling object.",
+
+    keyLearning: [
+      "Motion can be investigated experimentally.",
+      "Changing one variable helps make comparisons.",
+      "Fair tests control important conditions.",
+    ],
+  },
+
+  {
+    id: 203,
+    title: "Friction Investigators",
+    description:
+      "Compare how surfaces affect the movement of an object.",
+    level: 3,
+    difficulty: "Medium",
+    skill: "Forces",
+    iconName: "Shield",
+    color: "text-orange-400",
+    bgColor: "bg-orange-500/10",
+
+    question: "Why do objects move differently on different surfaces?",
+
+    objective:
+      "Explore friction and how it affects motion.",
+
+    materials: [
+      "Toy car",
+      "Smooth surface",
+      "Fabric",
+      "Cardboard",
+    ],
+
+    prediction: {
+      question: "Which surface is likely to create more friction?",
+      options: ["Rough fabric", "Smooth glass", "Very smooth plastic"],
+      answer: 0,
+    },
+
+    steps: [
+      "Place the car at the same starting point.",
+      "Release it on the smooth surface.",
+      "Measure or observe how far it travels.",
+      "Repeat on the rougher surface.",
+      "Compare the results.",
+    ],
+
+    observation: {
+      question: "What does greater friction generally do to motion?",
+      options: [
+        "It makes movement more difficult.",
+        "It always makes objects invisible.",
+        "It removes gravity.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Where can friction be useful?",
+      options: [
+        "Walking without slipping",
+        "Making everything weightless",
+        "Stopping all movement forever",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Friction is a force that resists motion between surfaces in contact.",
+
+    conclusion:
+      "Different surfaces can produce different amounts of friction.",
+
+    keyLearning: [
+      "Friction opposes motion.",
+      "Different surfaces can produce different friction.",
+      "Friction can be useful as well as inconvenient.",
+    ],
+  },
+
+  {
+    id: 204,
+    title: "Magnet Mission",
+    description:
+      "Investigate which materials are attracted to a magnet.",
+    level: 3,
+    difficulty: "Easy",
+    skill: "Magnetism",
+    iconName: "Magnet",
+    color: "text-red-400",
+    bgColor: "bg-red-500/10",
+
+    question: "Which materials are attracted to magnets?",
+
+    objective:
+      "Test different safe objects and identify magnetic materials.",
+
+    materials: [
+      "Magnet",
+      "Paper clip",
+      "Wooden block",
+      "Plastic object",
+      "Coin",
+    ],
+
+    prediction: {
+      question: "Which object is most likely to be attracted to a magnet?",
+      options: ["Steel paper clip", "Wooden block", "Plastic cup"],
+      answer: 0,
+    },
+
+    steps: [
+      "Place each object on a table.",
+      "Bring the magnet near each object.",
+      "Do not force the magnet toward the object.",
+      "Record which objects are attracted.",
+      "Compare your results.",
+    ],
+
+    observation: {
+      question: "What did you test?",
+      options: [
+        "Whether different materials are attracted to a magnet.",
+        "Whether objects can produce food.",
+        "Whether magnets can become plants.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Are all metals automatically magnetic?",
+      options: [
+        "No. Only some materials are strongly attracted to magnets.",
+        "Yes, every metal is magnetic.",
+        "Only wooden objects are magnetic.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Magnets strongly attract some materials, including many objects containing iron or steel, but not all metals are magnetic.",
+
+    conclusion:
+      "Magnetism depends on the material an object is made from.",
+
+    keyLearning: [
+      "Magnets attract some materials.",
+      "Not every metal is strongly magnetic.",
+      "Scientists test materials rather than assuming.",
+    ],
+  },
+
+  {
+    id: 205,
+    title: "Shadow Science",
+    description:
+      "Discover how light creates shadows.",
+    level: 4,
+    difficulty: "Medium",
+    skill: "Light",
+    iconName: "Sun",
+    color: "text-yellow-400",
+    bgColor: "bg-yellow-500/10",
+
+    question: "How are shadows formed?",
+
+    objective:
+      "Investigate what happens when an object blocks light.",
+
+    materials: [
+      "Torch",
+      "Small object",
+      "White wall or paper",
+    ],
+
+    prediction: {
+      question: "What happens when an opaque object blocks light?",
+      options: [
+        "A shadow can form.",
+        "The light becomes food.",
+        "The object disappears.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Turn on the torch.",
+      "Place the object between the torch and the wall.",
+      "Observe the shadow.",
+      "Move the object closer to the torch.",
+      "Move it closer to the wall.",
+      "Compare the shadow sizes.",
+    ],
+
+    observation: {
+      question: "What causes the shadow?",
+      options: [
+        "The object blocks some light.",
+        "The wall creates darkness by itself.",
+        "The torch produces a solid object.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "What could change the size of the shadow?",
+      options: [
+        "The distance between the light, object and screen.",
+        "The object's name.",
+        "The day of the week.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "A shadow forms when an object blocks light from reaching a surface.",
+
+    conclusion:
+      "The position of a light source, object and surface can affect a shadow.",
+
+    keyLearning: [
+      "Light travels from a source.",
+      "Objects can block light.",
+      "Changing positions can change shadows.",
+    ],
+  },
+
+  {
+    id: 206,
+    title: "Sound Vibrations",
+    description:
+      "Investigate how vibrations produce sound.",
+    level: 4,
+    difficulty: "Medium",
+    skill: "Sound",
+    iconName: "Waves",
+    color: "text-purple-400",
+    bgColor: "bg-purple-500/10",
+
+    question: "Where does sound come from?",
+
+    objective:
+      "Explore the connection between vibration and sound.",
+
+    materials: [
+      "Rubber band",
+      "Small box",
+      "Wooden spoon",
+    ],
+
+    prediction: {
+      question: "What happens when a stretched rubber band is plucked?",
+      options: [
+        "It vibrates and can produce sound.",
+        "It becomes silent forever.",
+        "It turns into light.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Stretch a rubber band safely around a small box.",
+      "Pluck the rubber band gently.",
+      "Look closely at it.",
+      "Listen to the sound.",
+      "Try changing the tension carefully.",
+    ],
+
+    observation: {
+      question: "What can you observe when the rubber band makes sound?",
+      options: [
+        "It vibrates.",
+        "It turns into water.",
+        "It stops existing.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "What is an important source of sound?",
+      options: ["Vibrating objects", "Still objects only", "Shadows"],
+      answer: 0,
+    },
+
+    explanation:
+      "Sound is produced by vibrations. The vibrations travel through a medium to reach our ears.",
+
+    conclusion:
+      "Vibrations are closely connected to the production of sound.",
+
+    keyLearning: [
+      "Vibrations can produce sound.",
+      "Sound travels through materials.",
+      "Different vibrations can produce different sounds.",
+    ],
+  },
+
+  {
+    id: 207,
+    title: "Floating and Sinking",
+    description:
+      "Investigate why some objects float while others sink.",
+    level: 5,
+    difficulty: "Medium",
+    skill: "Forces",
+    iconName: "Droplets",
+    color: "text-blue-400",
+    bgColor: "bg-blue-500/10",
+
+    question: "Why do some objects float while others sink?",
+
+    objective:
+      "Compare objects in water and investigate how material and shape affect floating.",
+
+    materials: [
+      "Container of water",
+      "Small plastic object",
+      "Stone",
+      "Wooden object",
+      "Metal object",
+    ],
+
+    prediction: {
+      question: "Which is most likely to float?",
+      options: ["A piece of dry wood", "A stone", "A solid metal block"],
+      answer: 0,
+    },
+
+    steps: [
+      "Fill a container with water.",
+      "Predict what each object will do.",
+      "Place one object in the water at a time.",
+      "Observe whether it floats or sinks.",
+      "Record your observations.",
+    ],
+
+    observation: {
+      question: "What are you comparing?",
+      options: [
+        "How different objects behave in water.",
+        "The colour of the water only.",
+        "The names of the objects.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Can changing the shape of a material affect whether it floats?",
+      options: [
+        "Yes. Shape can affect how an object interacts with water.",
+        "No object shape ever matters.",
+        "Only colour matters.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Whether an object floats or sinks depends on factors including its density, shape and the upward force from the water.",
+
+    conclusion:
+      "Floating and sinking can be investigated by comparing objects and their properties.",
+
+    keyLearning: [
+      "Objects behave differently in water.",
+      "Material and shape can affect floating.",
+      "Scientists use observations to compare objects.",
+    ],
+  },
+
+  {
+    id: 208,
+    title: "Heat Detective",
+    description:
+      "Explore how heat can move between objects.",
+    level: 6,
+    difficulty: "Medium",
+    skill: "Heat",
+    iconName: "Thermometer",
+    color: "text-orange-400",
+    bgColor: "bg-orange-500/10",
+
+    question: "What happens when objects at different temperatures meet?",
+
+    objective:
+      "Understand that thermal energy can transfer from warmer objects to cooler objects.",
+
+    materials: [
+      "Warm water",
+      "Cool water",
+      "Two containers",
+      "Thermometer with adult supervision",
+    ],
+
+    prediction: {
+      question: "What happens when warm and cool water are mixed?",
+      options: [
+        "The final temperature becomes somewhere between the starting temperatures.",
+        "It always becomes boiling.",
+        "It turns into a solid immediately.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Prepare warm and cool water safely.",
+      "Measure their temperatures if a suitable thermometer is available.",
+      "Mix them carefully with adult supervision.",
+      "Measure or compare the resulting temperature.",
+      "Discuss what changed.",
+    ],
+
+    observation: {
+      question: "In which direction does thermal energy naturally transfer?",
+      options: [
+        "From warmer objects toward cooler objects.",
+        "Only from cold to hot.",
+        "It never transfers.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Why should temperatures be measured rather than guessed?",
+      options: [
+        "Measurement provides evidence.",
+        "Guessing is always more accurate.",
+        "Thermometers cannot provide information.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Thermal energy transfers from warmer regions toward cooler regions until temperatures move toward equilibrium.",
+
+    conclusion:
+      "Temperature differences can cause thermal energy to transfer.",
+
+    keyLearning: [
+      "Temperature tells us how hot or cold something is.",
+      "Thermal energy can transfer between objects.",
+      "Measurements provide evidence.",
+    ],
+  },
+
+  {
+    id: 209,
+    title: "Simple Machines",
+    description:
+      "Discover how simple machines can make tasks easier.",
+    level: 7,
+    difficulty: "Hard",
+    skill: "Forces",
+    iconName: "Building2",
+    color: "text-indigo-400",
+    bgColor: "bg-indigo-500/10",
+
+    question: "How can simple machines help us do work?",
+
+    objective:
+      "Explore levers, ramps and other simple machines as tools that change how forces are applied.",
+
+    materials: [
+      "Small ruler",
+      "Eraser",
+      "Toy block",
+      "Ramp",
+    ],
+
+    prediction: {
+      question: "What can a lever help you do?",
+      options: [
+        "Move or lift a load using a force.",
+        "Make matter disappear.",
+        "Remove gravity from Earth.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Place an eraser under a ruler as a pivot.",
+      "Place a small object near one end.",
+      "Press the other end gently.",
+      "Observe how the load moves.",
+      "Try changing the position of the pivot.",
+    ],
+
+    observation: {
+      question: "What is the pivot point of a lever called?",
+      options: ["Fulcrum", "Battery", "Lens"],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Which is an example of a simple machine?",
+      options: ["Ramp", "Cloud", "Cup of water"],
+      answer: 0,
+    },
+
+    explanation:
+      "Simple machines such as levers and inclined planes can change the way a force is applied and make tasks easier in useful ways.",
+
+    conclusion:
+      "Simple machines help people use forces more effectively.",
+
+    keyLearning: [
+      "Levers use a pivot point.",
+      "Ramps are inclined planes.",
+      "Simple machines change how forces are applied.",
+    ],
+  },
+
+  {
+    id: 210,
+    title: "Energy Explorer",
+    description:
+      "Investigate different forms and transfers of energy.",
+    level: 8,
+    difficulty: "Hard",
+    skill: "Energy",
+    iconName: "Zap",
+    color: "text-yellow-400",
+    bgColor: "bg-yellow-500/10",
+
+    question: "How does energy change from one form to another?",
+
+    objective:
+      "Identify examples of energy transfer and transformation in everyday systems.",
+
+    materials: [
+      "Torch",
+      "Battery-powered toy",
+      "Rubber band",
+    ],
+
+    prediction: {
+      question: "What energy transformation occurs in a battery-powered torch?",
+      options: [
+        "Chemical energy is transformed into electrical energy and then light.",
+        "Light becomes a plant.",
+        "Sound becomes water.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Observe a battery-powered torch.",
+      "Identify the battery as an energy source.",
+      "Turn the torch on.",
+      "Observe the light produced.",
+      "Think about the sequence of energy changes.",
+    ],
+
+    observation: {
+      question: "What does the torch produce that you can see?",
+      options: ["Light", "Soil", "Food"],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Why is energy important in physical systems?",
+      options: [
+        "Energy enables changes and processes to occur.",
+        "Energy only exists in food.",
+        "Energy cannot move or change form.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Energy can be transferred and transformed between different forms. It is involved in movement, light, sound, heating and many other processes.",
+
+    conclusion:
+      "Energy can move between systems and change form.",
+
+    keyLearning: [
+      "Energy is involved in physical changes.",
+      "Energy can be transferred.",
+      "Energy can change from one form to another.",
+    ],
+  },
 ];
 
+/* =========================================================
+   CHEMISTRY
+   ========================================================= */
+
 export const CHEMISTRY_EXPERIMENTS: Experiment[] = [
-  { id: 'chem-1', title: 'Mixing Colors', iconName: 'FlaskConical', color: 'text-pink-400', bgColor: 'bg-pink-500/10', description: 'What happens when you mix red and blue?', level: 1, steps: ['You have red paint.', 'You have blue paint.', 'Mix them together.', 'You get purple!'], conclusion: 'Mixing primary colors creates secondary colors!' },
-  { id: 'chem-2', title: 'States of Matter', iconName: 'Droplets', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Solid, liquid, and gas!', level: 1, steps: ['Water is a liquid.', 'Ice is a solid.', 'Steam is a gas.', 'All are water.'], conclusion: 'Matter exists in three main states: solid, liquid, and gas!' },
-  { id: 'chem-3', title: 'Fizzing Volcano', iconName: 'Flame', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'A bubbly chemical reaction!', level: 1, steps: ['Put baking soda in a cup.', 'Add vinegar.', 'It fizzes!', 'It bubbles over.'], conclusion: 'Mixing baking soda and vinegar causes a chemical reaction that produces carbon dioxide gas!' },
-  { id: 'chem-4', title: 'Sink or Dissolve', iconName: 'FlaskConical', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'What happens in water?', level: 1, steps: ['Put salt in water.', 'It dissolves.', 'Put sand in water.', 'It does not dissolve.'], conclusion: 'Some substances dissolve in water (soluble), while others do not (insoluble)!' },
-  { id: 'chem-5', title: 'Color Change', iconName: 'TestTube2', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'Acids and bases!', level: 1, steps: ['Use red cabbage juice.', 'Add lemon juice.', 'It turns red.', 'It is an acid.'], conclusion: 'Natural indicators change color in the presence of acids and bases!' },
-  { id: 'chem-6', title: 'Melting and Freezing', iconName: 'Thermometer', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Changing states!', level: 1, steps: ['Heat ice.', 'It melts.', 'Freeze water.', 'It turns to ice.'], conclusion: 'Adding or removing heat changes matter from one state to another!' },
-  { id: 'chem-7', title: 'Gas Bubbles', iconName: 'Droplets', color: 'text-cyan-400', bgColor: 'bg-cyan-500/10', description: 'Bubbles are gas!', level: 1, steps: ['Mix a fizzy tablet.', 'It creates gas.', 'Gas makes bubbles.', 'Bubbles rise.'], conclusion: 'Chemical reactions can produce gas, which creates bubbles!' },
-  { id: 'chem-8', title: 'Evaporation', iconName: 'Sun', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'Water disappears!', level: 1, steps: ['Put water out.', 'Leave it in the sun.', 'It disappears.', 'It evaporates.'], conclusion: 'Evaporation is when a liquid changes into a gas due to heat!' },
-  { id: 'chem-9', title: 'Condensation', iconName: 'Waves', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Gas becomes liquid!', level: 1, steps: ['Warm air hits a cold glass.', 'Water droplets form.', 'Gas turns to liquid.', 'This is condensation.'], conclusion: 'Condensation is when a gas changes into a liquid!' },
-  { id: 'chem-10', title: 'Water Molecules', iconName: 'Droplets', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'What is water made of?', level: 1, steps: ['Water is H2O.', 'It has two hydrogens.', 'It has one oxygen.', 'They are tiny molecules.'], conclusion: 'Water is made of hydrogen and oxygen molecules!' },
-  { id: 'chem-11', title: 'Melting Chocolate', iconName: 'Thermometer', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'Solid to liquid!', level: 1, steps: ['Chocolate is solid.', 'Heat it.', 'It melts.', 'It becomes liquid.'], conclusion: 'Heat causes chocolate to change from a solid to a liquid!' },
-  { id: 'chem-12', title: 'Freezing Water', iconName: 'Snowflake', color: 'text-cyan-400', bgColor: 'bg-cyan-500/10', description: 'Liquid to solid!', level: 1, steps: ['Water is liquid.', 'Freeze it.', 'It becomes ice.', 'Ice is solid.'], conclusion: 'Cold temperatures cause liquid water to freeze into solid ice!' },
-  { id: 'chem-13', title: 'Properties of Materials', iconName: 'FlaskConical', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'Different materials have different properties!', level: 1, steps: ['Wood is hard.', 'Cotton is soft.', 'Glass is clear.', 'Metal is shiny.'], conclusion: 'Materials have different properties, such as hardness, softness, and shine!' },
-  { id: 'chem-14', title: 'Mixing Liquids', iconName: 'FlaskConical', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'What mixes and what doesn’t?', level: 1, steps: ['Water and juice mix.', 'They blend together.', 'Oil and water do not mix.', 'Oil floats on top.'], conclusion: 'Liquids have different densities, which determines whether they mix or separate!' },
-  { id: 'chem-15', title: 'Erupting Fizz', iconName: 'FlaskConical', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'A mini explosion!', level: 1, steps: ['Put vinegar in a bottle.', 'Add baking soda.', 'It fizzes.', 'It erupts!'], conclusion: 'The reaction between vinegar and baking soda produces carbon dioxide gas, causing an eruption!' },
-  { id: 'chem-16', title: 'Reactions', iconName: 'FlaskConical', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'When substances change!', level: 1, steps: ['Mix two things.', 'They change.', 'Something new forms.', 'This is a reaction.'], conclusion: 'A chemical reaction produces new substances!' },
-  { id: 'chem-17', title: 'Freezing Point', iconName: 'Thermometer', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'The temperature of freezing!', level: 1, steps: ['Water freezes at 0°C.', 'It becomes ice.', 'Below 0°C is colder.', 'It stays solid.'], conclusion: 'Water freezes into ice at 0 degrees Celsius!' },
-  { id: 'chem-18', title: 'Boiling Point', iconName: 'Flame', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'The temperature of boiling!', level: 1, steps: ['Water boils at 100°C.', 'It becomes steam.', 'Steam is very hot.', 'It is a gas.'], conclusion: 'Water boils into steam at 100 degrees Celsius!' },
-  { id: 'chem-19', title: 'Atoms', iconName: 'Atom', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'The tiny building blocks of matter!', level: 1, steps: ['Everything is made of atoms.', 'They are very small.', 'They combine into molecules.', 'They make everything.'], conclusion: 'All matter is made of tiny particles called atoms!' },
-  { id: 'chem-20', title: 'Elements', iconName: 'FlaskConical', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10', description: 'Pure substances!', level: 1, steps: ['Elements are pure.', 'Oxygen is an element.', 'Gold is an element.', 'Carbon is an element.'], conclusion: 'Elements are the basic building blocks of matter, made of only one type of atom!' },
-  { id: 'chem-21', title: 'Mixtures', iconName: 'FlaskConical', color: 'text-teal-400', bgColor: 'bg-teal-500/10', description: 'Combining substances!', level: 1, steps: ['Mix salt and sand.', 'It is a mixture.', 'You can separate them.', 'Mixtures combine two things.'], conclusion: 'Mixtures are combinations of substances that can be physically separated!' },
-  { id: 'chem-22', title: 'Density', iconName: 'Waves', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'How heavy something is!', level: 1, steps: ['A rock is dense.', 'A sponge is not.', 'Density is how heavy.', 'It determines sinking.'], conclusion: 'Density is the amount of mass in a given volume!' },
-  { id: 'chem-23', title: 'Filtration', iconName: 'TestTube2', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'Separating mixtures!', level: 1, steps: ['Mix sand and water.', 'Use a filter.', 'Sand stays behind.', 'Water passes through.'], conclusion: 'Filtration is a method for separating solids from liquids!' },
-  { id: 'chem-24', title: 'Chemical Change', iconName: 'TestTube2', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'When things transform!', level: 1, steps: ['Burn paper.', 'It turns to ash.', 'It is a chemical change.', 'It cannot be undone.'], conclusion: 'Chemical changes produce new substances that cannot be easily reversed!' },
-  { id: 'chem-25', title: 'Physical Change', iconName: 'Building2', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'When things change shape!', level: 1, steps: ['Cut paper.', 'It is smaller.', 'It is a physical change.', 'It is still paper.'], conclusion: 'Physical changes alter the form of a substance but not its chemical composition!' },
-  { id: 'chem-26', title: 'Salt', iconName: 'Sparkles', color: 'text-white-400', bgColor: 'bg-white-500/10', description: 'The tasty mineral!', level: 1, steps: ['Salt is a mineral.', 'It is in the sea.', 'It is in rocks.', 'It makes food tasty.'], conclusion: 'Salt is a mineral made of sodium and chlorine!' },
-  { id: 'chem-27', title: 'Sugar', iconName: 'Sparkles', color: 'text-white-400', bgColor: 'bg-white-500/10', description: 'The sweet substance!', level: 1, steps: ['Sugar is sweet.', 'It dissolves in water.', 'It comes from plants.', 'It is a carbohydrate.'], conclusion: 'Sugar is a carbohydrate that provides energy for the body!' },
-  { id: 'chem-28', title: 'Carbon Dioxide', iconName: 'Wind', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'What we breathe out!', level: 1, steps: ['We breathe out CO2.', 'Plants breathe it in.', 'It is a gas.', 'It is invisible.'], conclusion: 'Carbon dioxide is a gas that plants use for photosynthesis!' },
-  { id: 'chem-29', title: 'Oxygen', iconName: 'Wind', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'What we breathe in!', level: 1, steps: ['We breathe in oxygen.', 'Plants make it.', 'It is a gas.', 'We need it to live.'], conclusion: 'Oxygen is a gas essential for life on Earth!' },
-  { id: 'chem-30', title: 'Hydrogen', iconName: 'FlaskConical', color: 'text-cyan-400', bgColor: 'bg-cyan-500/10', description: 'The lightest element!', level: 1, steps: ['Hydrogen is a gas.', 'It is very light.', 'It is in water.', 'It is the lightest.'], conclusion: 'Hydrogen is the lightest and most abundant element in the universe!' },
-  { id: 'chem-31', title: 'Mixing Acid & Base', iconName: 'TestTube2', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'A chemical reaction!', level: 4, steps: ['Acids and bases react.', 'They neutralize.', 'They make salt and water.', 'It is a reaction.'], conclusion: 'Acids and bases react to neutralize each other, producing salt and water!' },
-  { id: 'chem-32', title: 'Ions', iconName: 'Atom', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'Charged atoms!', level: 4, steps: ['Atoms can lose electrons.', 'They become positive.', 'They can gain electrons.', 'They become negative.'], conclusion: 'Ions are atoms that have a positive or negative charge!' },
-  { id: 'chem-33', title: 'Acid', iconName: 'TestTube2', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'Sour and reactive!', level: 4, steps: ['Lemon juice is an acid.', 'Vinegar is an acid.', 'They are sour.', 'They react with metals.'], conclusion: 'Acids are substances that taste sour and can react with metals!' },
-  { id: 'chem-34', title: 'Base', iconName: 'TestTube2', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'Bitter and slippery!', level: 4, steps: ['Soap is a base.', 'Baking soda is a base.', 'They feel slippery.', 'They are bitter.'], conclusion: 'Bases are substances that taste bitter and feel slippery!' },
-  { id: 'chem-35', title: 'pH Scale', iconName: 'TestTube2', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'How acidic or basic!', level: 4, steps: ['pH goes from 0 to 14.', '0 is strong acid.', '7 is neutral.', '14 is strong base.'], conclusion: 'The pH scale measures how acidic or basic a substance is!' },
-  { id: 'chem-36', title: 'Neutralization', iconName: 'TestTube2', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'When acid meets base!', level: 4, steps: ['Acid and base mix.', 'They cancel each other.', 'They become neutral.', 'The reaction is called neutralization.'], conclusion: 'Neutralization is the reaction between an acid and a base!' },
-  { id: 'chem-37', title: 'Baking Soda', iconName: 'TestTube2', color: 'text-pink-400', bgColor: 'bg-pink-500/10', description: 'A versatile chemical!', level: 4, steps: ['Baking soda is a base.', 'It reacts with acids.', 'It makes things fluffy.', 'It is used in baking.'], conclusion: 'Baking soda is a chemical compound used in cooking and cleaning!' },
-  { id: 'chem-38', title: 'Vinegar', iconName: 'TestTube2', color: 'text-brown-400', bgColor: 'bg-brown-500/10', description: 'A sour acid!', level: 4, steps: ['Vinegar is an acid.', 'It is made from fruits.', 'It is sour.', 'It is used in cooking.'], conclusion: 'Vinegar is a liquid made from fermented fruit or grain!' },
-  { id: 'chem-39', title: 'H2O', iconName: 'Droplets', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'The chemical formula for water!', level: 4, steps: ['Water is H2O.', 'H is hydrogen.', 'O is oxygen.', 'It is essential for life.'], conclusion: 'Water is a molecule made of two hydrogen atoms and one oxygen atom!' },
-  { id: 'chem-40', title: 'The Periodic Table', iconName: 'FlaskConical', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'A map of elements!', level: 4, steps: ['It lists all elements.', 'It groups them by type.', 'Scientists use it.', 'It is a valuable tool.'], conclusion: 'The periodic table organizes all known chemical elements!' },
-  { id: 'chem-41', title: 'Crystals', iconName: 'Droplets', color: 'text-cyan-400', bgColor: 'bg-cyan-500/10', description: 'Beautiful solid shapes!', level: 4, steps: ['Crystals are solids.', 'They have a pattern.', 'They are formed slowly.', 'Salt and sugar are crystals.'], conclusion: 'Crystals are solids with a highly ordered, repeating atomic structure!' },
-  { id: 'chem-42', title: 'Chemical Bond', iconName: 'Atom', color: 'text-purple-400', bgColor: 'bg-purple-500/10', description: 'How atoms stick together!', level: 4, steps: ['Atoms stick together.', 'They form bonds.', 'Bonds create molecules.', 'They are strong.'], conclusion: 'Chemical bonds hold atoms together to form molecules!' },
-  { id: 'chem-43', title: 'Protons', iconName: 'Atom', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'Positively charged particles!', level: 4, steps: ['Protons are in the nucleus.', 'They are positive.', 'They determine the element.', 'They are tiny.'], conclusion: 'Protons are positively charged particles found in the nucleus of an atom!' },
-  { id: 'chem-44', title: 'Neutrons', iconName: 'Atom', color: 'text-gray-400', bgColor: 'bg-gray-500/10', description: 'No charge at all!', level: 4, steps: ['Neutrons are in the nucleus.', 'They have no charge.', 'They add mass.', 'They are neutral.'], conclusion: 'Neutrons are neutrally charged particles found in the nucleus of an atom!' },
-  { id: 'chem-45', title: 'The Air', iconName: 'Wind', color: 'text-blue-400', bgColor: 'bg-blue-500/10', description: 'A mixture of gases!', level: 4, steps: ['Air is a mixture.', 'It contains oxygen.', 'It contains nitrogen.', 'It contains CO2.'], conclusion: 'Air is a mixture of gases, primarily nitrogen, oxygen, and carbon dioxide!' },
-  { id: 'chem-46', title: 'Burn', iconName: 'Flame', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'A chemical reaction!', level: 4, steps: ['Fire burns things.', 'It uses oxygen.', 'It produces heat.', 'It is a chemical reaction.'], conclusion: 'Burning is a chemical reaction that produces heat and light!' },
-  { id: 'chem-47', title: 'Rust', iconName: 'FlaskConical', color: 'text-orange-400', bgColor: 'bg-orange-500/10', description: 'When metal reacts!', level: 4, steps: ['Iron reacts with oxygen.', 'It forms rust.', 'Rust is a new substance.', 'It is a chemical change.'], conclusion: 'Rusting is a chemical reaction between iron and oxygen!' },
-  { id: 'chem-48', title: 'Decomposition', iconName: 'FlaskConical', color: 'text-brown-400', bgColor: 'bg-brown-500/10', description: 'Things breaking down!', level: 4, steps: ['Leaves rot.', 'They decompose.', 'They turn into soil.', 'It is a chemical change.'], conclusion: 'Decomposition is the chemical breakdown of organic matter!' },
-  { id: 'chem-49', title: 'Combustion', iconName: 'Flame', color: 'text-red-400', bgColor: 'bg-red-500/10', description: 'Burning with oxygen!', level: 4, steps: ['Fuel burns with oxygen.', 'It makes fire.', 'It gives heat.', 'It is combustion.'], conclusion: 'Combustion is a rapid chemical reaction between a fuel and oxygen that produces heat!' },
-  { id: 'chem-50', title: 'Chemistry in Nature', iconName: 'Leaf', color: 'text-green-400', bgColor: 'bg-green-500/10', description: 'The chemistry of the world!', level: 4, steps: ['Nature is full of chemistry.', 'Photosynthesis is chemistry.', 'Digestion is chemistry.', 'Chemistry is everywhere!'], conclusion: 'Chemistry is everywhere in nature, from the air we breathe to the food we eat!' },
+  {
+    id: 301,
+    title: "What Is Matter?",
+    description:
+      "Explore materials around us and identify different forms of matter.",
+    level: 1,
+    difficulty: "Easy",
+    skill: "Matter",
+    iconName: "FlaskConical",
+    color: "text-purple-400",
+    bgColor: "bg-purple-500/10",
+
+    question: "What is matter?",
+
+    objective:
+      "Recognize that the materials around us are made of matter and that matter can exist in different states.",
+
+    materials: [
+      "Cup of water",
+      "Ice cube",
+      "Small solid object",
+    ],
+
+    prediction: {
+      question: "Which is a liquid?",
+      options: ["Water", "Ice cube", "Stone"],
+      answer: 0,
+    },
+
+    steps: [
+      "Observe the solid object.",
+      "Observe the ice.",
+      "Observe the water.",
+      "Compare their shapes.",
+      "Discuss how their properties differ.",
+    ],
+
+    observation: {
+      question: "Which state of matter takes the shape of its container?",
+      options: ["Liquid", "Solid only", "None"],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Which is a solid?",
+      options: ["Ice", "Water vapour", "Liquid water"],
+      answer: 0,
+    },
+
+    explanation:
+      "Matter is the material that makes up physical objects and substances. Common states include solids, liquids and gases.",
+
+    conclusion:
+      "Matter can exist in different states with different properties.",
+
+    keyLearning: [
+      "Matter makes up physical substances.",
+      "Solids, liquids and gases have different properties.",
+      "Scientists compare observable properties.",
+    ],
+  },
+
+  {
+    id: 302,
+    title: "Solid, Liquid or Gas?",
+    description:
+      "Classify substances by their state of matter.",
+    level: 1,
+    difficulty: "Easy",
+    skill: "Matter",
+    iconName: "Beaker",
+    color: "text-blue-400",
+    bgColor: "bg-blue-500/10",
+
+    question: "How can we identify different states of matter?",
+
+    objective:
+      "Compare the shape and volume behaviour of solids, liquids and gases.",
+
+    materials: [
+      "Ice",
+      "Water",
+      "Inflated balloon",
+    ],
+
+    prediction: {
+      question: "Which state has no fixed shape and can spread through a container?",
+      options: ["Gas", "Solid", "Only ice"],
+      answer: 0,
+    },
+
+    steps: [
+      "Observe the ice.",
+      "Observe the water.",
+      "Observe the air-filled balloon.",
+      "Compare their shapes and how they occupy space.",
+      "Classify each material.",
+    ],
+
+    observation: {
+      question: "Which state can spread out to fill its available space?",
+      options: ["Gas", "Solid", "Rock only"],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "What happens when ice melts?",
+      options: [
+        "It changes from solid to liquid.",
+        "It changes directly into metal.",
+        "It disappears without changing state.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Solids generally keep their shape, liquids take the shape of their container, and gases spread through the available space.",
+
+    conclusion:
+      "The states of matter have different observable properties.",
+
+    keyLearning: [
+      "Solids have a fixed shape.",
+      "Liquids take the shape of their container.",
+      "Gases spread through available space.",
+    ],
+  },
+
+  {
+    id: 303,
+    title: "Does It Dissolve?",
+    description:
+      "Investigate which substances dissolve in water.",
+    level: 2,
+    difficulty: "Easy",
+    skill: "Solutions",
+    iconName: "Droplets",
+    color: "text-cyan-400",
+    bgColor: "bg-cyan-500/10",
+
+    question: "Do all substances dissolve in water?",
+
+    objective:
+      "Compare substances that dissolve in water with substances that remain visible.",
+
+    materials: [
+      "Water",
+      "Salt",
+      "Sugar",
+      "Sand",
+      "Transparent cups",
+    ],
+
+    prediction: {
+      question: "Which substance is likely to dissolve in water?",
+      options: ["Sugar", "Sand", "Small stone"],
+      answer: 0,
+    },
+
+    steps: [
+      "Fill separate cups with equal amounts of water.",
+      "Add a small amount of each substance.",
+      "Stir each cup equally.",
+      "Observe what happens.",
+      "Compare the results.",
+    ],
+
+    observation: {
+      question: "What does it mean when a substance dissolves?",
+      options: [
+        "It spreads through the solvent and forms a solution.",
+        "It turns into a solid rock.",
+        "It disappears from the universe.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Which mixture is most likely to contain a dissolved substance?",
+      options: ["Salt water", "Sand and water", "Pebbles and water"],
+      answer: 0,
+    },
+
+    explanation:
+      "Some substances dissolve in water and form solutions. Others remain as separate particles.",
+
+    conclusion:
+      "Different materials have different solubility properties.",
+
+    keyLearning: [
+      "Some substances dissolve in water.",
+      "A dissolved substance forms part of a solution.",
+      "Not everything dissolves in water.",
+    ],
+  },
+
+  {
+    id: 304,
+    title: "Mixing Materials",
+    description:
+      "Explore what happens when different materials are mixed.",
+    level: 2,
+    difficulty: "Easy",
+    skill: "Mixtures",
+    iconName: "FlaskConical",
+    color: "text-purple-400",
+    bgColor: "bg-purple-500/10",
+
+    question: "What happens when different materials are mixed?",
+
+    objective:
+      "Distinguish between mixtures and single substances using simple observations.",
+
+    materials: [
+      "Rice",
+      "Beans",
+      "Small container",
+      "Spoon",
+    ],
+
+    prediction: {
+      question: "What happens when rice and beans are mixed?",
+      options: [
+        "They form a mixture that can still contain both materials.",
+        "They become a completely new element.",
+        "Both materials disappear.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Place rice in a container.",
+      "Add beans.",
+      "Mix them together.",
+      "Observe the mixture.",
+      "Try separating the two materials by hand.",
+    ],
+
+    observation: {
+      question: "Can you still identify the original materials?",
+      options: ["Yes", "No, they vanished", "Only with a microscope"],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Which method could separate rice from beans?",
+      options: ["Sorting", "Freezing", "Burning"],
+      answer: 0,
+    },
+
+    explanation:
+      "A mixture contains two or more materials together. In many mixtures, the original materials retain their properties.",
+
+    conclusion:
+      "Mixing materials does not always create a new substance.",
+
+    keyLearning: [
+      "Mixtures contain different materials together.",
+      "Some mixtures can be separated physically.",
+      "Scientists choose separation methods based on properties.",
+    ],
+  },
+
+  {
+    id: 305,
+    title: "Separate the Mixture",
+    description:
+      "Discover how physical properties can help us separate materials.",
+    level: 3,
+    difficulty: "Medium",
+    skill: "Materials",
+    iconName: "Search",
+    color: "text-amber-400",
+    bgColor: "bg-amber-500/10",
+
+    question: "How can we separate different materials?",
+
+    objective:
+      "Select appropriate physical separation methods for simple mixtures.",
+
+    materials: [
+      "Rice",
+      "Beans",
+      "Sand",
+      "Water",
+      "Filter paper",
+    ],
+
+    prediction: {
+      question: "How could you separate rice and beans?",
+      options: ["Hand sorting", "Melting them", "Turning them into gas"],
+      answer: 0,
+    },
+
+    steps: [
+      "Observe the mixture.",
+      "Identify a property that is different between the materials.",
+      "Choose a separation method.",
+      "Separate the materials.",
+      "Check whether the separation worked.",
+    ],
+
+    observation: {
+      question: "What helps us choose a separation method?",
+      options: [
+        "Differences in physical properties.",
+        "The name of the mixture only.",
+        "Guessing randomly.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Which method can separate insoluble solid particles from water?",
+      options: ["Filtration", "Drawing", "Shouting"],
+      answer: 0,
+    },
+
+    explanation:
+      "Physical properties such as particle size, solubility and magnetism can help us separate mixtures.",
+
+    conclusion:
+      "The properties of materials guide scientists in choosing separation methods.",
+
+    keyLearning: [
+      "Mixtures can sometimes be separated physically.",
+      "Properties help determine the best method.",
+      "Filtration can separate some insoluble solids from liquids.",
+    ],
+  },
+
+  {
+    id: 306,
+    title: "Melting and Freezing",
+    description:
+      "Investigate how temperature can change the state of a substance.",
+    level: 3,
+    difficulty: "Easy",
+    skill: "Changes",
+    iconName: "Snowflake",
+    color: "text-cyan-400",
+    bgColor: "bg-cyan-500/10",
+
+    question: "How can heating and cooling change matter?",
+
+    objective:
+      "Explore reversible changes between solid and liquid states.",
+
+    materials: [
+      "Ice cubes",
+      "Container",
+      "Warm location",
+      "Freezer with adult supervision",
+    ],
+
+    prediction: {
+      question: "What happens when ice is warmed?",
+      options: [
+        "It melts into liquid water.",
+        "It becomes a metal.",
+        "It becomes a plant.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Observe an ice cube.",
+      "Place it somewhere warmer.",
+      "Observe the changes over time.",
+      "Allow the water to cool safely.",
+      "Discuss how the state changed.",
+    ],
+
+    observation: {
+      question: "What state change happens when ice melts?",
+      options: [
+        "Solid to liquid",
+        "Liquid to solid",
+        "Gas to solid",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Can liquid water freeze again?",
+      options: [
+        "Yes, under suitable cooling conditions.",
+        "No substance can ever change back.",
+        "Only metal can freeze.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Heating can cause a solid to melt into a liquid. Cooling can cause a liquid to freeze into a solid.",
+
+    conclusion:
+      "Temperature changes can cause reversible changes of state.",
+
+    keyLearning: [
+      "Heating can cause melting.",
+      "Cooling can cause freezing.",
+      "Some state changes are reversible.",
+    ],
+  },
+
+  {
+    id: 307,
+    title: "Evaporation Detective",
+    description:
+      "Discover what happens when liquid water changes into water vapour.",
+    level: 4,
+    difficulty: "Medium",
+    skill: "Changes",
+    iconName: "Sun",
+    color: "text-yellow-400",
+    bgColor: "bg-yellow-500/10",
+
+    question: "Where does water go when it evaporates?",
+
+    objective:
+      "Understand that evaporation changes liquid water into water vapour.",
+
+    materials: [
+      "Two shallow containers",
+      "Small amount of water",
+      "Warm location",
+      "Cool location",
+    ],
+
+    prediction: {
+      question: "Which container may lose water faster?",
+      options: [
+        "The one in a warmer suitable location.",
+        "The sealed empty container.",
+        "The container with no water.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Place equal amounts of water in two shallow containers.",
+      "Put them in different suitable locations.",
+      "Observe the water level over time.",
+      "Compare the changes.",
+      "Discuss evaporation.",
+    ],
+
+    observation: {
+      question: "What is evaporation?",
+      options: [
+        "Liquid changing into gas at the surface.",
+        "Gas becoming a solid.",
+        "Solid becoming a metal.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Which factor can affect evaporation?",
+      options: [
+        "Temperature and exposed surface area.",
+        "The colour of the label only.",
+        "The name of the container.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Evaporation occurs when particles at the surface of a liquid gain enough energy to enter the gas state.",
+
+    conclusion:
+      "Liquid water can change into water vapour through evaporation.",
+
+    keyLearning: [
+      "Evaporation is a change from liquid to gas.",
+      "Temperature can affect evaporation.",
+      "Water vapour is water in the gas state.",
+    ],
+  },
+
+  {
+    id: 308,
+    title: "Reversible or Irreversible?",
+    description:
+      "Compare changes that can be reversed with changes that form new substances.",
+    level: 5,
+    difficulty: "Medium",
+    skill: "Changes",
+    iconName: "RotateCcw",
+    color: "text-indigo-400",
+    bgColor: "bg-indigo-500/10",
+
+    question: "Can every change be reversed?",
+
+    objective:
+      "Distinguish between simple reversible changes and changes that may produce new substances.",
+
+    materials: [
+      "Ice",
+      "Paper",
+      "Water",
+      "Safe classroom examples",
+    ],
+
+    prediction: {
+      question: "Which change is easily reversible?",
+      options: [
+        "Ice melting",
+        "Paper burning",
+        "Food cooking",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Observe a reversible change such as melting ice.",
+      "Think about whether the original material can be recovered.",
+      "Compare this with examples of permanent changes.",
+      "Discuss the evidence.",
+    ],
+
+    observation: {
+      question: "What is a reversible change?",
+      options: [
+        "A change that can be changed back under suitable conditions.",
+        "A change that always creates a new element.",
+        "A change that cannot be observed.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Which is generally difficult to reverse to the original materials?",
+      options: ["Burning paper", "Melting ice", "Freezing water"],
+      answer: 0,
+    },
+
+    explanation:
+      "Some physical changes can be reversed, while many chemical changes produce new substances and are not easily reversed.",
+
+    conclusion:
+      "Scientists compare the evidence from a change to understand whether it is reversible.",
+
+    keyLearning: [
+      "Some changes are reversible.",
+      "Some changes produce new substances.",
+      "Evidence helps scientists classify changes.",
+    ],
+  },
+
+  {
+    id: 309,
+    title: "Acids and Bases",
+    description:
+      "Explore the idea that some substances are acidic or basic using safe indicators.",
+    level: 6,
+    difficulty: "Hard",
+    skill: "Materials",
+    iconName: "TestTube2",
+    color: "text-pink-400",
+    bgColor: "bg-pink-500/10",
+
+    question: "How can we identify acidic and basic substances safely?",
+
+    objective:
+      "Introduce acids and bases through safe indicator experiments rather than tasting or directly handling unknown substances.",
+
+    materials: [
+      "Red cabbage indicator or approved classroom indicator",
+      "Safe household samples approved by an adult",
+      "Clear cups",
+      "Gloves where required",
+    ],
+
+    prediction: {
+      question: "What can an indicator help us identify?",
+      options: [
+        "Whether a substance is acidic, basic or near neutral.",
+        "Whether an object is alive.",
+        "Whether something can fly.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Prepare the indicator according to teacher or adult instructions.",
+      "Place small amounts of approved samples in separate containers.",
+      "Add the indicator safely.",
+      "Observe any colour changes.",
+      "Compare the results with the indicator guide.",
+    ],
+
+    observation: {
+      question: "Why are indicators useful?",
+      options: [
+        "They can provide evidence about acidity or basicity.",
+        "They make every substance safe to taste.",
+        "They remove all chemicals.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "Should children taste an unknown chemical to identify it?",
+      options: [
+        "No. Chemicals should never be tasted.",
+        "Yes, if it looks safe.",
+        "Only if it has no smell.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Indicators can change colour depending on whether a substance is acidic, basic or near neutral. Unknown substances should never be tasted.",
+
+    conclusion:
+      "Indicators provide a safer way to investigate acid-base properties.",
+
+    keyLearning: [
+      "Acids and bases have different properties.",
+      "Indicators can provide evidence about acidity.",
+      "Unknown chemicals must never be tasted.",
+    ],
+  },
+
+  {
+    id: 310,
+    title: "Design a Fair Chemistry Test",
+    description:
+      "Use scientific thinking to design and evaluate a simple investigation.",
+    level: 8,
+    difficulty: "Hard",
+    skill: "Scientific Method",
+    iconName: "Microscope",
+    color: "text-violet-400",
+    bgColor: "bg-violet-500/10",
+
+    question: "How can scientists make an investigation fair?",
+
+    objective:
+      "Bring together prediction, controlled variables, observation, measurement and evidence.",
+
+    materials: [
+      "Two identical containers",
+      "Water",
+      "Two safe materials",
+      "Timer",
+      "Measuring tools",
+    ],
+
+    prediction: {
+      question: "What makes a comparison more reliable?",
+      options: [
+        "Changing one main variable while keeping important conditions similar.",
+        "Changing everything at once.",
+        "Guessing the result before testing.",
+      ],
+      answer: 0,
+    },
+
+    steps: [
+      "Choose one question to investigate.",
+      "Make a prediction.",
+      "Identify the variable you will change.",
+      "Identify important variables to keep the same.",
+      "Collect observations or measurements.",
+      "Compare the evidence with your prediction.",
+    ],
+
+    observation: {
+      question: "Why should scientists record results?",
+      options: [
+        "Results provide evidence that can be examined.",
+        "Records make experiments less scientific.",
+        "Results are only useful when they are guesses.",
+      ],
+      answer: 0,
+    },
+
+    challenge: {
+      question: "What should you do if the result does not match your prediction?",
+      options: [
+        "Accept the evidence and investigate why.",
+        "Change the result to match your prediction.",
+        "Ignore the experiment.",
+      ],
+      answer: 0,
+    },
+
+    explanation:
+      "Scientific investigations use questions, predictions, controlled variables, observations or measurements, evidence and reflection.",
+
+    conclusion:
+      "Good science is not about getting every prediction right. It is about learning from evidence.",
+
+    keyLearning: [
+      "Scientists ask questions and make predictions.",
+      "Fair tests control important variables.",
+      "Evidence can support or challenge a prediction.",
+      "Unexpected results can lead to new questions.",
+    ],
+  },
 ];

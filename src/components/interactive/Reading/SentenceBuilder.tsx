@@ -1,155 +1,491 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Volume2, CheckCircle, ArrowRight } from 'lucide-react';
+import {
+  CheckCircle2,
+  RotateCcw,
+  Sparkles,
+  Volume2,
+} from 'lucide-react';
 import { SENTENCE_CURRICULUM } from '../../../data/sentenceCurriculum';
 import { speakWord } from '../../../services/audioEngine';
+import { useProgressStore } from '../../../store/useProgressStore';
 
 interface SentenceBuilderProps {
   onComplete?: (score: number) => void;
 }
 
-export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({ onComplete }) => {
+const SENTENCE_ACTIVITY_ID = 'reading-sentence-builder-001';
+
+const SENTENCE_SKILLS = [
+  'reading-sentence-structure',
+  'reading-word-order',
+  'reading-sentence-construction',
+  'reading-grammar-awareness',
+  'reading-comprehension-foundation',
+  'reading-written-language',
+] as const;
+
+export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
+  onComplete,
+}) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [constructed, setConstructed] = useState<string[]>([]);
   const [bank, setBank] = useState<string[]>([]);
   const [isCorrect, setIsCorrect] = useState(false);
   const [score, setScore] = useState(0);
   const [completedIds, setCompletedIds] = useState<string[]>([]);
+  const [activityComplete, setActivityComplete] = useState(false);
+
+  const timerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const completeActivity = useProgressStore(
+    (state) => state.completeActivity,
+  );
 
   const currentSentence = SENTENCE_CURRICULUM[currentIndex];
-  const targetWords = currentSentence.text.split(' ');
 
-  // Shuffle bank on new sentence
+  const targetWords = useMemo(
+    () => currentSentence.text.trim().split(/\s+/),
+    [currentSentence.text],
+  );
+
+  const clearTimers = useCallback(() => {
+    timerIdsRef.current.forEach((timerId) => {
+      clearTimeout(timerId);
+    });
+
+    timerIdsRef.current = [];
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearTimers();
+
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [clearTimers]);
+
+  // Prepare a new sentence.
   useEffect(() => {
     const shuffled = [...targetWords].sort(() => Math.random() - 0.5);
+
     setBank(shuffled);
     setConstructed([]);
     setIsCorrect(false);
-  }, [currentIndex]);
+  }, [currentIndex, targetWords]);
 
-  // Auto-Check & Audio Celebration
-  useEffect(() => {
-    const currentBuilt = constructed.join(' ');
-    if (currentBuilt === currentSentence.text) {
-      setIsCorrect(true);
-      setScore(prev => prev + 10);
+  const handleSpeakSentence = useCallback(() => {
+  speakWord(currentSentence.text, { rate: 0.8 });
+  }, [currentSentence.text]);
+  const handleSpeakWords = useCallback(() => {
+    clearTimers();
 
-      // Pronounce the full sentence
-      speakWord(currentSentence.text, 0.8);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
 
-      // Track completion
-      if (!completedIds.includes(currentSentence.id)) {
-        setCompletedIds([...completedIds, currentSentence.id]);
+    targetWords.forEach((word, index) => {
+      const timerId = setTimeout(() => {
+        speakWord(word, { rate: 0.9 });
+      }, index * 550);
+
+      timerIdsRef.current.push(timerId);
+    });
+  }, [clearTimers, targetWords]);
+
+  const handleAddWord = useCallback(
+    (word: string) => {
+      if (isCorrect) {
+        return;
       }
 
-      // Move to next after 2.5 seconds
-      setTimeout(() => {
-        if (currentIndex < SENTENCE_CURRICULUM.length - 1) {
-          setCurrentIndex(currentIndex + 1);
-        } else {
-          if (onComplete) onComplete(score);
+      setConstructed((previous) => [...previous, word]);
+
+      setBank((previous) => {
+        const index = previous.indexOf(word);
+
+        if (index === -1) {
+          return previous;
         }
-      }, 2500);
+
+        return [
+          ...previous.slice(0, index),
+          ...previous.slice(index + 1),
+        ];
+      });
+    },
+    [isCorrect],
+  );
+
+  const handleRemoveWord = useCallback(
+    (index: number) => {
+      if (isCorrect) {
+        return;
+      }
+
+      setConstructed((previous) => {
+        const word = previous[index];
+
+        if (word === undefined) {
+          return previous;
+        }
+
+        return [
+          ...previous.slice(0, index),
+          ...previous.slice(index + 1),
+        ];
+      });
+
+      setBank((previous) => {
+        const word = constructed[index];
+
+        if (word === undefined) {
+          return previous;
+        }
+
+        return [...previous, word];
+      });
+    },
+    [constructed, isCorrect],
+  );
+
+  // Check the constructed sentence.
+  useEffect(() => {
+    if (constructed.length !== targetWords.length || isCorrect) {
+      return;
     }
-  }, [constructed]);
 
-  const addWord = (word: string) => {
-    if (isCorrect) return;
-    setConstructed([...constructed, word]);
-    setBank(bank.filter(w => w !== word));
-  };
+    const currentBuilt = constructed.join(' ');
 
-  const removeWord = (index: number) => {
-    if (isCorrect) return;
-    const word = constructed[index];
-    setConstructed(constructed.filter((_, i) => i !== index));
-    setBank([...bank, word]);
-  };
+    if (currentBuilt !== currentSentence.text) {
+      return;
+    }
 
-  const speakEachSound = () => {
-    targetWords.forEach((word, index) => {
-      setTimeout(() => speakWord(word, 0.9), index * 500);
-    });
-  };
+    setIsCorrect(true);
+
+    const nextScore = score + 10;
+    setScore(nextScore);
+
+    if (!completedIds.includes(currentSentence.id)) {
+      setCompletedIds((previous) => [
+        ...previous,
+        currentSentence.id,
+      ]);
+    }
+
+    speakWord(currentSentence.text, { rate: 0.8 });
+    const isLastSentence =
+      currentIndex === SENTENCE_CURRICULUM.length - 1;
+
+    const completionTimer = setTimeout(() => {
+      if (isLastSentence) {
+        completeActivity({
+          id: SENTENCE_ACTIVITY_ID,
+          score: Math.min(
+            100,
+            Math.round(
+              (nextScore / (SENTENCE_CURRICULUM.length * 10)) * 100,
+            ),
+          ),
+          academyId: 'language',
+          domain: 'language',
+          skillIds: SENTENCE_SKILLS,
+        });
+
+        setActivityComplete(true);
+        onComplete?.(nextScore);
+        return;
+      }
+
+      setCurrentIndex((previous) => previous + 1);
+    }, 2500);
+
+    timerIdsRef.current.push(completionTimer);
+  }, [
+    completedIds,
+    completeActivity,
+    constructed,
+    currentIndex,
+    currentSentence.id,
+    currentSentence.text,
+    isCorrect,
+    onComplete,
+    score,
+    targetWords.length,
+  ]);
+
+  const handleRestart = useCallback(() => {
+    clearTimers();
+
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    setCurrentIndex(0);
+    setConstructed([]);
+    setBank([]);
+    setIsCorrect(false);
+    setScore(0);
+    setCompletedIds([]);
+    setActivityComplete(false);
+  }, [clearTimers]);
+
+  const progressPercent =
+    SENTENCE_CURRICULUM.length > 0
+      ? Math.round(
+          ((currentIndex + (isCorrect ? 1 : 0)) /
+            SENTENCE_CURRICULUM.length) *
+            100,
+        )
+      : 0;
+
+  if (activityComplete) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="mx-auto w-full max-w-xl rounded-2xl border border-app-border bg-app-card p-8 text-center shadow-xl"
+      >
+        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-green-500/10">
+          <CheckCircle2 className="h-12 w-12 text-green-400" />
+        </div>
+
+        <div className="mb-2 flex items-center justify-center gap-2 text-emerald-300">
+          <Sparkles className="h-5 w-5" />
+
+          <span className="text-sm font-semibold uppercase tracking-wider">
+            Reading Practice Complete
+          </span>
+
+          <Sparkles className="h-5 w-5" />
+        </div>
+
+        <h3 className="text-2xl font-bold text-white">
+          Excellent Sentence Building!
+        </h3>
+
+        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-gray-400">
+          You practised recognising word order, constructing sentences,
+          and reading complete sentences aloud.
+        </p>
+
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-app-border bg-black/20 p-4">
+            <div className="text-2xl font-bold text-white">
+              {completedIds.length}
+            </div>
+
+            <div className="mt-1 text-xs text-gray-500">
+              Sentences completed
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-app-border bg-black/20 p-4">
+            <div className="text-2xl font-bold text-white">
+              {score}
+            </div>
+
+            <div className="mt-1 text-xs text-gray-500">
+              Session points
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleRestart}
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 font-bold text-white transition hover:bg-indigo-500"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Practise Again
+        </button>
+      </motion.div>
+    );
+  }
 
   return (
-    <div className="w-full max-w-xl mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl">
-      
-      {/* HEADER & PROGRESS */}
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-xl font-bold text-white">📝 Sentence Builder</h3>
-        <div className="flex gap-3 items-center">
-          <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-full">
+    <div className="mx-auto w-full max-w-xl rounded-2xl border border-app-border bg-app-card p-6 shadow-xl">
+      {/* Header */}
+      <div className="mb-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
+              Reading • Sentence Skills
+            </p>
+
+            <h3 className="mt-1 text-xl font-bold text-white">
+              Sentence Builder
+            </h3>
+          </div>
+
+          <span className="shrink-0 rounded-full bg-indigo-500/15 px-3 py-1.5 text-xs font-semibold text-indigo-300">
             Level {currentSentence.level}
           </span>
-          <span className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-full">
-            {currentIndex + 1} / {SENTENCE_CURRICULUM.length}
-          </span>
+        </div>
+
+        {/* Progress */}
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="text-gray-400">
+              Reading progression
+            </span>
+
+            <span className="font-semibold text-gray-300">
+              {progressPercent}%
+            </span>
+          </div>
+
+          <div
+            className="h-2 overflow-hidden rounded-full bg-gray-800"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progressPercent}
+            aria-label="Sentence building progression"
+          >
+            <motion.div
+              className="h-full rounded-full bg-indigo-500"
+              initial={{ width: 0 }}
+              animate={{ width: `${progressPercent}%` }}
+              transition={{ duration: 0.4 }}
+            />
+          </div>
         </div>
       </div>
 
-      <div className="flex justify-between items-center mb-4">
-        <div className="text-yellow-400 font-bold">⭐ {score}</div>
-        <button 
-          onClick={speakEachSound}
-          className="p-2 bg-gray-800 rounded-lg hover:bg-gray-700 text-white"
+      {/* Session information */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="text-yellow-400 font-bold">
+          ⭐ {score}
+        </div>
+
+        <span className="rounded-full bg-gray-800 px-3 py-1 text-xs text-gray-400">
+          {currentIndex + 1} / {SENTENCE_CURRICULUM.length}
+        </span>
+
+        <button
+          type="button"
+          onClick={handleSpeakWords}
+          aria-label="Hear the sentence words"
+          className="rounded-lg bg-gray-800 p-2 text-white transition hover:bg-gray-700"
         >
-          <Volume2 className="w-4 h-4" />
+          <Volume2 className="h-4 w-4" />
         </button>
       </div>
 
-      {/* QUESTION PROMPT */}
-      <div className="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800 mb-4 text-center">
-        <p className="text-gray-400 text-sm">Build the sentence: <span className="text-white font-bold">{currentSentence.pattern}</span></p>
+      {/* Question */}
+      <div className="mb-4 rounded-xl border border-gray-800 bg-[#1a1a1a] p-5 text-center">
+        <p className="text-sm text-gray-400">
+          Build the sentence using the words below.
+        </p>
+
+        <div className="mt-3 text-lg font-bold text-white">
+          {currentSentence.pattern}
+        </div>
       </div>
 
-      {/* BUILT ZONE */}
-      <div className="min-h-[80px] bg-[#1a1a1a] border border-gray-700 rounded-xl p-3 mb-4 flex flex-wrap gap-2 items-center">
-        <AnimatePresence>
-          {constructed.map((word, i) => (
-            <motion.button
-              key={`${word}-${i}`}
-              initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
-              onClick={() => removeWord(i)}
-              className="px-3 py-1 bg-gray-700 rounded-lg text-white shadow hover:bg-gray-600 transition"
-            >
-              {word}
-            </motion.button>
-          ))}
-        </AnimatePresence>
-        {constructed.length === 0 && <span className="text-gray-500 text-sm italic w-full text-center">Tap words below to build...</span>}
+      {/* Constructed Sentence */}
+      <div
+        className={`mb-4 min-h-[90px] rounded-xl border p-4 transition ${
+          isCorrect
+            ? 'border-green-500/40 bg-green-500/5'
+            : 'border-gray-700 bg-[#1a1a1a]'
+        }`}
+        aria-label="Constructed sentence"
+      >
+        <div className="flex min-h-[55px] flex-wrap items-center justify-center gap-2">
+          <AnimatePresence mode="popLayout">
+            {constructed.map((word, index) => (
+              <motion.button
+                key={`${word}-${index}`}
+                type="button"
+                layout
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                onClick={() => handleRemoveWord(index)}
+                disabled={isCorrect}
+                className="rounded-lg bg-gray-700 px-3 py-2 text-sm font-medium text-white shadow transition hover:bg-gray-600 disabled:cursor-default"
+                aria-label={`Remove word ${word}`}
+              >
+                {word}
+              </motion.button>
+            ))}
+          </AnimatePresence>
+
+          {constructed.length === 0 && (
+            <span className="w-full text-center text-sm italic text-gray-500">
+              Tap the words below to build the sentence.
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* WORD BANK */}
-      <div className="flex flex-wrap gap-2 justify-center min-h-[60px] p-2 bg-[#111] rounded-lg">
-        {bank.map((word, i) => (
-          <motion.button
-            key={`${word}-${i}`}
-            layout
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => addWord(word)}
-            className="px-4 py-2 bg-gray-800 text-white rounded-lg font-medium shadow border border-gray-700 hover:border-indigo-400 transition"
+      {/* Word Bank */}
+      <div className="rounded-xl border border-gray-800 bg-[#111] p-4">
+        <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
+          Word Bank
+        </p>
+
+        <div className="flex min-h-[65px] flex-wrap justify-center gap-2">
+          <AnimatePresence mode="popLayout">
+            {bank.map((word, index) => (
+              <motion.button
+                key={`${word}-${index}`}
+                type="button"
+                layout
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => handleAddWord(word)}
+                className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-sm font-medium text-white shadow transition hover:border-indigo-400"
+              >
+                {word}
+              </motion.button>
+            ))}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Feedback */}
+      <div className="mt-5 flex min-h-[48px] justify-center">
+        {isCorrect ? (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="flex items-center gap-2 rounded-full border border-green-500/50 bg-green-500/10 px-4 py-2 text-sm font-bold text-green-400"
           >
-            {word}
-          </motion.button>
-        ))}
-      </div>
-
-      {/* FEEDBACK */}
-      <div className="mt-4 flex justify-center h-10">
-        {isCorrect && (
-          <motion.div 
-            initial={{ scale: 0 }} animate={{ scale: 1 }} 
-            className="flex items-center gap-2 bg-green-500/20 border border-green-500/50 rounded-full px-4 py-2 text-green-400 font-bold"
-          >
-            <CheckCircle className="w-5 h-5" /> Perfect! Moving to next...
+            <CheckCircle2 className="h-5 w-5" />
+            Perfect! Sentence completed.
           </motion.div>
-        )}
-        {constructed.length > 0 && !isCorrect && (
-          <div className="text-gray-500 text-sm">Keep going... You're doing great!</div>
+        ) : constructed.length > 0 ? (
+          <div className="flex items-center text-sm text-gray-500">
+            Keep going — think about which word comes next.
+          </div>
+        ) : (
+          <div className="flex items-center text-sm text-gray-500">
+            Read the pattern, then arrange the words in order.
+          </div>
         )}
       </div>
+
+      {/* Read Full Sentence */}
+      {isCorrect && (
+        <div className="mt-3 flex justify-center">
+          <button
+            type="button"
+            onClick={handleSpeakSentence}
+            className="inline-flex items-center gap-2 rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-gray-700 hover:text-white"
+          >
+            <Volume2 className="h-4 w-4" />
+            Hear the sentence
+          </button>
+        </div>
+      )}
     </div>
   );
 };

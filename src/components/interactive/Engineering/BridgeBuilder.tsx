@@ -1,65 +1,444 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { CheckCircle, RotateCcw, Blocks } from 'lucide-react';
 
+type PartType = 'plank' | 'pillar' | 'support';
+
+interface BuildState {
+  planks: number;
+  pillars: number;
+  supports: number;
+}
+
+const MAX_PLANKS = 6;
+const MAX_PILLARS = 4;
+const MAX_SUPPORTS = 4;
+
+const TARGET = {
+  planks: 3,
+  pillars: 2,
+  supports: 1,
+};
+
 export const BridgeBuilder: React.FC = () => {
-  const [planks, setPlanks] = useState(0);
-  const [wheels, setWheels] = useState(0);
-  const [pillars, setPillars] = useState(0);
+  const [build, setBuild] = useState<BuildState>({
+    planks: 0,
+    pillars: 0,
+    supports: 0,
+  });
+
   const [isTested, setIsTested] = useState(false);
   const [passed, setPassed] = useState(false);
+  const [attempts, setAttempts] = useState(0);
 
-  const handleBuild = (type: 'plank' | 'wheel' | 'pillar') => {
+  const handleBuild = (type: PartType) => {
     setIsTested(false);
     setPassed(false);
-    if (type === 'plank') setPlanks(p => Math.min(p + 1, 4));
-    if (type === 'wheel') setWheels(w => Math.min(w + 1, 2));
-    if (type === 'pillar') setPillars(p => Math.min(p + 1, 4));
+
+    setBuild((previous) => {
+      if (type === 'plank') {
+        return {
+          ...previous,
+          planks: Math.min(previous.planks + 1, MAX_PLANKS),
+        };
+      }
+
+      if (type === 'pillar') {
+        return {
+          ...previous,
+          pillars: Math.min(previous.pillars + 1, MAX_PILLARS),
+        };
+      }
+
+      return {
+        ...previous,
+        supports: Math.min(previous.supports + 1, MAX_SUPPORTS),
+      };
+    });
   };
 
-  const handleReset = () => {
-    setPlanks(0); setWheels(0); setPillars(0); setIsTested(false); setPassed(false);
+  const handleRemove = (type: PartType) => {
+    setIsTested(false);
+    setPassed(false);
+
+    setBuild((previous) => {
+      if (type === 'plank') {
+        return {
+          ...previous,
+          planks: Math.max(previous.planks - 1, 0),
+        };
+      }
+
+      if (type === 'pillar') {
+        return {
+          ...previous,
+          pillars: Math.max(previous.pillars - 1, 0),
+        };
+      }
+
+      return {
+        ...previous,
+        supports: Math.max(previous.supports - 1, 0),
+      };
+    });
   };
 
   const handleTest = () => {
+    const success =
+      build.planks >= TARGET.planks &&
+      build.pillars >= TARGET.pillars &&
+      build.supports >= TARGET.supports;
+
+    setPassed(success);
     setIsTested(true);
-    // Success if: 3 planks, 2 pillars, and at least 1 wheel
-    setPassed(planks >= 3 && pillars >= 2 && wheels >= 1);
+    setAttempts((previous) => previous + 1);
   };
 
-  return (
-    <div className="max-w-lg mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl text-center">
-      <h3 className="text-2xl font-bold text-white mb-2">🌉 Bridge Builder</h3>
-      <p className="text-gray-400 text-sm mb-4">Build a bridge that can hold 3 blocks! <br/> <span className="text-indigo-400">Use: 3+ planks, 2+ pillars, 1+ wheel.</span></p>
+  const handleReset = () => {
+    setBuild({
+      planks: 0,
+      pillars: 0,
+      supports: 0,
+    });
 
-      <div className="flex justify-center items-end gap-2 mb-6 min-h-[100px] bg-[#1a1a1a] rounded-xl border border-gray-800 p-4">
-        {/* Visual Bridge */}
-        <div className="flex gap-1 items-end">
-          {Array.from({ length: pillars }).map((_, i) => <div key={i} className="w-4 h-12 bg-gray-500 rounded-t-sm" />)}
+    setIsTested(false);
+    setPassed(false);
+  };
+
+  const progress = Math.min(
+    100,
+    Math.round(
+      ((Math.min(build.planks, TARGET.planks) / TARGET.planks +
+        Math.min(build.pillars, TARGET.pillars) / TARGET.pillars +
+        Math.min(build.supports, TARGET.supports) / TARGET.supports) /
+        3) *
+        100
+    )
+  );
+
+  return (
+    <div className="max-w-lg mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl">
+      <div className="text-center mb-5">
+        <div className="flex justify-center mb-2">
+          <div className="p-3 rounded-full bg-indigo-500/10 text-indigo-400">
+            <Blocks className="w-7 h-7" />
+          </div>
         </div>
-        <div className="flex flex-col items-center gap-1">
-          {Array.from({ length: planks }).map((_, i) => <div key={i} className="w-24 h-4 bg-amber-600 rounded-sm" />)}
-          <div className="flex gap-1">
-            {Array.from({ length: wheels }).map((_, i) => <div key={i} className="w-6 h-6 rounded-full bg-gray-600" />)}
+
+        <h3 className="text-2xl font-bold text-white">
+          🌉 Bridge Builder
+        </h3>
+
+        <p className="text-gray-400 text-sm mt-1">
+          Build a strong bridge using engineering principles.
+        </p>
+      </div>
+
+      <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 mb-5">
+        <p className="text-indigo-300 font-bold text-sm mb-1">
+          Engineering Challenge
+        </p>
+
+        <p className="text-gray-300 text-sm">
+          Build a bridge that can safely hold{' '}
+          <span className="font-bold text-white">3 blocks</span>.
+        </p>
+
+        <p className="text-gray-400 text-xs mt-2">
+          You need at least 3 planks, 2 pillars, and 1 support.
+        </p>
+      </div>
+
+      <div className="mb-5">
+        <div className="flex justify-between text-xs text-gray-500 mb-2">
+          <span>Build Progress</span>
+          <span>{progress}%</span>
+        </div>
+
+        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-indigo-500"
+            animate={{ width: `${Math.max(progress, 3)}%` }}
+            transition={{ duration: 0.3 }}
+          />
+        </div>
+      </div>
+
+      {/* Bridge Visual */}
+      <div className="relative bg-[#151515] rounded-xl border border-gray-800 min-h-[220px] mb-5 overflow-hidden">
+        <div className="absolute bottom-4 left-5 right-5 h-2 bg-gray-700 rounded-full" />
+
+        {/* Left Pillars */}
+        <div className="absolute bottom-6 left-12 flex gap-2 items-end">
+          {Array.from({ length: Math.ceil(build.pillars / 2) }).map(
+            (_, index) => (
+              <motion.div
+                key={`left-pillar-${index}`}
+                initial={{ height: 0 }}
+                animate={{ height: 70 }}
+                className="w-6 bg-gray-500 rounded-t-md"
+              />
+            )
+          )}
+        </div>
+
+        {/* Right Pillars */}
+        <div className="absolute bottom-6 right-12 flex gap-2 items-end">
+          {Array.from({ length: Math.floor(build.pillars / 2) }).map(
+            (_, index) => (
+              <motion.div
+                key={`right-pillar-${index}`}
+                initial={{ height: 0 }}
+                animate={{ height: 70 }}
+                className="w-6 bg-gray-500 rounded-t-md"
+              />
+            )
+          )}
+        </div>
+
+        {/* Bridge Deck */}
+        <div className="absolute left-16 right-16 bottom-24 flex flex-col-reverse gap-1">
+          {Array.from({ length: build.planks }).map((_, index) => (
+            <motion.div
+              key={`plank-${index}`}
+              initial={{ opacity: 0, scaleX: 0 }}
+              animate={{ opacity: 1, scaleX: 1 }}
+              className="h-5 bg-amber-600 rounded-sm border border-amber-500/40"
+            />
+          ))}
+        </div>
+
+        {/* Supports */}
+        {Array.from({ length: build.supports }).map((_, index) => (
+          <motion.div
+            key={`support-${index}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute bottom-20 left-1/2 w-4 h-14 bg-indigo-500 rounded-sm"
+            style={{
+              transform: `translateX(calc(-50% + ${
+                (index - (build.supports - 1) / 2) * 28
+              }px))`,
+            }}
+          />
+        ))}
+
+        {build.planks === 0 &&
+          build.pillars === 0 &&
+          build.supports === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <p className="text-gray-600 text-sm">
+                Your construction site is empty.
+              </p>
+            </div>
+          )}
+      </div>
+
+      {/* Parts */}
+      <div className="space-y-3 mb-5">
+        <div className="flex items-center justify-between bg-gray-900 rounded-xl p-3">
+          <div>
+            <p className="text-white font-semibold">🪵 Planks</p>
+            <p className="text-gray-500 text-xs">
+              Create the bridge deck
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleRemove('plank')}
+              disabled={build.planks === 0}
+              className="w-8 h-8 rounded-lg bg-gray-800 text-white disabled:opacity-30"
+            >
+              −
+            </button>
+
+            <span className="w-6 text-center text-white font-bold">
+              {build.planks}
+            </span>
+
+            <button
+              onClick={() => handleBuild('plank')}
+              disabled={build.planks >= MAX_PLANKS}
+              className="w-8 h-8 rounded-lg bg-amber-600 text-white disabled:opacity-30"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between bg-gray-900 rounded-xl p-3">
+          <div>
+            <p className="text-white font-semibold">🧱 Pillars</p>
+            <p className="text-gray-500 text-xs">
+              Hold the bridge up
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleRemove('pillar')}
+              disabled={build.pillars === 0}
+              className="w-8 h-8 rounded-lg bg-gray-800 text-white disabled:opacity-30"
+            >
+              −
+            </button>
+
+            <span className="w-6 text-center text-white font-bold">
+              {build.pillars}
+            </span>
+
+            <button
+              onClick={() => handleBuild('pillar')}
+              disabled={build.pillars >= MAX_PILLARS}
+              className="w-8 h-8 rounded-lg bg-gray-600 text-white disabled:opacity-30"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between bg-gray-900 rounded-xl p-3">
+          <div>
+            <p className="text-white font-semibold">🔩 Supports</p>
+            <p className="text-gray-500 text-xs">
+              Add extra stability
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleRemove('support')}
+              disabled={build.supports === 0}
+              className="w-8 h-8 rounded-lg bg-gray-800 text-white disabled:opacity-30"
+            >
+              −
+            </button>
+
+            <span className="w-6 text-center text-white font-bold">
+              {build.supports}
+            </span>
+
+            <button
+              onClick={() => handleBuild('support')}
+              disabled={build.supports >= MAX_SUPPORTS}
+              className="w-8 h-8 rounded-lg bg-indigo-600 text-white disabled:opacity-30"
+            >
+              +
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <button onClick={() => handleBuild('plank')} className="p-3 bg-amber-600 rounded-xl text-white font-bold hover:bg-amber-500">+ Plank</button>
-        <button onClick={() => handleBuild('pillar')} className="p-3 bg-gray-600 rounded-xl text-white font-bold hover:bg-gray-500">+ Pillar</button>
-        <button onClick={() => handleBuild('wheel')} className="p-3 bg-gray-400 rounded-xl text-white font-bold hover:bg-gray-300">+ Wheel</button>
+      {/* Requirements */}
+      <div className="grid grid-cols-3 gap-2 mb-5">
+        <div
+          className={`rounded-lg p-2 text-center border ${
+            build.planks >= TARGET.planks
+              ? 'border-green-500/30 bg-green-500/10'
+              : 'border-gray-800 bg-gray-900'
+          }`}
+        >
+          <p className="text-xs text-gray-500">Planks</p>
+          <p className="text-white font-bold">
+            {build.planks}/{TARGET.planks}
+          </p>
+        </div>
+
+        <div
+          className={`rounded-lg p-2 text-center border ${
+            build.pillars >= TARGET.pillars
+              ? 'border-green-500/30 bg-green-500/10'
+              : 'border-gray-800 bg-gray-900'
+          }`}
+        >
+          <p className="text-xs text-gray-500">Pillars</p>
+          <p className="text-white font-bold">
+            {build.pillars}/{TARGET.pillars}
+          </p>
+        </div>
+
+        <div
+          className={`rounded-lg p-2 text-center border ${
+            build.supports >= TARGET.supports
+              ? 'border-green-500/30 bg-green-500/10'
+              : 'border-gray-800 bg-gray-900'
+          }`}
+        >
+          <p className="text-xs text-gray-500">Supports</p>
+          <p className="text-white font-bold">
+            {build.supports}/{TARGET.supports}
+          </p>
+        </div>
       </div>
 
-      <div className="flex justify-between gap-4">
-        <button onClick={handleReset} className="px-4 py-2 bg-gray-800 rounded-lg text-gray-300"><RotateCcw className="w-4 h-4" /></button>
-        <button onClick={handleTest} className="flex-1 py-2 bg-indigo-600 rounded-lg text-white font-bold hover:bg-indigo-500">Test Bridge</button>
+      {/* Controls */}
+      <div className="flex gap-3">
+        <button
+          onClick={handleReset}
+          className="px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-300 transition-colors"
+          title="Reset bridge"
+        >
+          <RotateCcw className="w-5 h-5" />
+        </button>
+
+        <button
+          onClick={handleTest}
+          className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-bold transition-colors"
+        >
+          🧪 Test Bridge
+        </button>
       </div>
 
+      {/* Result */}
       {isTested && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`mt-4 p-3 rounded-xl font-bold ${passed ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-          {passed ? <><CheckCircle className="w-5 h-5 inline mr-1" /> Great job! Your bridge is strong!</> : 'Oops! The bridge collapsed. Try adding more parts.'}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mt-4 p-4 rounded-xl ${
+            passed
+              ? 'bg-green-500/10 border border-green-500/20'
+              : 'bg-red-500/10 border border-red-500/20'
+          }`}
+        >
+          {passed ? (
+            <>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <CheckCircle className="w-5 h-5 text-green-400" />
+                <p className="font-bold text-green-400">
+                  Bridge Passed!
+                </p>
+              </div>
+
+              <p className="text-gray-300 text-sm">
+                Excellent engineering! Your bridge has enough structural
+                support to carry the challenge load.
+              </p>
+
+              <p className="text-gray-500 text-xs mt-2">
+                Engineers design, test, learn from failures, and improve
+                their designs.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-bold text-red-400 mb-2">
+                The bridge needs improvement.
+              </p>
+
+              <p className="text-gray-300 text-sm">
+                Check the requirements and add the missing structural parts.
+                Then test your design again.
+              </p>
+            </>
+          )}
         </motion.div>
+      )}
+
+      {attempts > 0 && (
+        <p className="text-center text-gray-600 text-xs mt-4">
+          Tests completed: {attempts}
+        </p>
       )}
     </div>
   );

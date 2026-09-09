@@ -19,7 +19,7 @@ import { SubtractionGame } from './components/interactive/Maths/SubtractionGame'
 import { MultiplicationGame } from './components/interactive/Maths/MultiplicationGame';
 import { DivisionGame } from './components/interactive/Maths/DivisionGame';
 import { FractionsGame } from './components/interactive/Maths/FractionsGame';
-import { MoneyGame } from './components/interactive/Maths/MoneyGame';
+import { MoneyGame } from './components/interactive/Finance/MoneyGame';
 import { ClockGame } from './components/interactive/Maths/ClockGame';
 import { ScienceLab } from './components/interactive/Science/ScienceLab';
 import { TracingCanvas } from './components/interactive/Writing/TracingCanvas';
@@ -71,6 +71,7 @@ import { AnimalCrossing } from './components/interactive/Engineering/AnimalCross
 import { ArabicLetters } from './components/interactive/Arabic/ArabicLetters';
 import { ArabicWords } from './components/interactive/Arabic/ArabicWords';
 import { ArabicReading } from './components/interactive/Arabic/ArabicReading';
+import { ArabicHarakatLab } from './components/interactive/Arabic/ArabicHarakatLab';
 import { EmotionMatch } from './components/interactive/Wellbeing/EmotionMatch';
 import { FeelingsJournal } from './components/interactive/Wellbeing/FeelingsJournal';
 import { EmpathyBuilder } from './components/interactive/Wellbeing/EmpathyBuilder';
@@ -78,15 +79,34 @@ import { CalmCorner } from './components/interactive/Wellbeing/CalmCorner';
 import { RobotExplorer } from './components/interactive/Robotics/RobotExplorer';
 import { Sequencer } from './components/interactive/Robotics/Sequencer';
 import { RobotDesigner } from './components/interactive/Robotics/RobotDesigner';
+import { RoboticsAcademy } from './components/interactive/Robotics/RoboticsAcademy';
+//import {ROBOTICS_CHALLENGES } from './components/interactive/Robotics/roboticsChallenges';
 import { LegoBuilder } from './components/interactive/Engineering/LegoBuilder';
 import { PuzzleBuilder } from './components/interactive/Engineering/PuzzleBuilder';
 import { ComputationalThinking } from './components/interactive/DigitalWorld/ComputationalThinking';
 import { CodingBasics } from './components/interactive/DigitalWorld/CodingBasics';
 import { DigitalSafety } from './components/interactive/DigitalWorld/DigitalSafety';
 import { ComputerBasics } from './components/interactive/DigitalWorld/ComputerBasics';
+import { HistoryExplorer } from './components/interactive/Global/HistoryExplorer';
+import { RecyclingGame } from './components/interactive/Nature/RecyclingGame';
+import { PlantingGame } from './components/interactive/Nature/PlantingGame';
+import { ProphetStories } from './components/interactive/Islamic/ProphetStories';
+import { ArabicAcademy } from './components/interactive/Arabic/ArabicAcademy';
+import { ThinkingLab } from './components/interactive/Thinking/ThinkingLab';
+import { MediaLiteracy } from './components/interactive/DigitalWorld/MediaLiteracy';
+import { FinanceAcademy } from './components/interactive/Finance/FinanceAcademy';
+import { GlobalPerspectives } from './components/interactive/Global/GlobalPerspectives';
+import { Aqeedah } from './components/interactive/Islamic/Aqeedah';
+import { Duas } from './components/interactive/Islamic/Duas';
+import { HadithSunnah } from './components/interactive/Islamic/HadithSunnah';
+import { Ibadah } from './components/interactive/Islamic/Ibadah';
+import { IslamicHistory } from './components/interactive/Islamic/IslamicHistory';
+import { IslamicManners } from './components/interactive/Islamic/IslamicManners';
+import { IslamicVocabulary } from './components/interactive/Islamic/IslamicVocabulary';
+import { QuranFoundations } from './components/interactive/Islamic/QuranFoundations';
+import { Seerah } from './components/interactive/Islamic/Seerah';
+import { Tarbiyah } from './components/interactive/Islamic/Tarbiyah';
 
-// --- TYPES ---
-// Added 'dashboard' to the list
 type Screen = 'age' | 'subjects' | 'dashboard' | 'list' | 'activity' | 'profiles' | 'portal';
 
 function App() {
@@ -96,41 +116,37 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [currentWorld, setCurrentWorld] = useState('');
 
-  const { setProfile, childName, childAge } = useProgressStore();
+  const { setActiveProfile } = useProgressStore();
   const { currentProfileId, profiles, setCurrentProfile, addProfile } = useProfileStore();
   const [showEmotionCheck, setShowEmotionCheck] = useState(true);
 
-  // --- AUTO-LOGIN: If a profile exists, skip AgeGate and go straight to the map ---
   useEffect(() => {
     if (currentProfileId && profiles[currentProfileId]) {
       const p = profiles[currentProfileId];
-      setProfile(p.age, p.name);
+      void setActiveProfile(currentProfileId); // Load progress from IndexedDB
       setScreen('subjects');
     }
   }, [currentProfileId, profiles]);
 
-  // --- HANDLERS ---
   const handleStartOver = () => {
     setCurrentProfile("");
     setScreen('age');
   };
 
-  const handleAgeSelect = (age: number, name: string) => {
+  const handleAgeSelect = async (age: number, name: string) => {
     const newId = `child-${Date.now()}`;
     const avatar = age <= 4 ? '🐣' : age <= 7 ? '🦊' : '🦉';
     addProfile(newId, name, age, avatar);
     setCurrentProfile(newId);
-    setProfile(age, name);
+    await setActiveProfile(newId);
     setScreen('subjects');
   };
 
-  // World Select -> Go to Dashboard
   const handleSubjectSelect = (worldId: string) => {
     setCurrentWorld(worldId);
     setScreen('dashboard');
   };
 
-  // Dashboard Subject Select -> Go to Lesson List
   const handleWorldSubjectSelect = (subjectId: string) => {
     setCurrentList(subjectId);
     setScreen('list');
@@ -160,11 +176,11 @@ function App() {
     }, 2000);
   };
 
-  const handleSwitchProfile = (id: string) => {
+  const handleSwitchProfile = async (id: string) => {
     const p = profiles[id];
     if(p) {
       setCurrentProfile(id);
-      setProfile(p.age, p.name);
+      await setActiveProfile(id);
       setScreen('subjects');
     }
   };
@@ -178,7 +194,6 @@ function App() {
     setScreen('activity');
   };
 
-  // --- GET HELP STEPS ---
   const getHelpSteps = (id: string): string[] => {
     switch(id) {
       case 'SentenceBuilder': return ['Look at the target sentence.', 'Tap the words below to build.', 'The screen will turn green when you get it right!'];
@@ -190,7 +205,6 @@ function App() {
     }
   };
 
-  // --- MASTER CURRICULUM REGISTRY ---
   const getCurriculumForAge = (): Record<string, LessonItem[]> => {
     return {
       'english': [
@@ -278,9 +292,11 @@ function App() {
         { id: '5', lessonId: '5', title: 'Puzzle Builder', description: 'Assemble 50 puzzles', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'PuzzleBuilder' },
       ],
       'arabic': [
-        { id: '1', lessonId: '1', title: 'Arabic Letters', description: 'Learn the alphabet', tag: 'Level 1', tagColor: 'border-emerald-500 text-emerald-400', status: 'available', componentId: 'ArabicLetters' },
-        { id: '2', lessonId: '2', title: 'Arabic Words', description: 'Learn basic vocabulary', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'ArabicWords' },
-        { id: '3', lessonId: '3', title: 'Arabic Reading', description: 'Read with Harakat', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'ArabicReading' },
+        { id: '1', lessonId: '1', title: 'Arabic Academy', description: 'Complete 17-Level Progression', tag: 'Academy', tagColor: 'border-emerald-500 text-emerald-400', status: 'available', componentId: 'ArabicAcademy' },
+        { id: '2', lessonId: '2', title: 'Arabic Letters', description: 'Learn the alphabet', tag: 'Level 1', tagColor: 'border-emerald-500 text-emerald-400', status: 'available', componentId: 'ArabicLetters' },
+        { id: '3', lessonId: '3', title: 'Arabic Words', description: 'Learn basic vocabulary', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'ArabicWords' },
+        { id: '4', lessonId: '4', title: 'Arabic Reading', description: 'Read with Harakat', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'ArabicReading' },
+        { id: '5', lessonId: '5', title: 'Arabic Harakat', description: 'Learn the harakat', tag: 'Level 1', tagColor: 'border-emerald-500 text-emerald-400', status: 'available', componentId: 'ArabicHarakatLab' },
       ],
       'wellbeing': [
         { id: '1', lessonId: '1', title: 'Emotion Match', description: 'Recognize different feelings', tag: 'Level 1', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'EmotionMatch' },
@@ -289,25 +305,58 @@ function App() {
         { id: '4', lessonId: '4', title: 'Calm Corner', description: 'Practice mindful breathing', tag: 'Level 2', tagColor: 'border-teal-500 text-teal-400', status: 'available', componentId: 'CalmCorner' },
       ],
       'robotics': [
-        { id: '1', lessonId: '1', title: 'Robot Explorer', description: 'Learn robot parts & sensors', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'RobotExplorer' },
-        { id: '2', lessonId: '2', title: 'Robot Sequencer', description: 'Program the robot to move', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'Sequencer' },
-        { id: '3', lessonId: '3', title: 'Robot Designer', description: 'Build a robot within budget', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'RobotDesigner' },
+        { id: '1', lessonId: '1', title: 'Robotics Academy', description: 'Master Robotics step-by-step', tag: 'Academy', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'RoboticsAcademy' },
+        { id: '2', lessonId: '2', title: 'Robot Explorer', description: 'Learn robot parts & sensors', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'RobotExplorer' },
+        { id: '3', lessonId: '3', title: 'Robot Sequencer', description: 'Program the robot to move', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'Sequencer' },
+        { id: '4', lessonId: '4', title: 'Robot Designer', description: 'Build a robot within budget', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'RobotDesigner' },
+        { id: '5', lessonId: '5', title: 'Robotics Challenges', description: 'Solve robot puzzles', tag: 'Level 4', tagColor: 'border-red-500 text-red-400', status: 'available', componentId: 'RoboticsChallenges' },
       ],
       'digital': [
         { id: '1', lessonId: '1', title: 'Computational Thinking', description: 'Solve code puzzles', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'ComputationalThinking' },
         { id: '2', lessonId: '2', title: 'Coding Basics', description: 'Program the robot', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'CodingBasics' },
         { id: '3', lessonId: '3', title: 'Digital Safety', description: 'Stay safe online', tag: 'Level 2', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'DigitalSafety' },
         { id: '4', lessonId: '4', title: 'Computer Basics', description: 'Learn computer parts', tag: 'Level 1', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'ComputerBasics' },
+        { id: '5', lessonId: '5', title: 'Media Literacy', description: 'Fact vs Opinion, Ads & Reliable Sources', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'MediaLiteracy' },
+      ],
+      'finance': [
+        { id: '1', lessonId: '1', title: 'Finance Academy', description: 'Budget, Money & Business', tag: 'Academy', tagColor: 'border-amber-500 text-amber-400', status: 'available', componentId: 'FinanceAcademy' },
+        { id: '2', lessonId: '2', title: 'Money Basics', description: 'Needs vs Wants', tag: 'Level 1', tagColor: 'border-amber-500 text-amber-400', status: 'available', componentId: 'MoneyGame' },
+      ],
+      'thinking': [
+        { id: '1', lessonId: '1', title: 'Thinking Lab', description: 'Train your brain with 4 games', tag: 'Academy', tagColor: 'border-cyan-500 text-cyan-400', status: 'available', componentId: 'ThinkingLab' },
+      ],
+      'global': [
+        { id: '1', lessonId: '1', title: 'Global Perspectives', description: 'Water, Community & Cultures', tag: 'Academy', tagColor: 'border-teal-500 text-teal-400', status: 'available', componentId: 'GlobalPerspectives' },
+      ],
+      'history': [
+        { id: '1', lessonId: '1', title: 'My Family History', description: 'Learn about your roots', tag: 'Level 1', tagColor: 'border-amber-500 text-amber-400', status: 'available', componentId: 'HistoryExplorer' },
+      ],
+      'environment': [
+        { id: '1', lessonId: '1', title: 'Recycling Hero', description: 'Sort waste correctly', tag: 'Level 1', tagColor: 'border-green-600 text-green-500', status: 'available', componentId: 'RecyclingGame' },
+      ],
+      'agriculture': [
+        { id: '1', lessonId: '1', title: 'Plant a Seed', description: 'Learn to grow food', tag: 'Level 1', tagColor: 'border-lime-600 text-lime-500', status: 'available', componentId: 'PlantingGame' },
+      ],
+      'islamic': [
+        { id: '1', lessonId: '1', title: 'Aqeedah', description: 'Learn our beliefs', tag: 'Level 1', tagColor: 'border-indigo-500 text-indigo-400', status: 'available', componentId: 'Aqeedah' },
+        { id: '2', lessonId: '2', title: 'Duas', description: 'Everyday supplications', tag: 'Level 1', tagColor: 'border-emerald-500 text-emerald-400', status: 'available', componentId: 'Duas' },
+        { id: '3', lessonId: '3', title: 'Hadith & Sunnah', description: 'Teachings of the Prophet (ﷺ)', tag: 'Level 1', tagColor: 'border-teal-500 text-teal-400', status: 'available', componentId: 'HadithSunnah' },
+        { id: '4', lessonId: '4', title: 'Ibadah', description: 'Prayer, fasting & worship', tag: 'Level 2', tagColor: 'border-blue-500 text-blue-400', status: 'available', componentId: 'Ibadah' },
+        { id: '5', lessonId: '5', title: 'Islamic History', description: 'Learn our rich history', tag: 'Level 2', tagColor: 'border-amber-500 text-amber-400', status: 'available', componentId: 'IslamicHistory' },
+        { id: '6', lessonId: '6', title: 'Islamic Manners', description: 'Adab & good character', tag: 'Level 2', tagColor: 'border-green-500 text-green-400', status: 'available', componentId: 'IslamicManners' },
+        { id: '7', lessonId: '7', title: 'Islamic Vocabulary', description: 'Learn Islamic words', tag: 'Level 3', tagColor: 'border-yellow-500 text-yellow-400', status: 'available', componentId: 'IslamicVocabulary' },
+        { id: '8', lessonId: '8', title: 'Quran Foundations', description: 'Basics of the Quran', tag: 'Level 3', tagColor: 'border-purple-500 text-purple-400', status: 'available', componentId: 'QuranFoundations' },
+        { id: '9', lessonId: '9', title: 'Seerah', description: 'Life of the Prophet (ﷺ)', tag: 'Level 3', tagColor: 'border-pink-500 text-pink-400', status: 'available', componentId: 'Seerah' },
+        { id: '10', lessonId: '10', title: 'Tarbiyah', description: 'Nurturing good character', tag: 'Level 4', tagColor: 'border-cyan-500 text-cyan-400', status: 'available', componentId: 'Tarbiyah' },
+        { id: '11', lessonId: '11', title: 'Prophet Stories', description: 'Learn from the Prophets', tag: 'Level 1', tagColor: 'border-indigo-600 text-indigo-500', status: 'available', componentId: 'ProphetStories' },
       ],
     };
   };
 
-  // --- GET LESSONS ---
   const getLessonsForSubject = (subject: string): LessonItem[] => {
     return getCurriculumForAge()[subject] || [];
   };
 
-  // --- RENDER ---
   return (
     <>
       {showEmotionCheck && (
@@ -318,7 +367,6 @@ function App() {
 
       <div className="min-h-screen bg-app-bg text-white font-sans pt-16 pb-20 relative">
         
-        {/* Top Profile Info */}
         {screen !== 'age' && (
           <div className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 py-3 bg-app-bg/90 backdrop-blur-md border-b border-app-border">
             <div className="min-w-[60px]">
@@ -329,8 +377,8 @@ function App() {
 
             <div className="flex items-center gap-2">
               <span className="text-lg">{currentProfileId ? profiles[currentProfileId]?.avatar : '👤'}</span>
-              <span className="font-bold">{childName || 'Guest'}</span>
-              <span className="text-xs bg-gray-800 px-2 py-0.5 rounded text-gray-400">Age {childAge}</span>
+              <span className="font-bold">{currentProfileId ? profiles[currentProfileId]?.name : 'Guest'}</span>
+              <span className="text-xs bg-gray-800 px-2 py-0.5 rounded text-gray-400">Age {currentProfileId ? profiles[currentProfileId]?.age : ''}</span>
             </div>
 
             <div className="min-w-[60px] flex justify-end gap-2">
@@ -344,11 +392,9 @@ function App() {
           </div>
         )}
 
-        {/* SCREENS */}
         {screen === 'age' && <AgeGate onSelect={handleAgeSelect} />}
         {screen === 'subjects' && <LearningWorld onSelect={handleSubjectSelect} />}
 
-        {/* NEW: Dashboard (Inside a World) */}
         {screen === 'dashboard' && (
           <SubjectDashboard 
             worldId={currentWorld} 
@@ -359,7 +405,7 @@ function App() {
 
         {screen === 'list' && (
           <SubjectLessonList 
-            subjectName={currentList === 'practical-life' ? 'The Garden' : currentList === 'art' ? 'Art Studio' : currentList === 'sensorial' ? 'Sensorial Room' : currentList === 'geography' ? 'Globe Corner' : currentList === 'writing' ? 'Writing Studio' : currentList === 'logic' ? 'Logic Lab' : currentList === 'engineering' ? 'Build Lab' : currentList === 'arabic' ? 'Arabic Language' : currentList === 'wellbeing' ? 'Wellbeing' : currentList.charAt(0).toUpperCase() + currentList.slice(1)} 
+            subjectName={currentList === 'practical-life' ? 'The Garden' : currentList === 'art' ? 'Art Studio' : currentList === 'sensorial' ? 'Sensorial Room' : currentList === 'geography' ? 'Globe Corner' : currentList === 'writing' ? 'Writing Studio' : currentList === 'logic' ? 'Logic Lab' : currentList === 'engineering' ? 'Build Lab' : currentList === 'arabic' ? 'Arabic Language' : currentList === 'wellbeing' ? 'Wellbeing' : currentList === 'robotics' ? 'Robotics Lab' : currentList === 'global' ? 'Global Perspectives' : currentList === 'nature' ? 'Nature & Agriculture' : currentList === 'islamic' ? 'Islamic Studies' : currentList === 'finance' ? 'Financial Literacy' : currentList === 'thinking' ? 'Thinking Lab' : currentList.charAt(0).toUpperCase() + currentList.slice(1)} 
             lessons={getLessonsForSubject(currentList)} 
             onSelectLesson={handleLessonSelect} 
             onBack={() => setScreen('dashboard')}
@@ -437,22 +483,44 @@ function App() {
               {currentActivityId === 'BridgeBuilder' && <BridgeBuilder />}
               {currentActivityId === 'TowerBuilder' && <TowerBuilder />}
               {currentActivityId === 'AnimalCrossing' && <AnimalCrossing />}
+              {currentActivityId === 'LegoBuilder' && <LegoBuilder />}
+              {currentActivityId === 'PuzzleBuilder' && <PuzzleBuilder />}
+              {currentActivityId === 'ArabicAcademy' && <ArabicAcademy />}
               {currentActivityId === 'ArabicLetters' && <ArabicLetters />}
               {currentActivityId === 'ArabicWords' && <ArabicWords />}
               {currentActivityId === 'ArabicReading' && <ArabicReading />}
+              {currentActivityId === 'ArabicHarakatLab' && <ArabicHarakatLab />}
               {currentActivityId === 'EmotionMatch' && <EmotionMatch />}
               {currentActivityId === 'FeelingsJournal' && <FeelingsJournal />}
               {currentActivityId === 'EmpathyBuilder' && <EmpathyBuilder />}
               {currentActivityId === 'CalmCorner' && <CalmCorner />}
+              {currentActivityId === 'RoboticsAcademy' && <RoboticsAcademy />}
               {currentActivityId === 'RobotExplorer' && <RobotExplorer />}
               {currentActivityId === 'Sequencer' && <Sequencer />}
               {currentActivityId === 'RobotDesigner' && <RobotDesigner />}
-              {currentActivityId === 'LegoBuilder' && <LegoBuilder />}
-              {currentActivityId === 'PuzzleBuilder' && <PuzzleBuilder />}
+              {currentActivityId === 'RoboticsChallenges' && <Sequencer />}
               {currentActivityId === 'ComputationalThinking' && <ComputationalThinking />}
               {currentActivityId === 'CodingBasics' && <CodingBasics />}
               {currentActivityId === 'DigitalSafety' && <DigitalSafety />}
               {currentActivityId === 'ComputerBasics' && <ComputerBasics />}
+              {currentActivityId === 'MediaLiteracy' && <MediaLiteracy />}
+              {currentActivityId === 'FinanceAcademy' && <FinanceAcademy />}
+              {currentActivityId === 'GlobalPerspectives' && <GlobalPerspectives />}
+              {currentActivityId === 'HistoryExplorer' && <HistoryExplorer />}
+              {currentActivityId === 'RecyclingGame' && <RecyclingGame />}
+              {currentActivityId === 'PlantingGame' && <PlantingGame />}
+              {currentActivityId === 'ProphetStories' && <ProphetStories />}
+              {currentActivityId === 'Aqeedah' && <Aqeedah />}
+              {currentActivityId === 'Duas' && <Duas />}
+              {currentActivityId === 'HadithSunnah' && <HadithSunnah />}
+              {currentActivityId === 'Ibadah' && <Ibadah />}
+              {currentActivityId === 'IslamicHistory' && <IslamicHistory />}
+              {currentActivityId === 'IslamicManners' && <IslamicManners />}
+              {currentActivityId === 'IslamicVocabulary' && <IslamicVocabulary />}
+              {currentActivityId === 'QuranFoundations' && <QuranFoundations />}
+              {currentActivityId === 'Seerah' && <Seerah />}
+              {currentActivityId === 'Tarbiyah' && <Tarbiyah />}
+              {currentActivityId === 'ThinkingLab' && <ThinkingLab />}
             </div>
             
             <HelpGuide 
@@ -464,14 +532,12 @@ function App() {
           </div>
         )}
 
-        {/* Parent Portal Screen */}
         {screen === 'portal' && (
           <div className="flex justify-center pt-4">
             <ParentPortal onBack={() => setScreen('subjects')} />
           </div>
         )}
 
-        {/* Bottom Right Circular Switch Button */}
         {screen !== 'age' && screen !== 'portal' && (
           <button
             onClick={() => setScreen('age')}

@@ -1,45 +1,175 @@
-import { useRef, useState, useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
-export const useTracing = ( ) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+export interface TracingOptions {
+  strokeWidth?: number;
+  strokeStyle?: string;
+  lineCap?: CanvasLineCap;
+  lineJoin?: CanvasLineJoin;
+}
 
-  const startDrawing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    setIsDrawing(true);
+export interface UseTracingReturn {
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  isDrawing: boolean;
+  startDrawing: (event: React.PointerEvent<HTMLCanvasElement>) => void;
+  draw: (event: React.PointerEvent<HTMLCanvasElement>) => void;
+  stopDrawing: () => void;
+  clearCanvas: () => void;
+}
+
+/**
+ * Provides canvas-based tracing input for ELP activities.
+ *
+ * This hook handles:
+ * - Pointer input
+ * - Canvas drawing
+ * - Clearing the canvas
+ * - Drawing state
+ *
+ * It does not determine whether tracing is correct.
+ * Tracing assessment should be handled by a separate learning/
+ * assessment engine.
+ */
+export const useTracing = (
+  options: TracingOptions = {},
+): UseTracingReturn => {
+  const {
+    strokeWidth = 6,
+    strokeStyle = '#0f766e',
+    lineCap = 'round',
+    lineJoin = 'round',
+  } = options;
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isDrawing, setIsDrawing] = useState<boolean>(false);
+
+  const getCanvasPoint = useCallback(
+    (
+      event: React.PointerEvent<HTMLCanvasElement>,
+    ): { x: number; y: number } | null => {
+      const canvas = canvasRef.current;
+
+      if (!canvas) {
+        return null;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+
+      if (rect.width === 0 || rect.height === 0) {
+        return null;
+      }
+
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      return {
+        x: (event.clientX - rect.left) * scaleX,
+        y: (event.clientY - rect.top) * scaleY,
+      };
+    },
+    [],
+  );
+
+  const configureContext = useCallback(
+    (context: CanvasRenderingContext2D): void => {
+      context.lineWidth = Math.max(1, strokeWidth);
+      context.strokeStyle = strokeStyle;
+      context.lineCap = lineCap;
+      context.lineJoin = lineJoin;
+    },
+    [lineCap, lineJoin, strokeStyle, strokeWidth],
+  );
+
+  const startDrawing = useCallback(
+    (event: React.PointerEvent<HTMLCanvasElement>): void => {
+      if (event.button !== 0 && event.pointerType !== 'touch') {
+        return;
+      }
+
+      const canvas = canvasRef.current;
+      const point = getCanvasPoint(event);
+
+      if (!canvas || !point) {
+        return;
+      }
+
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        return;
+      }
+
+      configureContext(context);
+
+      canvas.setPointerCapture?.(event.pointerId);
+
+      context.beginPath();
+      context.moveTo(point.x, point.y);
+
+      setIsDrawing(true);
+    },
+    [configureContext, getCanvasPoint],
+  );
+
+  const draw = useCallback(
+    (event: React.PointerEvent<HTMLCanvasElement>): void => {
+      if (!isDrawing) {
+        return;
+      }
+
+      const context = canvasRef.current?.getContext('2d');
+      const point = getCanvasPoint(event);
+
+      if (!context || !point) {
+        return;
+      }
+
+      configureContext(context);
+
+      context.lineTo(point.x, point.y);
+      context.stroke();
+    },
+    [configureContext, getCanvasPoint, isDrawing],
+  );
+
+  const stopDrawing = useCallback((): void => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
-    
-    ctx?.beginPath();
-    ctx?.moveTo(clientX - rect.left, clientY - rect.top);
-  }, []);
 
-  const draw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    if (canvas) {
+      const context = canvas.getContext('2d');
 
-    ctx?.lineTo(clientX - rect.left, clientY - rect.top);
-    ctx?.stroke();
-  }, [isDrawing]);
+      context?.closePath();
+    }
 
-  const stopDrawing = useCallback(() => {
     setIsDrawing(false);
   }, []);
 
-  const clearCanvas = useCallback(() => {
+  const clearCanvas = useCallback((): void => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx?.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (!canvas) {
+      return;
+    }
+
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      return;
+    }
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.beginPath();
+
+    setIsDrawing(false);
   }, []);
 
-  return { canvasRef, startDrawing, draw, stopDrawing, clearCanvas };
+  return {
+    canvasRef,
+    isDrawing,
+    startDrawing,
+    draw,
+    stopDrawing,
+    clearCanvas,
+  };
 };
+
+
