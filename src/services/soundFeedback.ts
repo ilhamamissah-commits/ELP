@@ -117,7 +117,7 @@ export function playSoundFeedback(
 ): void {
   if (
     typeof window === 'undefined' ||
-    !useSettingsStore.getState().isSoundEnabled
+    !useSettingsStore.getState().soundEnabled
   ) {
     return;
   }

@@ -193,7 +193,7 @@ export function speakWord(
     return false;
   }
 
-  if (!useSettingsStore.getState().isSoundEnabled) {
+  if (!useSettingsStore.getState().soundEnabled) {
     return false;
   }
 
@@ -316,7 +316,7 @@ export function speakSequence(
     return false;
   }
 
-  if (!useSettingsStore.getState().isSoundEnabled) {
+  if (!useSettingsStore.getState().soundEnabled) {
     return false;
   }
 

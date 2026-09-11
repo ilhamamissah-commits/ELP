@@ -187,7 +187,7 @@ export function speak(
 
   if (
     !engine ||
-    !useSettingsStore.getState().isSoundEnabled
+    !useSettingsStore.getState().soundEnabled
   ) {
     return false;
   }

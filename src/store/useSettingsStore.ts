@@ -13,6 +13,7 @@ interface SettingsState {
   reduceMotion: boolean;
   voiceAccent: VoiceAccent;
   autoReadEnabled: boolean;
+  islamicMode: boolean;
 
   setTheme: (theme: AppTheme) => void;
   setTextSize: (size: TextSize) => void;
@@ -21,6 +22,7 @@ interface SettingsState {
   toggleReduceMotion: () => void;
   setVoiceAccent: (accent: VoiceAccent) => void;
   toggleAutoRead: () => void;
+  toggleIslamicMode: () => void;
   resetSettings: () => void;
 }
 
@@ -34,6 +36,7 @@ export const useSettingsStore = create<SettingsState>()(
       reduceMotion: false,
       voiceAccent: 'auto',
       autoReadEnabled: false,
+      islamicMode: false,
 
       setTheme: (theme) => set({ theme }),
       setTextSize: (textSize) => set({ textSize }),
@@ -42,6 +45,8 @@ export const useSettingsStore = create<SettingsState>()(
       toggleReduceMotion: () => set((s) => ({ reduceMotion: !s.reduceMotion })),
       setVoiceAccent: (voiceAccent) => set({ voiceAccent }),
       toggleAutoRead: () => set((s) => ({ autoReadEnabled: !s.autoReadEnabled })),
+      toggleIslamicMode: () => set((s) => ({ islamicMode: !s.islamicMode })),
+
 
       resetSettings: () =>
         set({
@@ -52,6 +57,7 @@ export const useSettingsStore = create<SettingsState>()(
           reduceMotion: false,
           voiceAccent: 'auto',
           autoReadEnabled: false,
+          islamicMode: false,
         }),
     }),
     { name: 'app-settings-storage' }

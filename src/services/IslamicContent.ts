@@ -11,9 +11,9 @@ export function getVocabWord(
   englishWord: string,
   arabicWord: string,
 ): string {
-  const { isIslamicMode } = useSettingsStore.getState();
+  const { islamicMode } = useSettingsStore.getState();
 
-  return isIslamicMode ? arabicWord : englishWord;
+  return islamicMode ? arabicWord : englishWord;
 }
 
 /**
@@ -24,9 +24,9 @@ export function getLessonTitle(
   standardName: string,
   islamicName: string,
 ): string {
-  const { isIslamicMode } = useSettingsStore.getState();
+  const { islamicMode } = useSettingsStore.getState();
 
-  return isIslamicMode ? islamicName : standardName;
+  return islamicMode ? islamicName : standardName;
 }
 
 /**
@@ -48,9 +48,9 @@ export interface PracticalLifeStep {
  * Wudu-oriented practical-life learning.
  */
 export function getPracticalLifeSteps(): PracticalLifeStep[] {
-  const { isIslamicMode } = useSettingsStore.getState();
+  const { islamicMode } = useSettingsStore.getState();
 
-  if (isIslamicMode) {
+  if (islamicMode) {
     return [
       {
         id: 'wash-hands',
@@ -117,5 +117,5 @@ export function getNumberedPracticalLifeSteps(): string[] {
  * Returns whether Islamic Mode is currently enabled.
  */
 export function isIslamicContentMode(): boolean {
-  return useSettingsStore.getState().isIslamicMode;
+  return useSettingsStore.getState().islamicMode;
 }
