@@ -8,7 +8,9 @@ import {
   Volume2,
 } from 'lucide-react';
 
-import { speakWord } from '../../../services/audioEngine';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
 
@@ -135,14 +137,9 @@ const buildOptions = (answer: number): number[] => {
     answer + 2,
   ].filter((value) => value >= 0 && value !== answer);
 
-  const uniqueDistractors = Array.from(
-    new Set(possibleDistractors),
-  );
+  const uniqueDistractors = Array.from(new Set(possibleDistractors));
 
-  return shuffle([
-    answer,
-    ...shuffle(uniqueDistractors).slice(0, 2),
-  ]);
+  return shuffle([answer, ...shuffle(uniqueDistractors).slice(0, 2)]);
 };
 
 const getStage = (level: number) => {
@@ -191,9 +188,15 @@ export const DivisionGame: React.FC = () => {
 
   const currentLevel = profile?.currentLevel ?? 1;
 
-  const completeActivity = useProgressStore(
-    (state) => state.completeActivity,
-  );
+  const completeActivity = useProgressStore((state) => state.completeActivity);
+
+  // Global sound / auto-read settings
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  // useReadAloud already respects soundEnabled + voiceAccent internally
+  const { speak } = useReadAloud();
 
   const stage = getStage(currentLevel);
 
@@ -208,54 +211,66 @@ export const DivisionGame: React.FC = () => {
     let eligible = PROBLEMS;
 
     if (currentLevel <= 1) {
-      eligible = PROBLEMS.filter(
-        (problem) => problem.total <= 10,
-      );
+      eligible = PROBLEMS.filter((problem) => problem.total <= 10);
     } else if (currentLevel === 2) {
-      eligible = PROBLEMS.filter(
-        (problem) => problem.total <= 15,
-      );
+      eligible = PROBLEMS.filter((problem) => problem.total <= 15);
     }
 
-    return shuffle(
-      eligible.length >= 5 ? eligible : PROBLEMS,
-    ).slice(0, 5);
+    return shuffle(eligible.length >= 5 ? eligible : PROBLEMS).slice(0, 5);
   }, [currentLevel]);
 
   const current = sessionProblems[index];
 
+  const correctAnswer = current ? current.total / current.groups : 0;
+
   const options = useMemo(() => {
     if (!current) return [];
-
-    return buildOptions(
-      current.total / current.groups,
-    );
+    return buildOptions(current.total / current.groups);
   }, [current]);
 
   const accuracy =
-    attempts > 0
-      ? Math.round((correctCount / attempts) * 100)
-      : 0;
+    attempts > 0 ? Math.round((correctCount / attempts) * 100) : 0;
 
   const progress =
-    sessionProblems.length > 0
-      ? (index / sessionProblems.length) * 100
-      : 0;
+    sessionProblems.length > 0 ? (index / sessionProblems.length) * 100 : 0;
 
+  // Reset per-question state + auto-read the prompt (if enabled)
   useEffect(() => {
     setSelected(null);
     setShowHint(false);
-  }, [index]);
 
-  const finishActivity = (
-    finalCorrect: number,
-    finalAttempts: number,
-  ) => {
+    if (current && autoReadEnabled) {
+      const readOut = `Share ${current.total} equally between ${current.groups} groups. How many in each group?`;
+      const timer = window.setTimeout(() => speak(readOut), 350);
+      return () => window.clearTimeout(timer);
+    }
+  }, [index, current, speak, autoReadEnabled]);
+
+  // Read hint aloud when it opens
+  useEffect(() => {
+    if (showHint && current) {
+      speak(current.hint);
+    }
+  }, [showHint, current, speak]);
+
+  // Announce completion
+  useEffect(() => {
+    if (!completed) return;
+
+    const finalAccuracy =
+      attempts > 0 ? Math.round((correctCount / attempts) * 100) : 0;
+
+    speak(
+      finalAccuracy >= 80
+        ? `Brilliant work! You scored ${finalAccuracy} percent. You are a division star!`
+        : `Well done! You scored ${finalAccuracy} percent. Let's practise sharing again.`,
+    );
+  }, [completed, attempts, correctCount, speak]);
+
+  const finishActivity = (finalCorrect: number, finalAttempts: number) => {
     const finalAccuracy =
       finalAttempts > 0
-        ? Math.round(
-            (finalCorrect / finalAttempts) * 100,
-          )
+        ? Math.round((finalCorrect / finalAttempts) * 100)
         : 0;
 
     completeActivity({
@@ -274,39 +289,42 @@ export const DivisionGame: React.FC = () => {
       return;
     }
 
-    const correctAnswer =
-      current.total / current.groups;
-
-    const isCorrect = answer === correctAnswer;
+    const answerValue = current.total / current.groups;
+    const isCorrect = answer === answerValue;
 
     const nextAttempts = attempts + 1;
-    const nextCorrect =
-      correctCount + (isCorrect ? 1 : 0);
+    const nextCorrect = correctCount + (isCorrect ? 1 : 0);
 
     setAttempts(nextAttempts);
     setSelected(answer);
 
     if (isCorrect) {
+      if (soundEnabled) {
+        playSoundFeedback('correct');
+      }
+
       setCorrectCount(nextCorrect);
 
-      speakWord(
-        `Correct. ${current.total} divided by ${current.groups} equals ${correctAnswer}.`,
+      speak(
+        `Correct! ${current.total} divided by ${current.groups} equals ${answerValue}. ${current.explanation}`,
       );
 
       if (index === sessionProblems.length - 1) {
         setTimeout(() => {
-          finishActivity(
-            nextCorrect,
-            nextAttempts,
-          );
-        }, 1200);
+          finishActivity(nextCorrect, nextAttempts);
+        }, 2200);
       } else {
         setTimeout(() => {
           setIndex((value) => value + 1);
-        }, 1200);
+        }, 2200);
       }
     } else {
-      speakWord('Not quite. Try sharing the objects equally.');
+      if (soundEnabled) {
+        playSoundFeedback('try-again');
+      }
+
+      speak('Not quite. Try sharing the objects equally. Each group must have the same number.');
+      setShowHint(true);
     }
   };
 
@@ -317,10 +335,12 @@ export const DivisionGame: React.FC = () => {
     setAttempts(0);
     setShowHint(false);
     setCompleted(false);
+
+    speak("Let's practise division again!");
   };
 
   const readInstructions = () => {
-    speakWord(
+    speak(
       'Division means sharing or grouping equally. Look at the objects and find how many belong in each group.',
     );
   };
@@ -331,63 +351,40 @@ export const DivisionGame: React.FC = () => {
 
   if (completed) {
     const finalAccuracy =
-      attempts > 0
-        ? Math.round(
-            (correctCount / attempts) * 100,
-          )
-        : 0;
+      attempts > 0 ? Math.round((correctCount / attempts) * 100) : 0;
 
     return (
       <motion.div
-        initial={{
-          opacity: 0,
-          scale: 0.96,
-        }}
-        animate={{
-          opacity: 1,
-          scale: 1,
-        }}
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
         className="max-w-md mx-auto bg-app-card p-7 rounded-2xl border border-app-border shadow-xl text-center"
       >
         <div className="mx-auto mb-5 w-16 h-16 rounded-2xl bg-emerald-500/15 flex items-center justify-center">
           <Trophy className="w-8 h-8 text-emerald-400" />
         </div>
 
-        <h3 className="text-2xl font-bold text-white">
-          Division Lab Complete
-        </h3>
+        <h3 className="text-2xl font-bold text-white">Division Lab Complete</h3>
 
         <p className="text-gray-400 text-sm mt-2">
-          You practised sharing, grouping and division
-          reasoning.
+          You practised sharing, grouping and division reasoning.
         </p>
 
         <div className="grid grid-cols-3 gap-3 mt-6">
           <div className="rounded-xl bg-gray-900/70 p-3">
-            <div className="text-xl font-bold text-white">
-              {correctCount}
-            </div>
-            <div className="text-xs text-gray-500">
-              Correct
-            </div>
+            <div className="text-xl font-bold text-white">{correctCount}</div>
+            <div className="text-xs text-gray-500">Correct</div>
           </div>
 
           <div className="rounded-xl bg-gray-900/70 p-3">
-            <div className="text-xl font-bold text-white">
-              {finalAccuracy}%
-            </div>
-            <div className="text-xs text-gray-500">
-              Accuracy
-            </div>
+            <div className="text-xl font-bold text-white">{finalAccuracy}%</div>
+            <div className="text-xs text-gray-500">Accuracy</div>
           </div>
 
           <div className="rounded-xl bg-gray-900/70 p-3">
             <div className="text-xl font-bold text-white">
               {sessionProblems.length}
             </div>
-            <div className="text-xs text-gray-500">
-              Problems
-            </div>
+            <div className="text-xs text-gray-500">Problems</div>
           </div>
         </div>
 
@@ -397,9 +394,8 @@ export const DivisionGame: React.FC = () => {
           </p>
 
           <p className="text-sm text-gray-300 mt-2">
-            Division and multiplication are connected.
-            For example, if 3 × 4 = 12, then 12 ÷ 3 = 4
-            and 12 ÷ 4 = 3.
+            Division and multiplication are connected. For example, if 3 × 4 =
+            12, then 12 ÷ 3 = 4 and 12 ÷ 4 = 3.
           </p>
         </div>
 
@@ -415,31 +411,41 @@ export const DivisionGame: React.FC = () => {
     );
   }
 
-  const correctAnswer =
-    current.total / current.groups;
-
   return (
     <div className="max-w-xl mx-auto bg-app-card p-6 md:p-7 rounded-2xl border border-app-border shadow-xl">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
-          <h3 className="text-2xl font-bold text-white">
-            ➗ Division Lab
-          </h3>
+          <h3 className="text-2xl font-bold text-white">➗ Division Lab</h3>
 
           <p className="text-gray-400 text-sm mt-1">
             {stage.title} · {stage.description}
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={readInstructions}
-          aria-label="Read instructions"
-          className="p-2.5 rounded-xl bg-gray-800 border border-gray-700 text-cyan-400 hover:bg-gray-700"
-        >
-          <Volume2 className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={readInstructions}
+            aria-label="Read instructions"
+            className="p-2.5 rounded-xl bg-gray-800 border border-gray-700 text-cyan-400 hover:bg-gray-700"
+          >
+            <Volume2 className="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2.5 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-5 h-5 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Progress */}
@@ -455,12 +461,8 @@ export const DivisionGame: React.FC = () => {
         <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
           <motion.div
             className="h-full bg-cyan-500"
-            animate={{
-              width: `${progress}%`,
-            }}
-            transition={{
-              duration: 0.3,
-            }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.3 }}
           />
         </div>
       </div>
@@ -475,62 +477,36 @@ export const DivisionGame: React.FC = () => {
       {/* Division equation */}
       <div className="text-center mb-6">
         <div className="flex items-center justify-center gap-3 flex-wrap">
-          <span className="text-4xl font-bold text-white">
-            {current.total}
-          </span>
+          <span className="text-4xl font-bold text-white">{current.total}</span>
 
-          <span className="text-3xl text-gray-500">
-            ÷
-          </span>
+          <span className="text-3xl text-gray-500">÷</span>
 
-          <span className="text-4xl font-bold text-white">
-            {current.groups}
-          </span>
+          <span className="text-4xl font-bold text-white">{current.groups}</span>
 
-          <span className="text-3xl text-gray-500">
-            =
-          </span>
+          <span className="text-3xl text-gray-500">=</span>
 
-          <span className="text-4xl font-bold text-cyan-400">
-            ?
-          </span>
+          <span className="text-4xl font-bold text-cyan-400">?</span>
         </div>
 
         <p className="text-gray-400 text-sm mt-3">
-          Share {current.total} {current.emoji} equally
-          between {current.groups} groups.
+          Share {current.total} {current.emoji} equally between {current.groups}{' '}
+          groups.
         </p>
       </div>
 
       {/* Equal groups visual */}
       <div className="flex justify-center gap-3 mb-7 flex-wrap">
-        {Array.from({
-          length: current.groups,
-        }).map((_, groupIndex) => (
+        {Array.from({ length: current.groups }).map((_, groupIndex) => (
           <motion.div
             key={groupIndex}
-            initial={{
-              opacity: 0,
-              y: 8,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-            transition={{
-              delay: groupIndex * 0.05,
-            }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: groupIndex * 0.05 }}
             className="min-w-[64px] min-h-[74px] flex flex-col items-center justify-center p-2 bg-gray-900/70 border border-gray-700 rounded-xl"
           >
             <div className="flex flex-wrap justify-center gap-0.5">
-              {Array.from({
-                length: correctAnswer,
-              }).map((_, itemIndex) => (
-                <span
-                  key={itemIndex}
-                  className="text-xl"
-                  aria-hidden="true"
-                >
+              {Array.from({ length: correctAnswer }).map((_, itemIndex) => (
+                <span key={itemIndex} className="text-xl" aria-hidden="true">
                   {current.emoji}
                 </span>
               ))}
@@ -560,23 +536,17 @@ export const DivisionGame: React.FC = () => {
             'bg-gray-800 border-gray-700 text-white hover:bg-gray-700';
 
           if (isSelected && isCorrect) {
-            classes =
-              'bg-emerald-500/20 border-emerald-400 text-emerald-300';
+            classes = 'bg-emerald-500/20 border-emerald-400 text-emerald-300';
           } else if (isSelected && !isCorrect) {
-            classes =
-              'bg-red-500/20 border-red-400 text-red-300';
+            classes = 'bg-red-500/20 border-red-400 text-red-300';
           }
 
           return (
             <motion.button
               key={option}
               type="button"
-              whileHover={{
-                scale: selected === null ? 1.03 : 1,
-              }}
-              whileTap={{
-                scale: selected === null ? 0.97 : 1,
-              }}
+              whileHover={{ scale: selected === null ? 1.03 : 1 }}
+              whileTap={{ scale: selected === null ? 0.97 : 1 }}
               disabled={selected !== null}
               onClick={() => handleAnswer(option)}
               className={`min-h-14 rounded-xl border-2 text-2xl font-bold transition-colors ${classes}`}
@@ -591,9 +561,7 @@ export const DivisionGame: React.FC = () => {
       {!selected && (
         <button
           type="button"
-          onClick={() =>
-            setShowHint((value) => !value)
-          }
+          onClick={() => setShowHint((value) => !value)}
           className="mt-5 mx-auto flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300"
         >
           <Lightbulb className="w-4 h-4" />
@@ -603,14 +571,8 @@ export const DivisionGame: React.FC = () => {
 
       {showHint && !selected && (
         <motion.div
-          initial={{
-            opacity: 0,
-            y: 5,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
           className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm text-amber-200"
         >
           {current.hint}
@@ -620,14 +582,8 @@ export const DivisionGame: React.FC = () => {
       {/* Feedback */}
       {selected !== null && (
         <motion.div
-          initial={{
-            opacity: 0,
-            y: 8,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
           className={`mt-5 p-4 rounded-xl border ${
             selected === correctAnswer
               ? 'bg-emerald-500/10 border-emerald-500/20'
@@ -642,8 +598,7 @@ export const DivisionGame: React.FC = () => {
               </div>
 
               <p className="text-sm text-gray-300 mt-2">
-                {current.total} ÷ {current.groups} ={' '}
-                {correctAnswer}
+                {current.total} ÷ {current.groups} = {correctAnswer}
               </p>
 
               <p className="text-xs text-gray-500 mt-1">
@@ -652,18 +607,19 @@ export const DivisionGame: React.FC = () => {
             </>
           ) : (
             <>
-              <p className="text-red-300 font-semibold">
-                Not quite.
-              </p>
+              <p className="text-red-300 font-semibold">Not quite.</p>
 
               <p className="text-xs text-gray-500 mt-1">
-                Try sharing the objects equally. Each
-                group must have the same number.
+                Try sharing the objects equally. Each group must have the same
+                number.
               </p>
 
               <button
                 type="button"
-                onClick={() => setSelected(null)}
+                onClick={() => {
+                  setSelected(null);
+                  setShowHint(false);
+                }}
                 className="mt-3 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white text-sm font-semibold"
               >
                 Try Again
@@ -677,9 +633,7 @@ export const DivisionGame: React.FC = () => {
       <div className="mt-6 pt-5 border-t border-app-border flex justify-between text-sm">
         <span className="text-gray-500">
           Score:{' '}
-          <span className="text-white font-semibold">
-            {correctCount * 10}
-          </span>
+          <span className="text-white font-semibold">{correctCount * 10}</span>
         </span>
 
         <span className="text-gray-500">
@@ -697,8 +651,8 @@ export const DivisionGame: React.FC = () => {
         </p>
 
         <p className="text-sm text-gray-300 mt-2">
-          Can you solve the problem another way? Try using
-          multiplication to check your division answer.
+          Can you solve the problem another way? Try using multiplication to
+          check your division answer.
         </p>
 
         <p className="text-xs text-cyan-400 mt-2">

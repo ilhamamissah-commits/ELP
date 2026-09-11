@@ -9,6 +9,9 @@ import {
   XCircle,
 } from 'lucide-react';
 
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
 
@@ -34,48 +37,31 @@ const OBJECTS = ['🍎', '⭐', '🍓', '🐟', '🧸', '🌸', '🚗', '🦋'];
 
 const shuffle = <T,>(items: T[]): T[] => {
   const copy = [...items];
-
   for (let i = copy.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-
   return copy;
 };
 
-const buildOptions = (
-  answer: number,
-  min: number,
-  max: number,
-): number[] => {
+const buildOptions = (answer: number, min: number, max: number): number[] => {
   const candidates = new Set<number>();
-
   const offsets = shuffle([-3, -2, -1, 1, 2, 3, 4]);
 
   offsets.forEach((offset) => {
     const value = answer + offset;
-
     if (value >= min && value <= max && value !== answer) {
       candidates.add(value);
     }
   });
 
   let distance = 5;
-
   while (candidates.size < 2) {
     const lower = answer - distance;
     const upper = answer + distance;
-
-    if (lower >= min && lower !== answer) {
-      candidates.add(lower);
-    }
-
-    if (upper <= max && upper !== answer) {
-      candidates.add(upper);
-    }
-
+    if (lower >= min && lower !== answer) candidates.add(lower);
+    if (upper <= max && upper !== answer) candidates.add(upper);
     distance += 1;
-
     if (distance > 50) break;
   }
 
@@ -84,15 +70,10 @@ const buildOptions = (
 
 const createProblem = (learnerLevel: number): SubtractionProblem => {
   const range = LEVEL_RANGES[learnerLevel] ?? LEVEL_RANGES[1];
-
   const a =
-    Math.floor(Math.random() * (range.maxA - range.minA + 1)) +
-    range.minA;
-
-  // Keep the subtraction non-negative.
+    Math.floor(Math.random() * (range.maxA - range.minA + 1)) + range.minA;
   const maxB = Math.max(1, Math.floor(a * 0.65));
   const b = Math.floor(Math.random() * maxB) + 1;
-
   const answer = a - b;
 
   let strategy = 'Count back';
@@ -119,17 +100,21 @@ const createProblem = (learnerLevel: number): SubtractionProblem => {
 
 export const SubtractionGame: React.FC = () => {
   const profile = useProfileStore(
-    (state) => state.profiles[state.currentProfileId],
+    (state) => state.profiles[state.currentProfileId]
   );
 
   const currentLevel = profile?.currentLevel ?? 1;
 
-  const completeActivity = useProgressStore(
-    (state) => state.completeActivity,
-  );
+  const completeActivity = useProgressStore((state) => state.completeActivity);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
 
   const [problem, setProblem] = useState<SubtractionProblem>(() =>
-    createProblem(currentLevel),
+    createProblem(currentLevel)
   );
 
   const [questionNumber, setQuestionNumber] = useState(1);
@@ -141,7 +126,6 @@ export const SubtractionGame: React.FC = () => {
   const [completed, setCompleted] = useState(false);
 
   const range = LEVEL_RANGES[currentLevel] ?? LEVEL_RANGES[1];
-
   const correctAnswer = problem.a - problem.b;
 
   useEffect(() => {
@@ -157,47 +141,61 @@ export const SubtractionGame: React.FC = () => {
 
   const options = useMemo(
     () => buildOptions(correctAnswer, 0, range.maxA),
-    [correctAnswer, range.maxA],
+    [correctAnswer, range.maxA]
   );
 
-  const speak = useCallback((text: string) => {
-    if (
-      typeof window === 'undefined' ||
-      !('speechSynthesis' in window)
-    ) {
-      return;
+  // Auto-read question on change
+  useEffect(() => {
+    if (autoReadEnabled) {
+      const readOut = `${problem.a} minus ${problem.b} equals what?`;
+      const timer = window.setTimeout(() => speak(readOut), 350);
+      return () => window.clearTimeout(timer);
     }
+  }, [problem.a, problem.b, speak, autoReadEnabled]);
 
-    window.speechSynthesis.cancel();
+  // Read hint when it opens
+  useEffect(() => {
+    if (showHint && !selected) {
+      speak(
+        `Start with ${problem.a}, then count backwards ${problem.b} steps.`
+      );
+    }
+  }, [showHint, selected, problem.a, problem.b, speak]);
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.8;
-    utterance.pitch = 1;
+  // Announce completion
+  useEffect(() => {
+    if (!completed) return;
 
-    window.speechSynthesis.speak(utterance);
-  }, []);
+    const accuracy = Math.round((correctAnswers / SESSION_LENGTH) * 100);
+
+    speak(
+      accuracy >= 80
+        ? `Brilliant work! You scored ${accuracy} percent. Your subtraction skills are strong!`
+        : `Well done! You scored ${accuracy} percent. Let's keep practising subtraction.`,
+    );
+  }, [completed, correctAnswers, speak]);
 
   const handleAnswer = (answer: number) => {
     if (selected !== null || completed) return;
 
     const correct = answer === correctAnswer;
-
     setSelected(answer);
 
     if (correct) {
+      if (soundEnabled) playSoundFeedback('correct');
       setCorrectAnswers((previous) => previous + 1);
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
     }
+
+    speak(correct ? `Correct! ${problem.explanation}` : `Not quite. ${problem.explanation}`);
 
     setShowExplanation(true);
 
     window.setTimeout(() => {
       if (questionNumber >= SESSION_LENGTH) {
-        const finalCorrect =
-          correctAnswers + (correct ? 1 : 0);
-
-        const finalScore = Math.round(
-          (finalCorrect / SESSION_LENGTH) * 100,
-        );
+        const finalCorrect = correctAnswers + (correct ? 1 : 0);
+        const finalScore = Math.round((finalCorrect / SESSION_LENGTH) * 100);
 
         completeActivity({
           id: 'maths-subtraction-lab',
@@ -225,7 +223,7 @@ export const SubtractionGame: React.FC = () => {
       setShowHint(false);
       setShowExplanation(false);
       setShowNumberLine(false);
-    }, 1400);
+    }, 2400);
   };
 
   const restart = () => {
@@ -237,47 +235,40 @@ export const SubtractionGame: React.FC = () => {
     setShowExplanation(false);
     setShowNumberLine(false);
     setCompleted(false);
+
+    speak("Let's practise subtraction again!");
   };
 
-  const renderObjects = () => {
-    return (
-      <div className="flex flex-wrap justify-center gap-1.5 max-w-2xl mx-auto">
-        {Array.from({ length: problem.a }).map((_, index) => {
-          const removed = index >= problem.a - problem.b;
-
-          return (
-            <motion.span
-              key={index}
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{
-                opacity: removed ? 0.25 : 1,
-                scale: 1,
-              }}
-              transition={{
-                delay: Math.min(index * 0.025, 0.4),
-              }}
-              className={`text-3xl sm:text-4xl select-none ${
-                removed ? 'line-through grayscale' : ''
-              }`}
-            >
-              {problem.emoji}
-            </motion.span>
-          );
-        })}
-      </div>
-    );
-  };
+  const renderObjects = () => (
+    <div className="flex flex-wrap justify-center gap-1.5 max-w-2xl mx-auto">
+      {Array.from({ length: problem.a }).map((_, index) => {
+        const removed = index >= problem.a - problem.b;
+        return (
+          <motion.span
+            key={index}
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: removed ? 0.25 : 1, scale: 1 }}
+            transition={{ delay: Math.min(index * 0.025, 0.4) }}
+            className={`text-3xl sm:text-4xl select-none ${
+              removed ? 'line-through grayscale' : ''
+            }`}
+          >
+            {problem.emoji}
+          </motion.span>
+        );
+      })}
+    </div>
+  );
 
   const renderNumberLine = () => {
     const start = Math.max(0, problem.a - 12);
     const end = Math.min(
       Math.max(problem.a + 2, correctAnswer + 2),
-      problem.a + 12,
+      problem.a + 12
     );
-
     const numbers = Array.from(
       { length: end - start + 1 },
-      (_, index) => start + index,
+      (_, index) => start + index
     );
 
     return (
@@ -289,23 +280,16 @@ export const SubtractionGame: React.FC = () => {
         <div className="text-xs uppercase tracking-wider text-gray-500 mb-4">
           Number line
         </div>
-
         <div className="overflow-x-auto">
           <div
             className="flex items-end min-w-max mx-auto"
-            style={{
-              width: `${Math.max(numbers.length * 44, 100)}px`,
-            }}
+            style={{ width: `${Math.max(numbers.length * 44, 100)}px` }}
           >
             {numbers.map((number) => {
               const isStart = number === problem.a;
               const isAnswer = number === correctAnswer;
-
               return (
-                <div
-                  key={number}
-                  className="flex-1 min-w-11 text-center"
-                >
+                <div key={number} className="flex-1 min-w-11 text-center">
                   <div
                     className={`mx-auto w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
                       isAnswer
@@ -317,29 +301,22 @@ export const SubtractionGame: React.FC = () => {
                   >
                     {number}
                   </div>
-
                   <div className="h-2 border-l border-gray-700 mx-auto mt-1" />
                 </div>
               );
             })}
           </div>
         </div>
-
         <p className="text-center text-sm text-gray-400 mt-4">
-          Start at <strong className="text-white">{problem.a}</strong>{' '}
-          and count back{' '}
-          <strong className="text-white">{problem.b}</strong>{' '}
-          steps.
+          Start at <strong className="text-white">{problem.a}</strong> and count
+          back <strong className="text-white">{problem.b}</strong> steps.
         </p>
       </motion.div>
     );
   };
 
   if (completed) {
-    const accuracy = Math.round(
-      (correctAnswers / SESSION_LENGTH) * 100,
-    );
-
+    const accuracy = Math.round((correctAnswers / SESSION_LENGTH) * 100);
     const strongPerformance = accuracy >= 80;
 
     return (
@@ -357,19 +334,12 @@ export const SubtractionGame: React.FC = () => {
         </h3>
 
         <p className="text-gray-400 mt-2">
-          You solved {correctAnswers} of {SESSION_LENGTH} problems
-          correctly.
+          You solved {correctAnswers} of {SESSION_LENGTH} problems correctly.
         </p>
 
         <div className="my-6 rounded-2xl bg-gray-900/70 border border-app-border p-5">
-          <div className="text-4xl font-black text-white">
-            {accuracy}%
-          </div>
-
-          <div className="text-sm text-gray-400 mt-1">
-            Session accuracy
-          </div>
-
+          <div className="text-4xl font-black text-white">{accuracy}%</div>
+          <div className="text-sm text-gray-400 mt-1">Session accuracy</div>
           <div className="mt-4">
             <span
               className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
@@ -382,30 +352,6 @@ export const SubtractionGame: React.FC = () => {
                 ? 'Subtraction skills are developing strongly'
                 : 'Keep practising subtraction'}
             </span>
-          </div>
-        </div>
-
-        <div className="text-left rounded-xl bg-gray-900/40 border border-app-border p-4 mb-6">
-          <div className="text-sm font-semibold text-white mb-3">
-            Skills practised
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {[
-              'Subtraction',
-              'Counting back',
-              'Take-away',
-              'Difference',
-              'Calculation',
-              'Mathematical reasoning',
-            ].map((skill) => (
-              <span
-                key={skill}
-                className="text-xs px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300"
-              >
-                {skill}
-              </span>
-            ))}
           </div>
         </div>
 
@@ -430,25 +376,31 @@ export const SubtractionGame: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <span className="text-2xl">➖</span>
-
-            <h3 className="text-2xl font-bold text-white">
-              Subtraction Lab
-            </h3>
+            <h3 className="text-2xl font-bold text-white">Subtraction Lab</h3>
           </div>
-
           <p className="text-gray-400 text-sm mt-1">
             Take away, count back and discover the difference.
           </p>
         </div>
 
-        <div className="shrink-0 text-right">
-          <div className="text-xs uppercase tracking-wider text-gray-500">
-            Level
+        <div className="flex items-center gap-2">
+          <div className="shrink-0 text-right">
+            <div className="text-xs uppercase tracking-wider text-gray-500">
+              Level
+            </div>
+            <div className="text-xl font-bold text-white">{currentLevel}</div>
           </div>
 
-          <div className="text-xl font-bold text-white">
-            {currentLevel}
-          </div>
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-5 h-5 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
+          </button>
         </div>
       </div>
 
@@ -458,7 +410,6 @@ export const SubtractionGame: React.FC = () => {
           <span>
             Challenge {questionNumber} of {SESSION_LENGTH}
           </span>
-
           <span>{correctAnswers} correct</span>
         </div>
 
@@ -476,15 +427,11 @@ export const SubtractionGame: React.FC = () => {
         <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400">
           Take away
         </span>
-
         <ArrowRight className="w-3 h-3 text-gray-600" />
-
         <span className="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400">
           Count back
         </span>
-
         <ArrowRight className="w-3 h-3 text-gray-600" />
-
         <span className="px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400">
           Reason
         </span>
@@ -505,11 +452,7 @@ export const SubtractionGame: React.FC = () => {
 
             <button
               type="button"
-              onClick={() =>
-                speak(
-                  `${problem.a} minus ${problem.b} equals what?`,
-                )
-              }
+              onClick={() => speak(`${problem.a} minus ${problem.b} equals what?`)}
               className="mt-2 inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition"
             >
               <Volume2 className="w-4 h-4" />
@@ -557,24 +500,14 @@ export const SubtractionGame: React.FC = () => {
                   key={option}
                   type="button"
                   disabled={selected !== null}
-                  whileHover={
-                    selected === null ? { scale: 1.03 } : undefined
-                  }
-                  whileTap={
-                    selected === null ? { scale: 0.97 } : undefined
-                  }
+                  whileHover={selected === null ? { scale: 1.03 } : undefined}
+                  whileTap={selected === null ? { scale: 0.97 } : undefined}
                   onClick={() => handleAnswer(option)}
                   className={`min-h-16 rounded-xl border-2 text-2xl font-bold transition ${buttonClass}`}
                 >
                   <span className="flex items-center justify-center gap-2">
-                    {isSelected && isCorrect && (
-                      <CheckCircle className="w-5 h-5" />
-                    )}
-
-                    {isSelected && !isCorrect && (
-                      <XCircle className="w-5 h-5" />
-                    )}
-
+                    {isSelected && isCorrect && <CheckCircle className="w-5 h-5" />}
+                    {isSelected && !isCorrect && <XCircle className="w-5 h-5" />}
                     {option}
                   </span>
                 </motion.button>
@@ -596,15 +529,11 @@ export const SubtractionGame: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() =>
-                  setShowNumberLine((previous) => !previous)
-                }
+                onClick={() => setShowNumberLine((previous) => !previous)}
                 className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"
               >
                 <span className="text-base">↔</span>
-                {showNumberLine
-                  ? 'Hide number line'
-                  : 'Use number line'}
+                {showNumberLine ? 'Hide number line' : 'Use number line'}
               </button>
             </div>
           )}
@@ -616,15 +545,10 @@ export const SubtractionGame: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               className="mt-4 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 text-sm text-amber-200"
             >
-              <div className="font-semibold mb-1">
-                Try this strategy
-              </div>
-
+              <div className="font-semibold mb-1">Try this strategy</div>
               <div>
-                Start with {problem.a}, then count backwards{' '}
-                {problem.b} steps.
+                Start with {problem.a}, then count backwards {problem.b} steps.
               </div>
-
               <div className="mt-2 text-amber-300/80">
                 Strategy: {problem.strategy}
               </div>
@@ -646,9 +570,7 @@ export const SubtractionGame: React.FC = () => {
                 {selected === correctAnswer ? (
                   <>
                     <CheckCircle className="w-5 h-5 text-green-400" />
-                    <span className="text-green-300">
-                      Excellent!
-                    </span>
+                    <span className="text-green-300">Excellent!</span>
                   </>
                 ) : (
                   <>
@@ -660,9 +582,7 @@ export const SubtractionGame: React.FC = () => {
                 )}
               </div>
 
-              <p className="text-sm text-gray-300 mt-2">
-                {problem.explanation}
-              </p>
+              <p className="text-sm text-gray-300 mt-2">{problem.explanation}</p>
 
               {selected !== correctAnswer && (
                 <p className="text-xs text-gray-500 mt-2">

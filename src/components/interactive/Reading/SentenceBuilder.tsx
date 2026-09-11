@@ -7,7 +7,7 @@ import {
   Volume2,
 } from 'lucide-react';
 import { SENTENCE_CURRICULUM } from '../../../data/sentenceCurriculum';
-import { speakWord } from '../../../services/audioEngine';
+import { useReadAloud } from '../../../hooks/useReadAloud';
 import { useProgressStore } from '../../../store/useProgressStore';
 
 interface SentenceBuilderProps {
@@ -38,6 +38,9 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
 
   const timerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
+  // ✅ NEW: Use the universal read aloud hook (respects accent + mute)
+  const { speak } = useReadAloud();
+
   const completeActivity = useProgressStore(
     (state) => state.completeActivity,
   );
@@ -53,14 +56,12 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
     timerIdsRef.current.forEach((timerId) => {
       clearTimeout(timerId);
     });
-
     timerIdsRef.current = [];
   }, []);
 
   useEffect(() => {
     return () => {
       clearTimers();
-
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -70,46 +71,44 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
   // Prepare a new sentence.
   useEffect(() => {
     const shuffled = [...targetWords].sort(() => Math.random() - 0.5);
-
     setBank(shuffled);
     setConstructed([]);
     setIsCorrect(false);
   }, [currentIndex, targetWords]);
 
+  // ✅ AUTO-READ: Speak the sentence pattern when it changes
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      speak(`Build this sentence. ${currentSentence.pattern}.`);
+    }, 700);
+    timerIdsRef.current.push(timerId);
+    return () => clearTimeout(timerId);
+  }, [currentIndex, currentSentence.pattern, speak]);
+
   const handleSpeakSentence = useCallback(() => {
-  speakWord(currentSentence.text, { rate: 0.8 });
-  }, [currentSentence.text]);
+    speak(currentSentence.text, { rate: 0.8 });
+  }, [currentSentence.text, speak]);
+
   const handleSpeakWords = useCallback(() => {
     clearTimers();
-
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
-
     targetWords.forEach((word, index) => {
       const timerId = setTimeout(() => {
-        speakWord(word, { rate: 0.9 });
+        speak(word, { rate: 0.9 });
       }, index * 550);
-
       timerIdsRef.current.push(timerId);
     });
-  }, [clearTimers, targetWords]);
+  }, [clearTimers, targetWords, speak]);
 
   const handleAddWord = useCallback(
     (word: string) => {
-      if (isCorrect) {
-        return;
-      }
-
+      if (isCorrect) return;
       setConstructed((previous) => [...previous, word]);
-
       setBank((previous) => {
         const index = previous.indexOf(word);
-
-        if (index === -1) {
-          return previous;
-        }
-
+        if (index === -1) return previous;
         return [
           ...previous.slice(0, index),
           ...previous.slice(index + 1),
@@ -121,30 +120,18 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
 
   const handleRemoveWord = useCallback(
     (index: number) => {
-      if (isCorrect) {
-        return;
-      }
-
+      if (isCorrect) return;
       setConstructed((previous) => {
         const word = previous[index];
-
-        if (word === undefined) {
-          return previous;
-        }
-
+        if (word === undefined) return previous;
         return [
           ...previous.slice(0, index),
           ...previous.slice(index + 1),
         ];
       });
-
       setBank((previous) => {
         const word = constructed[index];
-
-        if (word === undefined) {
-          return previous;
-        }
-
+        if (word === undefined) return previous;
         return [...previous, word];
       });
     },
@@ -158,13 +145,11 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
     }
 
     const currentBuilt = constructed.join(' ');
-
     if (currentBuilt !== currentSentence.text) {
       return;
     }
 
     setIsCorrect(true);
-
     const nextScore = score + 10;
     setScore(nextScore);
 
@@ -175,7 +160,8 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
       ]);
     }
 
-    speakWord(currentSentence.text, { rate: 0.8 });
+    speak(currentSentence.text, { rate: 0.8 });
+
     const isLastSentence =
       currentIndex === SENTENCE_CURRICULUM.length - 1;
 
@@ -193,12 +179,10 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
           domain: 'language',
           skillIds: SENTENCE_SKILLS,
         });
-
         setActivityComplete(true);
         onComplete?.(nextScore);
         return;
       }
-
       setCurrentIndex((previous) => previous + 1);
     }, 2500);
 
@@ -214,15 +198,14 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
     onComplete,
     score,
     targetWords.length,
+    speak,
   ]);
 
   const handleRestart = useCallback(() => {
     clearTimers();
-
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
-
     setCurrentIndex(0);
     setConstructed([]);
     setBank([]);
@@ -254,11 +237,9 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
 
         <div className="mb-2 flex items-center justify-center gap-2 text-emerald-300">
           <Sparkles className="h-5 w-5" />
-
           <span className="text-sm font-semibold uppercase tracking-wider">
             Reading Practice Complete
           </span>
-
           <Sparkles className="h-5 w-5" />
         </div>
 
@@ -276,7 +257,6 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
             <div className="text-2xl font-bold text-white">
               {completedIds.length}
             </div>
-
             <div className="mt-1 text-xs text-gray-500">
               Sentences completed
             </div>
@@ -286,7 +266,6 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
             <div className="text-2xl font-bold text-white">
               {score}
             </div>
-
             <div className="mt-1 text-xs text-gray-500">
               Session points
             </div>
@@ -314,15 +293,28 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
             <p className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
               Reading • Sentence Skills
             </p>
-
             <h3 className="mt-1 text-xl font-bold text-white">
               Sentence Builder
             </h3>
           </div>
 
-          <span className="shrink-0 rounded-full bg-indigo-500/15 px-3 py-1.5 text-xs font-semibold text-indigo-300">
-            Level {currentSentence.level}
-          </span>
+          <div className="flex items-center gap-2">
+            {/* ✅ Read instructions aloud */}
+            <button
+              type="button"
+              onClick={() =>
+                speak(`Build this sentence. ${currentSentence.pattern}.`)
+              }
+              aria-label="Read instructions aloud"
+              className="rounded-full bg-emerald-600 p-2 text-white transition hover:bg-emerald-500"
+            >
+              <Volume2 className="h-4 w-4" />
+            </button>
+
+            <span className="shrink-0 rounded-full bg-indigo-500/15 px-3 py-1.5 text-xs font-semibold text-indigo-300">
+              Level {currentSentence.level}
+            </span>
+          </div>
         </div>
 
         {/* Progress */}
@@ -331,7 +323,6 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
             <span className="text-gray-400">
               Reading progression
             </span>
-
             <span className="font-semibold text-gray-300">
               {progressPercent}%
             </span>
@@ -380,7 +371,6 @@ export const SentenceBuilder: React.FC<SentenceBuilderProps> = ({
         <p className="text-sm text-gray-400">
           Build the sentence using the words below.
         </p>
-
         <div className="mt-3 text-lg font-bold text-white">
           {currentSentence.pattern}
         </div>

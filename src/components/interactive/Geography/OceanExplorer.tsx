@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Waves,
@@ -13,9 +13,11 @@ import {
   XCircle,
   Sparkles,
 } from 'lucide-react';
-import { speakWord } from '../../../services/audioEngine';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type OceanCategory =
   | 'oceans'
@@ -479,6 +481,12 @@ export const OceanExplorer: React.FC = () => {
     (state) => state.completeActivity
   );
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const currentLevel = profile?.currentLevel ?? 1;
   const stage = getStage(currentLevel);
 
@@ -520,10 +528,107 @@ export const OceanExplorer: React.FC = () => {
     return [...new Set(MARINE_LIFE.map((life) => life.group))];
   }, []);
 
+  /* =======================================================
+     AUTO-READ PROMPT ON CATEGORY / QUESTION CHANGE
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      if (category === 'oceans') {
+        speak(
+          'Five oceans. Earth has five recognised oceans. Choose an ocean to explore it.'
+        );
+      } else if (category === 'marine-life') {
+        speak(
+          'Marine life. Choose an animal to learn about how it lives and survives underwater.'
+        );
+      } else if (category === 'ecosystems') {
+        speak(
+          'Ocean habitats. Different environments support different communities of living things. Choose a habitat to explore.'
+        );
+      } else if (category === 'science') {
+        speak(
+          'Ocean science. Oceans are living systems connected to the whole planet. Read each idea below.'
+        );
+      } else if (!challengeComplete) {
+        speak(currentChallenge.question);
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    category,
+    challengeIndex,
+    challengeComplete,
+    currentChallenge,
+    autoReadEnabled,
+    speak,
+  ]);
+
+  /* =======================================================
+     ANSWER FEEDBACK NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (selectedAnswer === null) return;
+
+    const correct =
+      selectedAnswer === currentChallenge.answer;
+
+    if (correct) {
+      if (soundEnabled) playSoundFeedback('correct');
+      speak(`Correct! ${currentChallenge.explanation}`);
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(
+        `Not quite. The correct answer is ${currentChallenge.answer}. ${currentChallenge.explanation}`
+      );
+    }
+  }, [
+    selectedAnswer,
+    currentChallenge,
+    speak,
+    soundEnabled,
+  ]);
+
+  /* =======================================================
+     COMPLETION NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (!challengeComplete) return;
+
+    const percentage = Math.round(
+      (score / CHALLENGES.length) * 100
+    );
+
+    if (percentage >= 80) {
+      speak(
+        `Brilliant work! You scored ${score} out of ${CHALLENGES.length}. You are a real ocean scientist.`
+      );
+    } else if (percentage >= 60) {
+      speak(
+        `Well done! You scored ${score} out of ${CHALLENGES.length}. Keep exploring the oceans.`
+      );
+    } else {
+      speak(
+        `You scored ${score} out of ${CHALLENGES.length}. Let's explore some more and try again.`
+      );
+    }
+  }, [challengeComplete, score, speak]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const handleOceanClick = (ocean: Ocean) => {
     setSelectedOcean(ocean.id);
 
-    speakWord(
+    if (soundEnabled) playSoundFeedback('move');
+
+    speak(
       `${ocean.name}. ${ocean.fact}. ${ocean.description}`
     );
   };
@@ -531,7 +636,9 @@ export const OceanExplorer: React.FC = () => {
   const handleLifeClick = (life: MarineLife) => {
     setSelectedLife(life.id);
 
-    speakWord(
+    if (soundEnabled) playSoundFeedback('move');
+
+    speak(
       `${life.name}. ${life.description}`
     );
   };
@@ -539,7 +646,9 @@ export const OceanExplorer: React.FC = () => {
   const handleEcosystemClick = (ecosystem: Ecosystem) => {
     setSelectedEcosystem(ecosystem.id);
 
-    speakWord(
+    if (soundEnabled) playSoundFeedback('move');
+
+    speak(
       `${ecosystem.name}. ${ecosystem.description}`
     );
   };
@@ -624,14 +733,27 @@ export const OceanExplorer: React.FC = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={resetExplorer}
-            className="p-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white"
-            aria-label="Reset ocean explorer"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={resetExplorer}
+              className="p-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white"
+              aria-label="Reset ocean explorer"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center justify-between mt-4 text-xs">
@@ -652,7 +774,10 @@ export const OceanExplorer: React.FC = () => {
             <button
               key={item.id}
               type="button"
-              onClick={() => setCategory(item.id)}
+              onClick={() => {
+                setCategory(item.id);
+                if (soundEnabled) playSoundFeedback('move');
+              }}
               className={`flex items-center justify-center gap-2 py-3 px-2 rounded-xl text-xs font-semibold transition-all ${
                 category === item.id
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40'
@@ -866,7 +991,7 @@ export const OceanExplorer: React.FC = () => {
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation();
-                              speakWord(
+                              speak(
                                 `${life.name}. ${life.description}`
                               );
                             }}
@@ -1147,7 +1272,7 @@ export const OceanExplorer: React.FC = () => {
                 <button
                   type="button"
                   onClick={() =>
-                    speakWord(currentChallenge.question)
+                    speak(currentChallenge.question)
                   }
                   className="flex items-center gap-2 mt-3 text-xs text-cyan-300"
                 >

@@ -1,4 +1,5 @@
 import React, {
+  useEffect,
   useMemo,
   useState,
 } from 'react';
@@ -18,9 +19,11 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-import { speakWord } from '../../../services/audioEngine';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 /* =========================================================
    TYPES
@@ -501,6 +504,18 @@ export const Landforms: React.FC = () => {
       (state) => state.completeActivity
     );
 
+  const soundEnabled = useSettingsStore(
+    (s) => s.soundEnabled
+  );
+  const autoReadEnabled = useSettingsStore(
+    (s) => s.autoReadEnabled
+  );
+  const toggleSound = useSettingsStore(
+    (s) => s.toggleSound
+  );
+
+  const { speak } = useReadAloud();
+
   const learningLevel =
     profile?.currentLevel ?? 1;
 
@@ -603,13 +618,146 @@ export const Landforms: React.FC = () => {
         : [...current, id]
     );
 
+    if (soundEnabled) playSoundFeedback('move');
+
     const speech =
       learnerStage === 'foundation'
         ? `${feature.name}. ${feature.childDescription}`
         : `${feature.name}. ${feature.description}`;
 
-    speakWord(speech);
+    speak(speech);
   };
+
+  /* =======================================================
+     AUTO-READ PROMPT ON LOAD (Explore mode)
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (challengeMode) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        learnerStage === 'foundation'
+          ? 'Land and water explorer. Choose a feature to discover what it is and where we can find it.'
+          : learnerStage === 'developing'
+            ? 'Land and water explorer. Explore landforms, water features, coasts and environments. Choose a feature to begin.'
+            : 'Land and water explorer. Compare physical features and explore how geography shapes environments and communities.'
+      );
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [challengeMode, speak, autoReadEnabled, learnerStage]);
+
+  /* =======================================================
+     AUTO-READ CHALLENGE QUESTION ON CHANGE
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (!challengeMode) return;
+    if (challengeComplete) return;
+    if (!challengeQuestions[challengeIndex]) return;
+
+    const timer = window.setTimeout(() => {
+      speak('Which feature is this? Choose the correct answer.');
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    challengeIndex,
+    challengeMode,
+    challengeQuestions,
+    challengeComplete,
+    autoReadEnabled,
+    speak,
+  ]);
+
+  /* =======================================================
+     ANSWER FEEDBACK NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (!challengeMode) return;
+    if (selectedAnswer === null) return;
+    if (!challengeQuestions[challengeIndex]) return;
+
+    const question =
+      challengeQuestions[challengeIndex];
+
+    const correct =
+      selectedAnswer === question.id;
+
+    const chosen =
+      challengeOptions.find(
+        (o) => o.id === selectedAnswer
+      );
+
+    if (correct) {
+      if (soundEnabled) playSoundFeedback('correct');
+      speak(
+        `Correct! A ${question.name.toLowerCase()} is ${
+          learnerStage === 'foundation'
+            ? question.childDescription
+            : question.description
+        }`
+      );
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(
+        `Not quite. ${
+          chosen ? `A ${chosen.name.toLowerCase()} is different. ` : ''
+        }The correct answer is ${question.name}. ${
+          learnerStage === 'foundation'
+            ? question.childDescription
+            : question.description
+        }`
+      );
+    }
+  }, [
+    selectedAnswer,
+    challengeMode,
+    challengeQuestions,
+    challengeIndex,
+    challengeOptions,
+    learnerStage,
+    speak,
+    soundEnabled,
+  ]);
+
+  /* =======================================================
+     COMPLETION NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (!challengeComplete) return;
+    if (challengeQuestions.length === 0) return;
+
+    const percentage = Math.round(
+      (challengeScore /
+        challengeQuestions.length) *
+        100
+    );
+
+    if (percentage >= 80) {
+      speak(
+        `Brilliant work! You scored ${percentage} percent. Your geographical knowledge is excellent.`
+      );
+    } else if (percentage >= 60) {
+      speak(
+        `Well done! You scored ${percentage} percent. Keep exploring Earth.`
+      );
+    } else {
+      speak(
+        `You scored ${percentage} percent. Let's explore some more features and try again.`
+      );
+    }
+  }, [
+    challengeComplete,
+    challengeQuestions.length,
+    challengeScore,
+    speak,
+  ]);
 
   /* =======================================================
      CHALLENGE
@@ -660,6 +808,8 @@ export const Landforms: React.FC = () => {
     }
 
     setChallengeMode(true);
+
+    if (soundEnabled) playSoundFeedback('move');
   };
 
   const moveToNextQuestion = (
@@ -769,7 +919,7 @@ export const Landforms: React.FC = () => {
       moveToNextQuestion(
         correct
       );
-    }, 800);
+    }, 2200);
   };
 
   /* =======================================================
@@ -883,10 +1033,23 @@ export const Landforms: React.FC = () => {
             Back
           </button>
 
-          <span className="text-sm text-gray-400">
-            {challengeIndex + 1} /{' '}
-            {challengeQuestions.length}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-400">
+              {challengeIndex + 1} /{' '}
+              {challengeQuestions.length}
+            </span>
+
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+              />
+            </button>
+          </div>
         </div>
 
         <div className="mb-8 h-2 overflow-hidden rounded-full bg-gray-800">
@@ -918,7 +1081,7 @@ export const Landforms: React.FC = () => {
           <button
             type="button"
             onClick={() =>
-              speakWord(
+              speak(
                 question.childDescription
               )
             }
@@ -1065,6 +1228,17 @@ export const Landforms: React.FC = () => {
             aria-label="Reset explorer"
           >
             <RotateCcw size={18} />
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
           </button>
         </div>
       </div>
@@ -1307,7 +1481,7 @@ export const Landforms: React.FC = () => {
                     <button
                       type="button"
                       onClick={() =>
-                        speakWord(
+                        speak(
                           feature.description
                         )
                       }
@@ -1364,7 +1538,7 @@ export const Landforms: React.FC = () => {
                   <button
                     type="button"
                     onClick={() =>
-                      speakWord(
+                      speak(
                         `${feature.name}. ${feature.description}`
                       )
                     }

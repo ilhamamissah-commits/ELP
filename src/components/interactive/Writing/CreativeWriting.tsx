@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BookOpen,
@@ -13,6 +13,9 @@ import {
   ArrowRight,
   Lightbulb,
 } from 'lucide-react';
+
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type WritingStage =
   | 'imagine'
@@ -81,6 +84,12 @@ const STAGE_LABELS: Record<WritingStage, string> = {
 };
 
 export const CreativeWriting: React.FC = () => {
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [stage, setStage] = useState<WritingStage>('imagine');
 
   const [character, setCharacter] = useState<StoryOption | null>(null);
@@ -110,6 +119,141 @@ export const CreativeWriting: React.FC = () => {
     return `${story} ${extension.trim()}`;
   }, [story, extension]);
 
+  /* =======================================================
+     AUTO-READ — stage prompts
+     Skipped on 'complete' (has its own effect below).
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage === 'complete') return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'imagine') {
+        speak(
+          "Let's imagine. Every story begins with an idea. Think of someone, somewhere, and something happening there."
+        );
+      } else if (stage === 'choose') {
+        speak(
+          'Choose who is in your story, where it happens, and what is happening.'
+        );
+      } else if (stage === 'build') {
+        speak(
+          'Build your opening sentence. Choose how your story begins.'
+        );
+      } else if (stage === 'read') {
+        speak(
+          'Read your story. Read it slowly. Listen to how the words fit together.'
+        );
+      } else if (stage === 'extend') {
+        speak(
+          'Add another idea. A good story can grow. What happened next?'
+        );
+      } else if (stage === 'create') {
+        speak(
+          'Create your final story. Now read your complete story. You are the author.'
+        );
+      } else if (stage === 'reflect') {
+        speak(
+          'Think like a writer. What part of your story do you like most?'
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, autoReadEnabled, speak]);
+
+  /* =======================================================
+     SELECTION NARRATION — announce chosen building block
+     Fires when the child picks a character / place / action.
+     These are pre-written phrases, not the child's own
+     writing, so reading them aloud reinforces vocabulary
+     and sentence structure.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'choose') return;
+
+    if (character) {
+      const timer = window.setTimeout(() => {
+        speak(character.name);
+      }, 250);
+      return () => window.clearTimeout(timer);
+    }
+  }, [character, stage, speak]);
+
+  useEffect(() => {
+    if (stage !== 'choose') return;
+
+    if (place) {
+      const timer = window.setTimeout(() => {
+        speak(place.name);
+      }, 250);
+      return () => window.clearTimeout(timer);
+    }
+  }, [place, stage, speak]);
+
+  useEffect(() => {
+    if (stage !== 'choose') return;
+
+    if (action) {
+      const timer = window.setTimeout(() => {
+        speak(action.name);
+      }, 250);
+      return () => window.clearTimeout(timer);
+    }
+  }, [action, stage, speak]);
+
+  /* =======================================================
+     READ STAGE — auto-read the constructed sentence when
+     the stage arrives. This is the pedagogy: hear your own
+     story.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage !== 'read') return;
+    if (!story) return;
+
+    const timer = window.setTimeout(() => {
+      speak(story);
+    }, 600);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, story, autoReadEnabled, speak]);
+
+  /* =======================================================
+     COMPLETION NARRATION
+     Reflection-aware. Never reads back `extension` or
+     `reflection` — those are the child's own words.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'complete') return;
+
+    speak(
+      `You created a story! You practised turning ideas into sentences and expanding them into a story. ${
+        reflection.trim()
+          ? 'Thank you for reflecting on your writing.'
+          : 'Read your story aloud one more time to enjoy what you made.'
+      }`
+    );
+  }, [stage, speak, reflection]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const goNext = () => {
     const nextIndex = currentStageIndex + 1;
 
@@ -119,6 +263,7 @@ export const CreativeWriting: React.FC = () => {
   };
 
   const resetActivity = () => {
+    stopSpeaking();
     setStage('imagine');
     setCharacter(null);
     setPlace(null);
@@ -144,26 +289,19 @@ export const CreativeWriting: React.FC = () => {
     setSaved(false);
   };
 
+  /* =======================================================
+     SPEAK STORY — now uses the shared useReadAloud.
+     Replaces the local SpeechSynthesisUtterance wrapper.
+  ======================================================= */
+
   const speakStory = () => {
-    if (
-      typeof window === 'undefined' ||
-      !('speechSynthesis' in window) ||
-      !fullStory
-    ) {
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(fullStory);
-    utterance.rate = 0.8;
-    utterance.pitch = 1.05;
-
-    window.speechSynthesis.speak(utterance);
+    if (!fullStory) return;
+    speak(fullStory);
   };
 
   const handleSave = () => {
     setSaved(true);
+    speak('Story saved. Well done, author.');
   };
 
   const canBuild =
@@ -194,13 +332,26 @@ export const CreativeWriting: React.FC = () => {
             </p>
           </div>
 
-          <button
-            onClick={resetActivity}
-            className="p-2 rounded-lg border border-app-border text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
-            aria-label="Reset writing activity"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+              />
+            </button>
+
+            <button
+              onClick={resetActivity}
+              className="p-2 rounded-lg border border-app-border text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+              aria-label="Reset writing activity"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Progress */}
@@ -581,13 +732,14 @@ export const CreativeWriting: React.FC = () => {
               ].map((starter) => (
                 <button
                   key={starter}
-                  onClick={() =>
+                  onClick={() => {
                     setExtension((current) =>
                       current
                         ? `${starter} ${current}`
                         : `${starter} `
-                    )
-                  }
+                    );
+                    speak(starter.replace('...', ''));
+                  }}
                   className="px-3 py-1.5 rounded-lg bg-white/5 text-xs text-gray-300 hover:bg-white/10"
                 >
                   {starter}

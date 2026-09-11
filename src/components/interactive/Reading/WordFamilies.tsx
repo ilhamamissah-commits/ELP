@@ -11,7 +11,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-import { speakWord } from '../../../services/audioEngine';
+import { useReadAloud } from '../../../hooks/useReadAloud';
 
 interface WordFamily {
   family: string;
@@ -83,15 +83,15 @@ const WORD_FAMILIES: WordFamily[] = [
 
 export const WordFamilies: React.FC = () => {
   const [currentFamilyIndex, setCurrentFamilyIndex] = useState(0);
-
   const [selectedWords, setSelectedWords] = useState<string[]>([]);
   const [score, setScore] = useState(0);
-
   const [isComplete, setIsComplete] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
   const [showHint, setShowHint] = useState(false);
-
   const [attempts, setAttempts] = useState(0);
+
+  // ✅ NEW: Universal read aloud hook
+  const { speak } = useReadAloud();
 
   const currentFamily = WORD_FAMILIES[currentFamilyIndex];
 
@@ -100,19 +100,8 @@ export const WordFamilies: React.FC = () => {
    * DERIVED DATA
    * ---------------------------------------------------------
    */
-
   const totalFamilies = WORD_FAMILIES.length;
-
-  const progress =
-    ((currentFamilyIndex + 1) / totalFamilies) * 100;
-
-  /*
-   * Create distractors from other families.
-   *
-   * This makes the activity a genuine word-family
-   * discrimination exercise instead of simply selecting
-   * every visible word.
-   */
+  const progress = ((currentFamilyIndex + 1) / totalFamilies) * 100;
 
   const quizWords = useMemo(() => {
     const correctWords = currentFamily.words;
@@ -134,7 +123,6 @@ export const WordFamilies: React.FC = () => {
    * INTRO AUDIO
    * ---------------------------------------------------------
    */
-
   useEffect(() => {
     setSelectedWords([]);
     setIsComplete(false);
@@ -143,33 +131,28 @@ export const WordFamilies: React.FC = () => {
     setAttempts(0);
 
     const timer = window.setTimeout(() => {
-      speakWord(currentFamily.family,{ rate: 0.75 });
+      speak(`Words ending in ${currentFamily.family}. Find the words that end with ${currentFamily.family}.`);
     }, 400);
 
     return () => window.clearTimeout(timer);
-  }, [currentFamilyIndex, currentFamily.family]);
+  }, [currentFamilyIndex, currentFamily.family, speak]);
 
   /*
    * ---------------------------------------------------------
    * WORD SELECTION
    * ---------------------------------------------------------
    */
-
   const toggleWord = (word: string) => {
     if (isComplete) return;
-
     setHasChecked(false);
 
     if (selectedWords.includes(word)) {
-      setSelectedWords(
-        selectedWords.filter((selected) => selected !== word)
-      );
+      setSelectedWords(selectedWords.filter((selected) => selected !== word));
       return;
     }
 
     setSelectedWords([...selectedWords, word]);
-
-    speakWord(word,{ rate: 0.75 });
+    speak(word);
   };
 
   /*
@@ -177,12 +160,10 @@ export const WordFamilies: React.FC = () => {
    * CHECK ANSWER
    * ---------------------------------------------------------
    */
-
   const checkAnswer = () => {
-    const correct = selectedWords.length === currentFamily.words.length &&
-      currentFamily.words.every((word) =>
-        selectedWords.includes(word)
-      );
+    const correct =
+      selectedWords.length === currentFamily.words.length &&
+      currentFamily.words.every((word) => selectedWords.includes(word));
 
     setAttempts((previous) => previous + 1);
     setHasChecked(true);
@@ -190,24 +171,13 @@ export const WordFamilies: React.FC = () => {
     if (correct) {
       setIsComplete(true);
 
-      /*
-       * Reward first-attempt mastery more highly.
-       */
       const earnedPoints = attempts === 0 ? 20 : 10;
-
       setScore((previous) => previous + earnedPoints);
 
-      speakWord(
-        'Excellent! You found all the words!',
-       { rate: 0.75 }
-      );
+      speak('Excellent! You found all the words!');
     } else {
       setIsComplete(false);
-
-      speakWord(
-        'Almost! Listen carefully and try again.',
-        { rate: 0.75 }
-      );
+      speak('Almost! Listen carefully and try again.');
     }
   };
 
@@ -216,12 +186,12 @@ export const WordFamilies: React.FC = () => {
    * RETRY
    * ---------------------------------------------------------
    */
-
   const retry = () => {
     setSelectedWords([]);
     setHasChecked(false);
     setIsComplete(false);
     setShowHint(false);
+    speak('Try again. Listen to the ending of each word.');
   };
 
   /*
@@ -229,51 +199,32 @@ export const WordFamilies: React.FC = () => {
    * NEXT FAMILY
    * ---------------------------------------------------------
    */
-
   const nextFamily = () => {
     if (!isComplete) return;
 
     if (currentFamilyIndex < totalFamilies - 1) {
-      setCurrentFamilyIndex(
-        (previous) => previous + 1
-      );
-
+      setCurrentFamilyIndex((previous) => previous + 1);
       return;
     }
 
-    speakWord(
-      'Congratulations! You mastered all the word families!',
-      { rate: 0.75 }
-    );
+    speak('Congratulations! You mastered all the word families!');
   };
 
-  /*
-   * ---------------------------------------------------------
-   * FINAL COMPLETION
-   * ---------------------------------------------------------
-   */
-
   const courseFinished =
-    currentFamilyIndex === totalFamilies - 1 &&
-    isComplete;
+    currentFamilyIndex === totalFamilies - 1 && isComplete;
 
   /*
    * ---------------------------------------------------------
    * UI
    * ---------------------------------------------------------
    */
-
   return (
     <div className="max-w-xl mx-auto bg-app-card p-4 sm:p-6 rounded-3xl border border-app-border shadow-xl">
-
       {/* HEADER */}
-
       <div className="flex justify-between items-start mb-5">
-
         <div>
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-indigo-400" />
-
             <h3 className="text-xl font-black text-white">
               Word Families
             </h3>
@@ -284,48 +235,46 @@ export const WordFamilies: React.FC = () => {
           </p>
         </div>
 
-        <div className="text-right">
-          <div className="text-xs text-gray-500">
-            Score
-          </div>
+        <div className="flex items-center gap-2">
+          {/* ✅ Read instructions aloud */}
+          <button
+            type="button"
+            onClick={() =>
+              speak(
+                `Find the words that end with ${currentFamily.family}.`
+              )
+            }
+            aria-label="Read instructions aloud"
+            className="p-2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white transition"
+          >
+            <Volume2 className="w-4 h-4" />
+          </button>
 
-          <div className="text-yellow-400 font-black">
-            ⭐ {score}
+          <div className="text-right">
+            <div className="text-xs text-gray-500">Score</div>
+            <div className="text-yellow-400 font-black">⭐ {score}</div>
           </div>
         </div>
-
       </div>
 
       {/* PROGRESS */}
-
       <div className="mb-6">
-
         <div className="flex justify-between text-xs text-gray-500 mb-2">
-          <span>
-            Family {currentFamilyIndex + 1}
-          </span>
-
-          <span>
-            {totalFamilies} total
-          </span>
+          <span>Family {currentFamilyIndex + 1}</span>
+          <span>{totalFamilies} total</span>
         </div>
 
         <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-
           <motion.div
             className="h-full bg-indigo-500 rounded-full"
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.4 }}
           />
-
         </div>
-
       </div>
 
       {/* FAMILY INTRO */}
-
       <div className="bg-gray-950 rounded-3xl border border-gray-800 p-6 text-center mb-5">
-
         <motion.div
           key={currentFamily.family}
           initial={{ scale: 0.7, opacity: 0 }}
@@ -340,33 +289,26 @@ export const WordFamilies: React.FC = () => {
         </p>
 
         <div className="flex justify-center items-center gap-3">
-
           <span className="text-4xl font-black text-indigo-400">
             -{currentFamily.family}
           </span>
 
           <button
-            onClick={() =>
-              speakWord(currentFamily.family, { rate: 0.75 })
-            }
+            onClick={() => speak(currentFamily.family)}
             aria-label="Listen to word family sound"
             className="p-3 bg-indigo-600 hover:bg-indigo-500 rounded-full text-white"
           >
             <Volume2 className="w-5 h-5" />
           </button>
-
         </div>
 
         <p className="text-xs text-gray-500 mt-3">
           Words in the same family share a similar ending sound.
         </p>
-
       </div>
 
       {/* INSTRUCTION */}
-
       <div className="text-center mb-4">
-
         <h4 className="text-lg font-black text-white">
           Which words belong?
         </h4>
@@ -377,13 +319,10 @@ export const WordFamilies: React.FC = () => {
             -{currentFamily.family}
           </strong>
         </p>
-
       </div>
 
       {/* HINT */}
-
       <AnimatePresence>
-
         {showHint && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -391,42 +330,20 @@ export const WordFamilies: React.FC = () => {
             exit={{ opacity: 0, height: 0 }}
             className="mb-4 p-4 rounded-2xl bg-yellow-400/10 border border-yellow-400/20 text-yellow-300 text-sm"
           >
-            💡 Listen to the ending of each word.
-            Words like{' '}
-            <strong>
-              {currentFamily.words[0]}
-            </strong>{' '}
-            and{' '}
-            <strong>
-              {currentFamily.words[1]}
-            </strong>{' '}
-            belong together.
+            💡 Listen to the ending of each word. Words like{' '}
+            <strong>{currentFamily.words[0]}</strong> and{' '}
+            <strong>{currentFamily.words[1]}</strong> belong together.
           </motion.div>
         )}
-
       </AnimatePresence>
 
       {/* WORD GRID */}
-
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
-
         {quizWords.map((word) => {
-
-          const selected =
-            selectedWords.includes(word);
-
-          const belongs =
-            currentFamily.words.includes(word);
-
-          const correctlySelected =
-            hasChecked &&
-            selected &&
-            belongs;
-
-          const incorrectlySelected =
-            hasChecked &&
-            selected &&
-            !belongs;
+          const selected = selectedWords.includes(word);
+          const belongs = currentFamily.words.includes(word);
+          const correctlySelected = hasChecked && selected && belongs;
+          const incorrectlySelected = hasChecked && selected && !belongs;
 
           return (
             <motion.button
@@ -449,25 +366,24 @@ export const WordFamilies: React.FC = () => {
                 }
               `}
             >
-
               {word}
-
               {correctlySelected && (
                 <CheckCircle className="absolute top-2 right-2 w-4 h-4" />
               )}
-
             </motion.button>
           );
         })}
-
       </div>
 
       {/* ACTIONS */}
-
       <div className="flex gap-2">
-
         <button
-          onClick={() => setShowHint((previous) => !previous)}
+          onClick={() => {
+            setShowHint((previous) => !previous);
+            speak(
+              `Hint. Listen to the ending of each word. ${currentFamily.words[0]} and ${currentFamily.words[1]} belong together.`
+            );
+          }}
           className="p-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-yellow-400"
           aria-label="Show hint"
         >
@@ -487,27 +403,20 @@ export const WordFamilies: React.FC = () => {
             onClick={nextFamily}
             className="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-xl text-white font-black flex items-center justify-center gap-2"
           >
-            {courseFinished
-              ? 'Finish 🎉'
-              : 'Next Family'}
-
+            {courseFinished ? 'Finish 🎉' : 'Next Family'}
             <ArrowRight className="w-5 h-5" />
           </button>
         )}
-
       </div>
 
       {/* FEEDBACK */}
-
       <AnimatePresence>
-
         {isComplete && (
           <motion.div
             initial={{ opacity: 0, y: 15, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             className="mt-5 p-5 rounded-2xl bg-green-500/10 border border-green-500/30 text-center"
           >
-
             <CheckCircle className="w-10 h-10 text-green-400 mx-auto mb-2" />
 
             <h4 className="text-lg font-black text-green-400">
@@ -535,7 +444,6 @@ export const WordFamilies: React.FC = () => {
               <Trophy className="w-4 h-4" />
               Mastered
             </div>
-
           </motion.div>
         )}
 
@@ -545,10 +453,7 @@ export const WordFamilies: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="mt-5 p-4 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-center"
           >
-
-            <p className="text-orange-300 font-bold">
-              Almost there! 🔎
-            </p>
+            <p className="text-orange-300 font-bold">Almost there! 🔎</p>
 
             <p className="text-xs text-gray-400 mt-1">
               Listen to the ending sounds and try again.
@@ -561,26 +466,18 @@ export const WordFamilies: React.FC = () => {
               <RotateCcw className="w-4 h-4" />
               Try Again
             </button>
-
           </motion.div>
         )}
-
       </AnimatePresence>
 
       {/* LEVEL BADGE */}
-
       <div className="mt-5 pt-4 border-t border-gray-800 flex justify-between items-center">
-
-        <span className="text-xs text-gray-500">
-          Difficulty
-        </span>
+        <span className="text-xs text-gray-500">Difficulty</span>
 
         <span className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-300 text-xs font-bold">
           Level {currentFamily.level}
         </span>
-
       </div>
-
     </div>
   );
 };

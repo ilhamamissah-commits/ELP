@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle,
@@ -11,7 +11,12 @@ import {
   Boxes,
   ArrowRight,
   Lightbulb,
+  Volume2,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type CodingConcept =
   | 'sequence'
@@ -50,9 +55,6 @@ const COMMANDS: Command[] = [
 ];
 
 const CHALLENGES: Challenge[] = [
-  // -------------------------
-  // LEVEL 1 — SEQUENCING
-  // -------------------------
   {
     id: 1,
     concept: 'sequence',
@@ -83,10 +85,6 @@ const CHALLENGES: Challenge[] = [
     difficulty: 1,
     hint: 'Move right twice, then pick up the apple.',
   },
-
-  // -------------------------
-  // LEVEL 2 — ALGORITHMS
-  // -------------------------
   {
     id: 4,
     concept: 'algorithm',
@@ -107,10 +105,6 @@ const CHALLENGES: Challenge[] = [
     difficulty: 2,
     hint: 'Think about where the ball is located.',
   },
-
-  // -------------------------
-  // LEVEL 3 — DEBUGGING
-  // -------------------------
   {
     id: 6,
     concept: 'debugging',
@@ -121,40 +115,22 @@ const CHALLENGES: Challenge[] = [
     difficulty: 2,
     hint: 'Check every instruction carefully.',
   },
-
-  // -------------------------
-  // LEVEL 4 — PATTERNS
-  // -------------------------
   {
     id: 7,
     concept: 'patterns',
     title: 'Follow the Pattern',
     instruction: 'Can you follow the movement pattern?',
-    targetSequence: [
-      'Move Up',
-      'Move Up',
-      'Move Right',
-      'Pick Up',
-    ],
+    targetSequence: ['Move Up', 'Move Up', 'Move Right', 'Pick Up'],
     emoji: '⭐',
     difficulty: 2,
     hint: 'Look for repeated instructions.',
   },
-
-  // -------------------------
-  // LEVEL 5 — LOOPS
-  // -------------------------
   {
     id: 8,
     concept: 'loops',
     title: 'Repeat the Move',
     instruction: 'The robot needs to move right three times.',
-    targetSequence: [
-      'Move Right',
-      'Move Right',
-      'Move Right',
-      'Pick Up',
-    ],
+    targetSequence: ['Move Right', 'Move Right', 'Move Right', 'Pick Up'],
     emoji: '🏆',
     difficulty: 3,
     hint: 'This is a perfect example of repetition.',
@@ -163,11 +139,7 @@ const CHALLENGES: Challenge[] = [
 
 const CONCEPT_INFO: Record<
   CodingConcept,
-  {
-    label: string;
-    description: string;
-    icon: React.ReactNode;
-  }
+  { label: string; description: string; icon: React.ReactNode }
 > = {
   sequence: {
     label: 'Sequencing',
@@ -220,6 +192,12 @@ export const CodingBasics: React.FC = () => {
   const [attempts, setAttempts] = useState(0);
   const [message, setMessage] = useState('');
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const current = CHALLENGES[challengeIndex];
 
   const concept = useMemo(
@@ -227,8 +205,37 @@ export const CodingBasics: React.FC = () => {
     [current.concept]
   );
 
+  /* Auto-read the challenge title + instruction + concept when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        `${current.title}. ${current.instruction}. Coding concept: ${concept.label}. ${concept.description}`,
+      );
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [challengeIndex, current, concept, speak, autoReadEnabled]);
+
+  /* Read the hint when it opens */
+  useEffect(() => {
+    if (showHint && !completed) {
+      speak(current.hint);
+    }
+  }, [showHint, completed, current, speak]);
+
+  /* Announce completion once */
+  useEffect(() => {
+    if (!completed) return;
+
+    speak('Excellent! Your algorithm works!');
+  }, [completed, speak]);
+
   const addCommand = (command: Command) => {
     if (completed) return;
+
+    if (soundEnabled) playSoundFeedback('move');
 
     setSequence((previous) => [...previous, command]);
     setMessage('');
@@ -236,6 +243,8 @@ export const CodingBasics: React.FC = () => {
 
   const removeLast = () => {
     if (completed) return;
+
+    if (soundEnabled) playSoundFeedback('move');
 
     setSequence((previous) => previous.slice(0, -1));
   };
@@ -246,11 +255,14 @@ export const CodingBasics: React.FC = () => {
     setShowHint(false);
     setMessage('');
     setAttempts(0);
+
+    speak('Challenge reset.');
   };
 
   const runCode = () => {
     if (sequence.length === 0) {
       setMessage('Add some instructions first!');
+      speak('Add some instructions first!');
       return;
     }
 
@@ -259,11 +271,12 @@ export const CodingBasics: React.FC = () => {
     const correct =
       sequence.length === current.targetSequence.length &&
       sequence.every(
-        (command, index) =>
-          command === current.targetSequence[index]
+        (command, index) => command === current.targetSequence[index]
       );
 
     if (correct) {
+      if (soundEnabled) playSoundFeedback('correct');
+
       setCompleted(true);
 
       // Reward first successful attempt more highly.
@@ -272,18 +285,20 @@ export const CodingBasics: React.FC = () => {
       setScore((previous) => previous + points);
       setMessage('Excellent! Your algorithm works!');
     } else {
-      setMessage(
+      if (soundEnabled) playSoundFeedback('try-again');
+
+      const failMessage =
         current.concept === 'debugging'
           ? 'There is still a bug. Check your instructions!'
-          : 'The robot did not reach the target. Debug your code and try again!'
-      );
+          : 'The robot did not reach the target. Debug your code and try again!';
+
+      setMessage(failMessage);
+      speak(failMessage);
     }
   };
 
   const nextChallenge = () => {
-    setChallengeIndex(
-      (previous) => (previous + 1) % CHALLENGES.length
-    );
+    setChallengeIndex((previous) => (previous + 1) % CHALLENGES.length);
 
     setSequence([]);
     setCompleted(false);
@@ -297,16 +312,13 @@ export const CodingBasics: React.FC = () => {
 
   return (
     <div className="max-w-2xl mx-auto bg-app-card p-6 rounded-3xl border border-app-border shadow-xl">
-
       {/* HEADER */}
       <div className="flex items-center justify-between mb-5">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-3xl">💻</span>
 
-            <h2 className="text-2xl font-bold text-white">
-              Coding Basics
-            </h2>
+            <h2 className="text-2xl font-bold text-white">Coding Basics</h2>
           </div>
 
           <p className="text-gray-400 text-sm mt-1">
@@ -314,14 +326,25 @@ export const CodingBasics: React.FC = () => {
           </p>
         </div>
 
-        <div className="text-right">
-          <div className="text-xs text-gray-400">
-            SCORE
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <div className="text-xs text-gray-400">SCORE</div>
+
+            <div className="text-xl font-bold text-white">{score}</div>
           </div>
 
-          <div className="text-xl font-bold text-white">
-            {score}
-          </div>
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
         </div>
       </div>
 
@@ -332,9 +355,7 @@ export const CodingBasics: React.FC = () => {
             Challenge {challengeIndex + 1} of {CHALLENGES.length}
           </span>
 
-          <span>
-            {Math.round(progress)}%
-          </span>
+          <span>{Math.round(progress)}%</span>
         </div>
 
         <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
@@ -367,27 +388,18 @@ export const CodingBasics: React.FC = () => {
               {concept.label}
             </div>
 
-            <div className="text-sm text-gray-400">
-              {concept.description}
-            </div>
+            <div className="text-sm text-gray-400">{concept.description}</div>
           </div>
         </div>
       </motion.div>
 
       {/* CHALLENGE */}
       <div className="bg-[#171717] p-6 rounded-2xl border border-gray-800 mb-5 text-center">
+        <div className="text-7xl mb-3">{current.emoji}</div>
 
-        <div className="text-7xl mb-3">
-          {current.emoji}
-        </div>
+        <h3 className="text-xl font-bold text-white">{current.title}</h3>
 
-        <h3 className="text-xl font-bold text-white">
-          {current.title}
-        </h3>
-
-        <p className="text-gray-400 text-sm mt-2">
-          {current.instruction}
-        </p>
+        <p className="text-gray-400 text-sm mt-2">{current.instruction}</p>
 
         <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-800 text-gray-300 text-xs">
           Difficulty {current.difficulty}/3
@@ -396,7 +408,6 @@ export const CodingBasics: React.FC = () => {
 
       {/* CODE AREA */}
       <div className="mb-4">
-
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-bold text-gray-300">
             Your Program
@@ -409,14 +420,12 @@ export const CodingBasics: React.FC = () => {
         </div>
 
         <div className="min-h-[90px] bg-[#101010] border border-gray-800 rounded-2xl p-4">
-
           {sequence.length === 0 ? (
             <div className="h-full min-h-[55px] flex items-center justify-center text-gray-600 text-sm">
               Click instructions below to build your program.
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
-
               {sequence.map((command, index) => (
                 <motion.div
                   key={`${command}-${index}`}
@@ -431,16 +440,13 @@ export const CodingBasics: React.FC = () => {
                   <span>{command}</span>
                 </motion.div>
               ))}
-
             </div>
           )}
-
         </div>
       </div>
 
       {/* COMMANDS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-
         {COMMANDS.map((command) => (
           <motion.button
             key={command}
@@ -453,12 +459,10 @@ export const CodingBasics: React.FC = () => {
             {command}
           </motion.button>
         ))}
-
       </div>
 
       {/* CONTROLS */}
       <div className="flex flex-wrap gap-2 mb-4">
-
         <button
           onClick={removeLast}
           disabled={sequence.length === 0 || completed}
@@ -484,7 +488,6 @@ export const CodingBasics: React.FC = () => {
           <Play className="w-4 h-4" />
           Run Program
         </button>
-
       </div>
 
       {/* HINT */}
@@ -523,9 +526,7 @@ export const CodingBasics: React.FC = () => {
               : 'bg-orange-500/10 text-orange-300 border border-orange-500/20'
           }`}
         >
-          {completed && (
-            <CheckCircle className="w-5 h-5 inline mr-2" />
-          )}
+          {completed && <CheckCircle className="w-5 h-5 inline mr-2" />}
 
           {message}
         </motion.div>
@@ -546,7 +547,6 @@ export const CodingBasics: React.FC = () => {
           </button>
         </motion.div>
       )}
-
     </div>
   );
 };

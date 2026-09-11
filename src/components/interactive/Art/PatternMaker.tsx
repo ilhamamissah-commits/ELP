@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RotateCcw,
@@ -6,7 +6,11 @@ import {
   CheckCircle2,
   Sparkles,
   Trophy,
+  Volume2,
 } from 'lucide-react';
+
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type PatternItem = {
   id: number;
@@ -51,6 +55,12 @@ const DIFFICULTY_SETTINGS: Record<
 };
 
 export const PatternMaker: React.FC = () => {
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [pattern, setPattern] = useState<PatternItem[]>([]);
   const [selectedItem, setSelectedItem] = useState(PATTERN_ITEMS[0]);
   const [difficulty, setDifficulty] =
@@ -62,9 +72,50 @@ export const PatternMaker: React.FC = () => {
   const targetLength =
     DIFFICULTY_SETTINGS[difficulty].targetLength;
 
-  /**
-   * Add the selected object to the pattern.
-   */
+  /* =======================================================
+     AUTO-READ — intro on mount + difficulty change
+     Reads the level's task description (which is safe —
+     the level determines the pattern type).
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        `${DIFFICULTY_SETTINGS[difficulty].label}. ${DIFFICULTY_SETTINGS[difficulty].description}.`
+      );
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [difficulty, autoReadEnabled, speak]);
+
+  /* =======================================================
+     COMPLETION NARRATION — fires once when completed flips
+  ======================================================= */
+
+  useEffect(() => {
+    if (!completed) return;
+
+    speak(
+      'Fantastic! You created the correct repeating pattern. Great pattern thinking.'
+    );
+  }, [completed, speak]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const addToPattern = () => {
     if (completed) return;
 
@@ -76,40 +127,35 @@ export const PatternMaker: React.FC = () => {
     setCompleted(false);
   };
 
-  /**
-   * Remove the last item.
-   */
   const removeLast = () => {
     if (pattern.length === 0) return;
 
     setPattern((previous) => previous.slice(0, -1));
     setCompleted(false);
+
+    speak('Undo.');
   };
 
-  /**
-   * Clear the entire pattern.
-   */
   const clearPattern = () => {
+    stopSpeaking();
     setPattern([]);
     setCompleted(false);
   };
 
-  /**
-   * Change difficulty.
-   */
   const changeDifficulty = (level: Difficulty) => {
     setDifficulty(level);
     setPattern([]);
     setCompleted(false);
+    // Narration handled by the auto-read effect above.
   };
 
-  /**
-   * Determine the basic pattern structure.
-   *
-   * Example:
-   * 🔴 🔵 🔴 🔵
-   * becomes ABAB.
-   */
+  const selectItem = (item: PatternItem) => {
+    setSelectedItem(item);
+    // Speak the item's name — this is what the child is picking,
+    // not an answer to any puzzle.
+    speak(item.name);
+  };
+
   const getPatternStructure = useMemo(() => {
     const uniqueItems: number[] = [];
 
@@ -128,17 +174,12 @@ export const PatternMaker: React.FC = () => {
       .join('');
   }, [pattern]);
 
-  /**
-   * Validate whether the child has created
-   * the expected repeating structure.
-   */
   const isCorrectPattern = useMemo(() => {
     if (pattern.length !== targetLength) {
       return false;
     }
 
     if (difficulty === 'easy') {
-      // ABABAB
       if (pattern.length < 2) return false;
 
       for (let i = 2; i < pattern.length; i++) {
@@ -151,7 +192,6 @@ export const PatternMaker: React.FC = () => {
     }
 
     if (difficulty === 'medium') {
-      // Accept AABAAB or ABBA BB-style repeating groups.
       if (pattern.length < 4) return false;
 
       const firstThree = pattern
@@ -167,12 +207,9 @@ export const PatternMaker: React.FC = () => {
         }
       }
 
-      return (
-        new Set(firstThree).size >= 2
-      );
+      return new Set(firstThree).size >= 2;
     }
 
-    // ABCABCABC
     if (pattern.length < 3) return false;
 
     const firstThree = pattern
@@ -184,10 +221,7 @@ export const PatternMaker: React.FC = () => {
     }
 
     for (let i = 3; i < pattern.length; i++) {
-      if (
-        pattern[i].id !==
-        firstThree[i % 3]
-      ) {
+      if (pattern[i].id !== firstThree[i % 3]) {
         return false;
       }
     }
@@ -195,16 +229,34 @@ export const PatternMaker: React.FC = () => {
     return true;
   }, [difficulty, pattern, targetLength]);
 
-  /**
-   * Check the child's answer.
-   */
+  /* =======================================================
+     CHECK — narrates the specific verdict
+     Success: celebratory. Failure: specific direction.
+     Never reads the correct pattern (that would solve it).
+  ======================================================= */
+
   const checkPattern = () => {
     setAttempts((previous) => previous + 1);
 
     if (isCorrectPattern) {
       setCompleted(true);
+      // Narration is handled by the completion effect above.
     } else {
       setCompleted(false);
+
+      if (difficulty === 'easy') {
+        speak(
+          'Not quite. Look at the first two objects. Do they repeat in the same order all the way through?'
+        );
+      } else if (difficulty === 'medium') {
+        speak(
+          'Not quite. Look at the first three objects. Do the same three repeat in order?'
+        );
+      } else {
+        speak(
+          'Not quite. Look at the first three objects. Are they all different, and do they repeat in the same order?'
+        );
+      }
     }
   };
 
@@ -242,13 +294,26 @@ export const PatternMaker: React.FC = () => {
               </div>
             </div>
 
-            <button
-              onClick={clearPattern}
-              aria-label="Reset pattern"
-              className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center justify-center"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={toggleSound}
+                aria-label="Toggle sound"
+                className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors flex items-center justify-center"
+              >
+                <Volume2
+                  className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+                />
+              </button>
+
+              <button
+                onClick={clearPattern}
+                aria-label="Reset pattern"
+                className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center justify-center"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
 
           </div>
         </div>
@@ -332,7 +397,7 @@ export const PatternMaker: React.FC = () => {
                 key={item.id}
                 whileHover={{ scale: 1.08 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={() => setSelectedItem(item)}
+                onClick={() => selectItem(item)}
                 aria-label={`Choose ${item.name}`}
                 className={`aspect-square rounded-2xl flex items-center justify-center text-3xl border-2 transition ${
                   selectedItem.id === item.id
@@ -411,7 +476,7 @@ export const PatternMaker: React.FC = () => {
 
           </div>
 
-          {/* Pattern notation */}
+          {/* Pattern notation — NOT spoken (would give away the structure) */}
           {pattern.length > 0 && (
             <p className="text-center text-xs text-gray-500 mt-2">
               Pattern: {getPatternStructure}

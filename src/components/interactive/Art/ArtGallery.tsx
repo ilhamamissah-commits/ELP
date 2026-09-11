@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -13,7 +13,11 @@ import {
   Sparkles,
   Star,
   X,
+  Volume2,
 } from 'lucide-react';
+
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type ArtworkType =
   | 'drawing'
@@ -45,11 +49,18 @@ const ARTWORK_TYPES: { id: ArtworkType; label: string }[] = [
 type GalleryStage = 'gallery' | 'view' | 'reflect';
 
 export const ArtGallery: React.FC = () => {
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [artworks, setArtworks] = useState<Artwork[]>([]);
   const [selectedArtwork, setSelectedArtwork] = useState<Artwork | null>(null);
   const [stage, setStage] = useState<GalleryStage>('gallery');
   const [reflection, setReflection] = useState('');
   const [showCreatePrompt, setShowCreatePrompt] = useState(false);
+  const lastSpokenReflectionRef = useRef<string | null>(null);
 
   const artworkCount = artworks.length;
 
@@ -63,6 +74,110 @@ export const ArtGallery: React.FC = () => {
     [artworks]
   );
 
+  /* =======================================================
+     AUTO-READ — stage prompts
+     Fires when the stage changes. Each prompt is short and
+     orientation-only. Never reads reflection content.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'gallery') {
+        if (artworkCount === 0) {
+          speak(
+            'Your gallery is waiting. Create your first artwork and save it here. Your gallery will become a record of your creative journey.'
+          );
+        } else {
+          speak(
+            `Your art gallery contains ${artworkCount} ${
+              artworkCount === 1 ? 'piece' : 'pieces'
+            }. Click an artwork to explore it.`
+          );
+        }
+      } else if (stage === 'view' && selectedArtwork) {
+        speak(
+          `${selectedArtwork.title}, a ${getArtworkTypeLabel(
+            selectedArtwork.type
+          ).toLowerCase()}. Think about what you made and the choices you made while creating it.`
+        );
+      } else if (stage === 'reflect' && selectedArtwork) {
+        speak(
+          'Think like an artist. There is no single right answer. Tell us about your creative choices. What do you like about your artwork?'
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    stage,
+    selectedArtwork,
+    artworkCount,
+    autoReadEnabled,
+    speak,
+  ]);
+
+  /* =======================================================
+     CREATE PROMPT MODAL
+     Fires when the modal opens.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!showCreatePrompt) return;
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        'Create something. Choose where to begin: Drawing Canvas, Colour Exploration, Pattern Studio, or Creative Challenge.'
+      );
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [showCreatePrompt, autoReadEnabled, speak]);
+
+  /* =======================================================
+     SAVE REFLECTION CONFIRMATION
+     Fires when a reflection is saved (and the stage returns
+     to 'view'). Uses a ref to fire only when the reflection
+     actually changes on save.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'view') return;
+    if (!selectedArtwork) return;
+    if (!selectedArtwork.reflection) return;
+
+    // Only speak when the reflection was just saved, not on
+    // every render of the view stage. Track with a ref.
+    if (lastSpokenReflectionRef.current === selectedArtwork.reflection) {
+      return;
+    }
+    lastSpokenReflectionRef.current = selectedArtwork.reflection;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        'Reflection saved. Thank you for thinking about your creative choices.'
+      );
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, selectedArtwork, speak]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const openArtwork = (artwork: Artwork) => {
     setSelectedArtwork(artwork);
     setReflection(artwork.reflection ?? '');
@@ -70,6 +185,7 @@ export const ArtGallery: React.FC = () => {
   };
 
   const closeArtwork = () => {
+    stopSpeaking();
     setSelectedArtwork(null);
     setReflection('');
     setStage('gallery');
@@ -139,6 +255,17 @@ export const ArtGallery: React.FC = () => {
                   </span>
                 </p>
               </div>
+
+              <button
+                type="button"
+                onClick={toggleSound}
+                aria-label="Toggle sound"
+                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+              >
+                <Volume2
+                  className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+                />
+              </button>
 
               <button
                 type="button"
@@ -484,6 +611,7 @@ export const ArtGallery: React.FC = () => {
                       <button
                         key={choice}
                         type="button"
+                        onClick={() => speak(choice)}
                         className="p-3 rounded-xl bg-gray-900 border border-gray-800 hover:border-indigo-500/40 text-gray-300 text-sm transition"
                       >
                         {choice}

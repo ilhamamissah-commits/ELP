@@ -13,7 +13,11 @@ import {
   Trash2,
   Check,
   Sparkles,
+  Volume2,
 } from 'lucide-react';
+
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 const COLORS = [
   '#EF4444',
@@ -31,6 +35,17 @@ const PEN_SIZES = [
   { value: 8, label: 'Medium' },
   { value: 14, label: 'Big' },
 ];
+
+const COLOR_NAMES: Record<string, string> = {
+  '#EF4444': 'Red',
+  '#F97316': 'Orange',
+  '#F59E0B': 'Yellow',
+  '#22C55E': 'Green',
+  '#3B82F6': 'Blue',
+  '#8B5CF6': 'Purple',
+  '#EC4899': 'Pink',
+  '#111827': 'Black',
+};
 
 type Tool = 'pencil' | 'eraser';
 
@@ -52,6 +67,12 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [isDrawing, setIsDrawing] = useState(false);
   const [selectedColor, setSelectedColor] = useState(COLORS[0]);
   const [penSize, setPenSize] = useState(8);
@@ -62,10 +83,10 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   const [hasDrawing, setHasDrawing] = useState(false);
   const [showSavedMessage, setShowSavedMessage] = useState(false);
 
-  /**
-   * Configure the canvas for high-DPI screens.
-   * This prevents blurry drawings on phones/tablets.
-   */
+  /* =======================================================
+     Configure the canvas for high-DPI screens.
+  ======================================================= */
+
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -97,9 +118,6 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     ctx.lineJoin = 'round';
   }, [backgroundColor]);
 
-  /**
-   * Initial canvas setup.
-   */
   useEffect(() => {
     setupCanvas();
 
@@ -115,9 +133,42 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     };
   }, [setupCanvas]);
 
-  /**
-   * Get pointer coordinates relative to canvas.
-   */
+  /* =======================================================
+     AUTO-READ — one-time intro on mount
+     Fires only once. After that, the canvas is quiet by
+     default to let the child draw without interruption.
+     Manual "Hear this" toggle in header can re-read.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        `${title}. ${subtitle} Pick a colour and a pencil size, then draw with your finger, mouse, or stylus.`
+      );
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     POINTER HANDLING
+     Suspends any in-flight narration on first touch so the
+     child isn't talked over while drawing.
+  ======================================================= */
+
   const getPointerPosition = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
@@ -136,9 +187,6 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     []
   );
 
-  /**
-   * Save the current canvas state for undo.
-   */
   const saveHistory = useCallback(() => {
     const canvas = canvasRef.current;
 
@@ -158,14 +206,10 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     setHistory((previous) => {
       const next = [...previous, imageData];
 
-      // Keep memory usage reasonable.
       return next.slice(-20);
     });
   }, []);
 
-  /**
-   * Start drawing.
-   */
   const startDrawing = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
@@ -174,7 +218,9 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
 
       event.preventDefault();
 
-      // Allows drawing with finger/stylus without scrolling.
+      // Stop any narration as soon as drawing begins.
+      stopSpeaking();
+
       canvas.setPointerCapture(event.pointerId);
 
       saveHistory();
@@ -208,12 +254,10 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       saveHistory,
       selectedColor,
       tool,
+      stopSpeaking,
     ]
   );
 
-  /**
-   * Draw while pointer moves.
-   */
   const draw = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
       if (!isDrawing) return;
@@ -238,9 +282,6 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     [getPointerPosition, isDrawing, penSize]
   );
 
-  /**
-   * Stop drawing.
-   */
   const stopDrawing = useCallback(
     (event?: React.PointerEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
@@ -261,9 +302,10 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     []
   );
 
-  /**
-   * Undo the previous stroke.
-   */
+  /* =======================================================
+     UNDO — narrates the action
+  ======================================================= */
+
   const undo = useCallback(() => {
     const canvas = canvasRef.current;
 
@@ -282,11 +324,16 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     if (history.length === 1) {
       setHasDrawing(false);
     }
-  }, [history]);
 
-  /**
-   * Clear the entire canvas.
-   */
+    speak('Undo.');
+  }, [history, speak]);
+
+  /* =======================================================
+     CLEAR — narrates the action, only if drawing exists.
+     No confirmation dialog; the brief says preserve
+     everything, and the original has none.
+  ======================================================= */
+
   const clearCanvas = useCallback(() => {
     const canvas = canvasRef.current;
 
@@ -304,11 +351,15 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
 
     setHistory([]);
     setHasDrawing(false);
-  }, [backgroundColor]);
 
-  /**
-   * Save drawing to the gallery.
-   */
+    speak('Canvas cleared. Start a new drawing.');
+  }, [backgroundColor, speak]);
+
+  /* =======================================================
+     SAVE — narrates success after the message displays.
+     Never reads the image data aloud (obviously).
+  ======================================================= */
+
   const addToGallery = useCallback(() => {
     const canvas = canvasRef.current;
 
@@ -325,17 +376,35 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     setTimeout(() => {
       setShowSavedMessage(false);
     }, 2200);
-  }, [hasDrawing, onSave]);
 
-  /**
-   * Reset tool state.
-   */
+    speak('Saved to your gallery. Wonderful creating.');
+  }, [hasDrawing, onSave, speak]);
+
+  /* =======================================================
+     TOOL SELECTION — narrates the tool and current colour
+  ======================================================= */
+
   const selectPencil = () => {
     setTool('pencil');
+    speak(`Pencil, ${COLOR_NAMES[selectedColor] ?? 'this colour'}.`);
   };
 
   const selectEraser = () => {
     setTool('eraser');
+    speak('Eraser.');
+  };
+
+  const selectColor = (color: string) => {
+    setSelectedColor(color);
+    setTool('pencil');
+
+    const colorName = COLOR_NAMES[color] ?? 'a new colour';
+    speak(colorName);
+  };
+
+  const selectPenSize = (size: number, label: string) => {
+    setPenSize(size);
+    speak(`${label} pencil.`);
   };
 
   return (
@@ -364,15 +433,28 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
               </div>
             </div>
 
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={clearCanvas}
-              disabled={!hasDrawing}
-              aria-label="Clear drawing"
-              className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition"
-            >
-              <Trash2 className="w-4 h-4" />
-            </motion.button>
+            <div className="flex gap-2">
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={toggleSound}
+                aria-label="Toggle sound"
+                className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors flex items-center justify-center"
+              >
+                <Volume2
+                  className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+                />
+              </motion.button>
+
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={clearCanvas}
+                disabled={!hasDrawing}
+                aria-label="Clear drawing"
+                className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition"
+              >
+                <Trash2 className="w-4 h-4" />
+              </motion.button>
+            </div>
           </div>
         </div>
 
@@ -431,11 +513,8 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
                   key={color}
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
-                  onClick={() => {
-                    setSelectedColor(color);
-                    setTool('pencil');
-                  }}
-                  aria-label={`Choose ${color}`}
+                  onClick={() => selectColor(color)}
+                  aria-label={`Choose ${COLOR_NAMES[color] ?? color}`}
                   className={`w-9 h-9 rounded-full border-4 transition ${
                     selectedColor === color && tool === 'pencil'
                       ? 'border-white scale-110 shadow-lg'
@@ -457,7 +536,7 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
               {PEN_SIZES.map((size) => (
                 <button
                   key={size.value}
-                  onClick={() => setPenSize(size.value)}
+                  onClick={() => selectPenSize(size.value, size.label)}
                   className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition ${
                     penSize === size.value
                       ? 'bg-indigo-600 text-white'

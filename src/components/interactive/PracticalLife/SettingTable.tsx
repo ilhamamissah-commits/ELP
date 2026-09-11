@@ -5,8 +5,13 @@ import {
   CheckCircle2,
   RotateCcw,
   Sparkles,
+  Volume2,
 } from 'lucide-react';
+
 import { useProgressStore } from '../../../store/useProgressStore';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 interface TableSettingStep {
   readonly id: string;
@@ -20,15 +25,13 @@ const STEPS: readonly TableSettingStep[] = [
     id: 'place-plate',
     icon: '🍽️',
     title: 'Place the Plate',
-    description:
-      'Put the plate neatly in the center of the place setting.',
+    description: 'Put the plate neatly in the center of the place setting.',
   },
   {
     id: 'place-fork',
     icon: '🍴',
     title: 'Place the Fork',
-    description:
-      'Put the fork on the left side of the plate.',
+    description: 'Put the fork on the left side of the plate.',
   },
   {
     id: 'place-knife',
@@ -41,27 +44,23 @@ const STEPS: readonly TableSettingStep[] = [
     id: 'place-spoon',
     icon: '🥄',
     title: 'Place the Spoon',
-    description:
-      'Place the spoon next to the knife on the right side.',
+    description: 'Place the spoon next to the knife on the right side.',
   },
   {
     id: 'place-cup',
     icon: '🥛',
     title: 'Place the Cup',
-    description:
-      'Put the cup above and slightly to the right of the plate.',
+    description: 'Put the cup above and slightly to the right of the plate.',
   },
   {
     id: 'table-ready',
     icon: '🎉',
     title: 'Table is Ready!',
-    description:
-      'Everything is in its proper place. Your table is ready!',
+    description: 'Everything is in its proper place. Your table is ready!',
   },
 ] as const;
 
-const TABLE_SETTING_ACTIVITY_ID =
-  'practical-life-setting-table-001';
+const TABLE_SETTING_ACTIVITY_ID = 'practical-life-setting-table-001';
 
 const TABLE_SETTING_SKILLS = [
   'practical-life-table-setting',
@@ -77,9 +76,36 @@ export const SettingTable: React.FC = () => {
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const completeActivity = useProgressStore(
-    (state) => state.completeActivity,
-  );
+  const completeActivity = useProgressStore((state) => state.completeActivity);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
+  /* Auto-read the current step when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled || completed) return;
+
+    const currentStep = STEPS[step];
+    if (!currentStep) return;
+
+    const timer = window.setTimeout(() => {
+      speak(`${currentStep.title}. ${currentStep.description}`);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [step, completed, speak, autoReadEnabled]);
+
+  /* Announce completion */
+  useEffect(() => {
+    if (!completed) return;
+
+    speak(
+      'Well done! You completed the whole table-setting routine. You showed that you can follow a sequence and organize objects carefully.',
+    );
+  }, [completed, speak]);
 
   useEffect(() => {
     return () => {
@@ -91,10 +117,12 @@ export const SettingTable: React.FC = () => {
 
   const handleNext = (): void => {
     if (step < STEPS.length - 1) {
+      if (soundEnabled) playSoundFeedback('move');
       setStep((currentStep) => currentStep + 1);
       return;
     }
 
+    if (soundEnabled) playSoundFeedback('correct');
     setCompleted(true);
 
     completeActivity({
@@ -114,11 +142,12 @@ export const SettingTable: React.FC = () => {
 
     setStep(0);
     setCompleted(false);
+
+    speak("Let's practise setting the table again!");
   };
 
   const currentStep = STEPS[step];
-  const progressPercentage =
-    ((step + 1) / STEPS.length) * 100;
+  const progressPercentage = ((step + 1) / STEPS.length) * 100;
 
   return (
     <div className="mx-auto w-full max-w-lg overflow-hidden rounded-2xl border border-app-border bg-app-card shadow-xl">
@@ -129,14 +158,28 @@ export const SettingTable: React.FC = () => {
             🍽️
           </span>
 
-          <h3 className="text-2xl font-bold text-white">
-            Setting the Table
-          </h3>
+          <h3 className="text-2xl font-bold text-white">Setting the Table</h3>
         </div>
 
         <p className="text-sm text-gray-400">
           Learn how to prepare a neat table for a meal.
         </p>
+      </div>
+
+      {/* Mute toggle */}
+      <div className="flex justify-end px-6 pt-3">
+        <button
+          type="button"
+          onClick={toggleSound}
+          aria-label="Toggle sound"
+          className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+        >
+          <Volume2
+            className={`w-4 h-4 ${
+              soundEnabled ? 'text-amber-300' : 'text-gray-500'
+            }`}
+          />
+        </button>
       </div>
 
       {/* Progress */}
@@ -147,9 +190,7 @@ export const SettingTable: React.FC = () => {
           </span>
 
           <span className="font-semibold text-gray-300">
-            {completed
-              ? '100%'
-              : `${Math.round(progressPercentage)}%`}
+            {completed ? '100%' : `${Math.round(progressPercentage)}%`}
           </span>
         </div>
 
@@ -158,20 +199,14 @@ export const SettingTable: React.FC = () => {
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={
-            completed
-              ? 100
-              : Math.round(progressPercentage)
-          }
+          aria-valuenow={completed ? 100 : Math.round(progressPercentage)}
           aria-label="Table setting progress"
         >
           <motion.div
             className="h-full rounded-full bg-emerald-500"
             initial={{ width: 0 }}
             animate={{
-              width: completed
-                ? '100%'
-                : `${progressPercentage}%`,
+              width: completed ? '100%' : `${progressPercentage}%`,
             }}
             transition={{ duration: 0.35 }}
           />
@@ -197,11 +232,7 @@ export const SettingTable: React.FC = () => {
               }}
               className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-emerald-500/10"
             >
-              <span
-                className="text-6xl"
-                role="img"
-                aria-label="Set table"
-              >
+              <span className="text-6xl" role="img" aria-label="Set table">
                 🍽️
               </span>
             </motion.div>
@@ -209,15 +240,12 @@ export const SettingTable: React.FC = () => {
             <div className="mb-3 flex items-center justify-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-emerald-400" />
 
-              <p className="text-xl font-bold text-emerald-400">
-                Well Done!
-              </p>
+              <p className="text-xl font-bold text-emerald-400">Well Done!</p>
             </div>
 
             <p className="mb-6 text-sm leading-6 text-gray-400">
-              You completed the whole table-setting routine.
-              You showed that you can follow a sequence and
-              organize objects carefully.
+              You completed the whole table-setting routine. You showed that you
+              can follow a sequence and organize objects carefully.
             </p>
 
             {/* Skill Evidence */}
@@ -231,8 +259,8 @@ export const SettingTable: React.FC = () => {
               </div>
 
               <p className="text-xs leading-5 text-gray-400">
-                Table setting, sequencing, spatial awareness,
-                order, and independence skills have been practiced.
+                Table setting, sequencing, spatial awareness, order, and
+                independence skills have been practiced.
               </p>
             </div>
 
@@ -256,14 +284,8 @@ export const SettingTable: React.FC = () => {
               className="rounded-xl border border-gray-800 bg-[#1a1a1a] p-6 text-center"
             >
               <motion.div
-                initial={{
-                  scale: 0.8,
-                  opacity: 0.5,
-                }}
-                animate={{
-                  scale: 1,
-                  opacity: 1,
-                }}
+                initial={{ scale: 0.8, opacity: 0.5 }}
+                animate={{ scale: 1, opacity: 1 }}
                 transition={{ duration: 0.25 }}
                 className="mb-5 text-6xl"
                 aria-hidden="true"
@@ -297,9 +319,7 @@ export const SettingTable: React.FC = () => {
                     width: index <= step ? 28 : 8,
                   }}
                   className={`h-1.5 rounded-full ${
-                    index <= step
-                      ? 'bg-emerald-500'
-                      : 'bg-gray-700'
+                    index <= step ? 'bg-emerald-500' : 'bg-gray-700'
                   }`}
                   aria-hidden="true"
                 />
@@ -312,9 +332,7 @@ export const SettingTable: React.FC = () => {
               onClick={handleNext}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3.5 font-bold text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-app-card"
             >
-              {step < STEPS.length - 1
-                ? 'Next Step'
-                : 'Finish'}
+              {step < STEPS.length - 1 ? 'Next Step' : 'Finish'}
 
               <ArrowRight className="h-4 w-4" />
             </button>

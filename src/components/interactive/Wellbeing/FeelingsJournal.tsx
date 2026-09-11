@@ -1,11 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   CheckCircle,
   Heart,
   RotateCcw,
   Sparkles,
+  Volume2,
 } from 'lucide-react';
+
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type MoodId =
   | 'happy'
@@ -83,6 +87,12 @@ const STAGE_LABELS: Record<JournalStage, string> = {
 };
 
 export const FeelingsJournal: React.FC = () => {
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
   const [stage, setStage] = useState<JournalStage>('notice');
   const [reflection, setReflection] = useState('');
@@ -95,10 +105,72 @@ export const FeelingsJournal: React.FC = () => {
   const stageProgress =
     ((STAGES.indexOf(stage) + 1) / STAGES.length) * 100;
 
+  /* =======================================================
+     AUTO-READ — stage-driven narration
+     Fires when the stage changes (notice / name / reflect).
+     Never fires on 'saved' — that has its own completion
+     effect below and would double-fire otherwise.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage === 'saved') return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'notice') {
+        speak(
+          'How are you feeling right now? Take a quiet moment. There is no right or wrong feeling. Choose the one that feels closest to how you feel.'
+        );
+      } else if (stage === 'name' && mood) {
+        speak(
+          `You named it. ${mood.label}. ${mood.description}`
+        );
+      } else if (stage === 'reflect' && mood) {
+        speak(mood.prompt);
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, mood, autoReadEnabled, speak]);
+
+  /* =======================================================
+     COMPLETION NARRATION — fires once on 'saved'
+     Deliberately does NOT read back the child's reflection —
+     it's personal and may be incomplete or private.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'saved') return;
+    if (!mood) return;
+
+    speak(
+      `Feeling recorded. You noticed and named how you are feeling. ${
+        reflection.trim()
+          ? 'Thank you for writing your reflection.'
+          : 'Thank you for taking a quiet moment to reflect.'
+      } All feelings are okay to notice. You can always talk to a trusted adult when you need help.`
+    );
+  }, [stage, mood, reflection, speak]);
+
+  /* =======================================================
+     CLEANUP — stop any in-flight speech on unmount
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const selectMood = (moodId: MoodId) => {
     setSelectedMood(moodId);
     setReflection('');
     setStage('name');
+    // Narration driven by the stage effect — do not speak here.
   };
 
   const continueToReflection = () => {
@@ -114,10 +186,19 @@ export const FeelingsJournal: React.FC = () => {
   };
 
   const resetJournal = () => {
+    stopSpeaking();
     setSelectedMood(null);
     setReflection('');
     setStage('notice');
   };
+
+  const hearMood = (item: Mood) => {
+    speak(`${item.label}. ${item.description}`);
+  };
+
+  /* =======================================================
+     SAVED SCREEN
+  ======================================================= */
 
   if (stage === 'saved' && mood) {
     return (
@@ -187,6 +268,10 @@ export const FeelingsJournal: React.FC = () => {
     );
   }
 
+  /* =======================================================
+     MAIN VIEW
+  ======================================================= */
+
   return (
     <div className="max-w-2xl mx-auto bg-app-card p-5 md:p-7 rounded-3xl border border-app-border shadow-xl">
       {/* Header */}
@@ -209,14 +294,27 @@ export const FeelingsJournal: React.FC = () => {
           </div>
         </div>
 
-        <div className="text-right">
-          <p className="text-xs text-gray-500">
-            {STAGE_LABELS[stage]}
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <p className="text-xs text-gray-500">
+              {STAGE_LABELS[stage]}
+            </p>
 
-          <p className="text-sm font-bold text-white">
-            {Math.round(stageProgress)}%
-          </p>
+            <p className="text-sm font-bold text-white">
+              {Math.round(stageProgress)}%
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
+          </button>
         </div>
       </div>
 
@@ -296,6 +394,15 @@ export const FeelingsJournal: React.FC = () => {
             <p className="text-gray-400 text-sm max-w-md mx-auto">
               {mood.description}
             </p>
+
+            <button
+              type="button"
+              onClick={() => hearMood(mood)}
+              className="mt-4 inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-gray-400 transition hover:bg-white/5 hover:text-white"
+            >
+              <Volume2 className="h-4 w-4" />
+              Hear this
+            </button>
           </div>
 
           <button

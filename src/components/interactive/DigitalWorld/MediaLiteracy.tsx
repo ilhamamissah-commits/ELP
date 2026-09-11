@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -14,8 +14,13 @@ import {
   Star,
   Target,
   ThumbsUp,
+  Volume2,
   XCircle,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type ActivityId =
   | 'fact'
@@ -57,7 +62,8 @@ const ACTIVITIES: Activity[] = [
   {
     id: 'fact',
     title: 'Fact or Opinion',
-    description: 'Learn the difference between something that can be checked and something someone believes.',
+    description:
+      'Learn the difference between something that can be checked and something someone believes.',
     icon: <Shield className="w-7 h-7" />,
     iconClass: 'bg-blue-500',
   },
@@ -92,7 +98,8 @@ const ACTIVITIES: Activity[] = [
   {
     id: 'images',
     title: 'Look Closely',
-    description: 'Learn why pictures and videos should also be checked carefully.',
+    description:
+      'Learn why pictures and videos should also be checked carefully.',
     icon: <Eye className="w-7 h-7" />,
     iconClass: 'bg-pink-500',
   },
@@ -106,7 +113,8 @@ const ACTIVITIES: Activity[] = [
   {
     id: 'sharing',
     title: 'Think Before Sharing',
-    description: 'Learn how to pause, check and think before passing information on.',
+    description:
+      'Learn how to pause, check and think before passing information on.',
     icon: <ThumbsUp className="w-7 h-7" />,
     iconClass: 'bg-emerald-500',
   },
@@ -125,14 +133,16 @@ const QUESTIONS: Record<ActivityId, Question[]> = {
       text: 'Mangoes are the tastiest fruit.',
       emoji: '🥭',
       answer: 'Opinion',
-      explanation: 'Taste is personal. Different people can have different preferences.',
+      explanation:
+        'Taste is personal. Different people can have different preferences.',
       lesson: 'An opinion expresses a belief, preference or judgement.',
     },
     {
       text: 'The Earth travels around the Sun.',
       emoji: '🌍',
       answer: 'Fact',
-      explanation: 'This can be supported by scientific evidence and observation.',
+      explanation:
+        'This can be supported by scientific evidence and observation.',
       lesson: 'Facts can be supported by reliable evidence.',
     },
     {
@@ -146,52 +156,61 @@ const QUESTIONS: Record<ActivityId, Question[]> = {
       text: 'Plants need water to grow.',
       emoji: '🌱',
       answer: 'Fact',
-      explanation: 'Plant growth and water requirements can be observed and studied.',
+      explanation:
+        'Plant growth and water requirements can be observed and studied.',
       lesson: 'A claim can be checked by observation or evidence.',
     },
     {
       text: 'Reading books is more fun than playing games.',
       emoji: '📚',
       answer: 'Opinion',
-      explanation: 'People can reasonably disagree about what is more fun.',
-      lesson: 'When reasonable people can disagree because of personal preference, it is often an opinion.',
+      explanation:
+        'People can reasonably disagree about what is more fun.',
+      lesson:
+        'When reasonable people can disagree because of personal preference, it is often an opinion.',
     },
   ],
-
   advertising: [
     {
       text: 'A video says, "Buy our new toy today! Everyone will love it!"',
       emoji: '🧸',
       answer: true,
       explanation: 'The message is encouraging people to buy a product.',
-      lesson: 'Advertising is designed to persuade people to choose a product or service.',
+      lesson:
+        'Advertising is designed to persuade people to choose a product or service.',
     },
     {
       text: 'A teacher explains how the water cycle works.',
       emoji: '👩‍🏫',
       answer: false,
-      explanation: 'The teacher is providing educational information rather than asking you to buy something.',
-      lesson: 'Not every persuasive or informative message is an advertisement.',
+      explanation:
+        'The teacher is providing educational information rather than asking you to buy something.',
+      lesson:
+        'Not every persuasive or informative message is an advertisement.',
     },
     {
       text: 'A video creator shows a snack and says, "Use my code to get yours!"',
       emoji: '🍿',
       answer: true,
-      explanation: 'The creator is encouraging viewers to purchase something.',
-      lesson: 'Advertisements can appear inside videos and social-media content.',
+      explanation:
+        'The creator is encouraging viewers to purchase something.',
+      lesson:
+        'Advertisements can appear inside videos and social-media content.',
     },
     {
       text: 'A library displays a poster explaining how to find books.',
       emoji: '📚',
       answer: false,
       explanation: 'The poster gives instructions about using the library.',
-      lesson: 'Look at the purpose of a message before deciding what it is.',
+      lesson:
+        'Look at the purpose of a message before deciding what it is.',
     },
     {
       text: 'A company says, "Our drink is the number-one choice for everyone!"',
       emoji: '🥤',
       answer: true,
-      explanation: 'The company is promoting its product and trying to influence buyers.',
+      explanation:
+        'The company is promoting its product and trying to influence buyers.',
       lesson: 'Advertising often uses exciting claims to persuade us.',
     },
     {
@@ -199,30 +218,35 @@ const QUESTIONS: Record<ActivityId, Question[]> = {
       emoji: '☁️',
       answer: false,
       explanation: 'The main purpose is to teach about clouds.',
-      lesson: 'Ask: Is this message mainly trying to inform me, entertain me or persuade me?',
+      lesson:
+        'Ask: Is this message mainly trying to inform me, entertain me or persuade me?',
     },
   ],
-
   sources: [
     {
       text: 'A health article identifies its author, date, evidence and sources.',
       emoji: '📄',
       answer: true,
-      explanation: 'These details make it easier to investigate where the information came from.',
-      lesson: 'A useful source usually makes its author, evidence or sources clear.',
+      explanation:
+        'These details make it easier to investigate where the information came from.',
+      lesson:
+        'A useful source usually makes its author, evidence or sources clear.',
     },
     {
       text: 'A post has no author and says, "Trust me! I know everything."',
       emoji: '📱',
       answer: false,
-      explanation: 'There is not enough information to judge who created or supported the claim.',
-      lesson: 'Ask who created the information and what evidence supports it.',
+      explanation:
+        'There is not enough information to judge who created or supported the claim.',
+      lesson:
+        'Ask who created the information and what evidence supports it.',
     },
     {
       text: 'A science resource explains a claim and links to research supporting it.',
       emoji: '🔬',
       answer: true,
-      explanation: 'Evidence and supporting sources give you something to investigate.',
+      explanation:
+        'Evidence and supporting sources give you something to investigate.',
       lesson: 'Reliable information should be supported by evidence.',
     },
     {
@@ -236,63 +260,75 @@ const QUESTIONS: Record<ActivityId, Question[]> = {
       text: 'Two independent, trustworthy sources give the same information.',
       emoji: '🔎',
       answer: true,
-      explanation: 'Checking more than one good source can increase confidence in information.',
-      lesson: 'Cross-check important information using more than one reliable source.',
+      explanation:
+        'Checking more than one good source can increase confidence in information.',
+      lesson:
+        'Cross-check important information using more than one reliable source.',
     },
     {
       text: 'A page makes a surprising claim but gives no date, author or supporting evidence.',
       emoji: '❓',
       answer: false,
-      explanation: 'There are important details missing that would help you evaluate the claim.',
-      lesson: 'Missing source information is a reason to pause and investigate.',
+      explanation:
+        'There are important details missing that would help you evaluate the claim.',
+      lesson:
+        'Missing source information is a reason to pause and investigate.',
     },
   ],
-
   clickbait: [
     {
       text: 'You Won’t Believe What Happened Next!!!',
       emoji: '😱',
       answer: true,
-      explanation: 'The headline uses suspense and excitement to make you curious enough to click.',
-      lesson: 'Clickbait often uses dramatic language while hiding important details.',
+      explanation:
+        'The headline uses suspense and excitement to make you curious enough to click.',
+      lesson:
+        'Clickbait often uses dramatic language while hiding important details.',
     },
     {
       text: 'How Rainbows Form: A Science Explanation',
       emoji: '🌈',
       answer: false,
       explanation: 'The headline clearly tells you what the article is about.',
-      lesson: 'A clear headline usually gives useful information about the content.',
+      lesson:
+        'A clear headline usually gives useful information about the content.',
     },
     {
       text: 'This One Simple Trick Will Make You SUPER SMART!!!',
       emoji: '🧠',
       answer: true,
-      explanation: 'The headline makes a dramatic promise designed to attract attention.',
-      lesson: 'Be cautious when a headline makes an extraordinary promise without details.',
+      explanation:
+        'The headline makes a dramatic promise designed to attract attention.',
+      lesson:
+        'Be cautious when a headline makes an extraordinary promise without details.',
     },
     {
       text: 'Five Ways to Save Water at Home',
       emoji: '💧',
       answer: false,
-      explanation: 'The headline clearly describes the information you will find.',
-      lesson: 'Specific headlines are easier to evaluate than vague sensational ones.',
+      explanation:
+        'The headline clearly describes the information you will find.',
+      lesson:
+        'Specific headlines are easier to evaluate than vague sensational ones.',
     },
     {
       text: 'Doctors HATE This Amazing Secret!!!',
       emoji: '🩺',
       answer: true,
-      explanation: 'The dramatic wording is designed to create curiosity and encourage clicks.',
-      lesson: 'Strong emotional language can be a clue that you should investigate further.',
+      explanation:
+        'The dramatic wording is designed to create curiosity and encourage clicks.',
+      lesson:
+        'Strong emotional language can be a clue that you should investigate further.',
     },
     {
       text: 'How Solar Panels Turn Sunlight Into Electricity',
       emoji: '☀️',
       answer: false,
       explanation: 'This headline directly describes its topic.',
-      lesson: 'A headline should help you understand what information is actually being offered.',
+      lesson:
+        'A headline should help you understand what information is actually being offered.',
     },
   ],
-
   evidence: [
     {
       text: 'A post says, "This plant grows twice as fast," and shows no experiment or source.',
@@ -306,128 +342,153 @@ const QUESTIONS: Record<ActivityId, Question[]> = {
       emoji: '📏',
       answer: true,
       explanation: 'Measurements provide evidence that can be compared.',
-      lesson: 'Evidence can include observations, measurements, records and trustworthy sources.',
+      lesson:
+        'Evidence can include observations, measurements, records and trustworthy sources.',
     },
     {
       text: 'A post says, "My friend told me, so it must be true."',
       emoji: '🗣️',
       answer: false,
-      explanation: 'Someone repeating a claim does not automatically prove it.',
+      explanation:
+        'Someone repeating a claim does not automatically prove it.',
       lesson: 'Ask what evidence supports the original claim.',
     },
     {
       text: 'A report explains how information was collected and gives the results.',
       emoji: '📊',
       answer: true,
-      explanation: 'The reader can examine how the conclusion was reached.',
-      lesson: 'Good evidence should be understandable and connected to the claim.',
+      explanation:
+        'The reader can examine how the conclusion was reached.',
+      lesson:
+        'Good evidence should be understandable and connected to the claim.',
     },
     {
       text: 'A picture is posted with the caption, "This proves everything!" but no context is given.',
       emoji: '🖼️',
       answer: false,
-      explanation: 'A picture alone may not explain when, where or why it was created.',
+      explanation:
+        'A picture alone may not explain when, where or why it was created.',
       lesson: 'Evidence needs context as well as appearance.',
     },
     {
       text: 'A claim is supported by data from a clearly explained investigation.',
       emoji: '🔬',
       answer: true,
-      explanation: 'The investigation provides evidence that can be examined.',
-      lesson: 'Evidence becomes stronger when we know how it was collected.',
+      explanation:
+        'The investigation provides evidence that can be examined.',
+      lesson:
+        'Evidence becomes stronger when we know how it was collected.',
     },
   ],
-
   images: [
     {
       text: 'A photo is shared with no date, location or source.',
       emoji: '📷',
       answer: false,
-      explanation: 'Without context, it is difficult to know what the image actually shows.',
+      explanation:
+        'Without context, it is difficult to know what the image actually shows.',
       lesson: 'Images can be misunderstood when their context is missing.',
     },
     {
       text: 'You check when and where a picture was originally published before sharing it.',
       emoji: '🔍',
       answer: true,
-      explanation: 'Checking the original context can help you understand the image.',
-      lesson: 'Pause and investigate an image before trusting or sharing its message.',
+      explanation:
+        'Checking the original context can help you understand the image.',
+      lesson:
+        'Pause and investigate an image before trusting or sharing its message.',
     },
     {
       text: 'A dramatic picture automatically proves that the caption is true.',
       emoji: '😲',
       answer: false,
-      explanation: 'Pictures can be edited, reused or given misleading captions.',
-      lesson: 'Seeing something in a picture does not automatically prove the accompanying claim.',
+      explanation:
+        'Pictures can be edited, reused or given misleading captions.',
+      lesson:
+        'Seeing something in a picture does not automatically prove the accompanying claim.',
     },
     {
       text: 'A news report explains the original source and context of a photograph.',
       emoji: '📰',
       answer: true,
-      explanation: 'The added context helps readers understand where the image came from.',
-      lesson: 'Source and context help us evaluate visual information.',
+      explanation:
+        'The added context helps readers understand where the image came from.',
+      lesson:
+        'Source and context help us evaluate visual information.',
     },
     {
       text: 'A picture looks strange, so you immediately share it with friends.',
       emoji: '📲',
       answer: false,
-      explanation: 'Something surprising is a reason to pause, not a reason to share immediately.',
-      lesson: 'Strong emotions can make us react before we check information.',
+      explanation:
+        'Something surprising is a reason to pause, not a reason to share immediately.',
+      lesson:
+        'Strong emotions can make us react before we check information.',
     },
     {
       text: 'You compare an image with information from another trustworthy source.',
       emoji: '🔎',
       answer: true,
-      explanation: 'Cross-checking can reveal whether the image and its claim make sense together.',
-      lesson: 'Comparing sources is a useful way to check visual information.',
+      explanation:
+        'Cross-checking can reveal whether the image and its claim make sense together.',
+      lesson:
+        'Comparing sources is a useful way to check visual information.',
     },
   ],
-
   privacy: [
     {
       text: 'Your full home address',
       emoji: '🏠',
       answer: 'Keep Private',
-      explanation: 'Your home address is personal information and should not be shared publicly.',
+      explanation:
+        'Your home address is personal information and should not be shared publicly.',
       lesson: 'Personal information should be protected.',
     },
     {
       text: 'Your favourite colour',
       emoji: '🎨',
       answer: 'Usually Safe',
-      explanation: 'A favourite colour is generally not sensitive personal information.',
-      lesson: 'Not every piece of information about you needs the same level of protection.',
+      explanation:
+        'A favourite colour is generally not sensitive personal information.',
+      lesson:
+        'Not every piece of information about you needs the same level of protection.',
     },
     {
       text: 'Your password',
       emoji: '🔐',
       answer: 'Keep Private',
-      explanation: 'Passwords should be kept secret and never posted publicly.',
-      lesson: 'Never share your password with strangers or online audiences.',
+      explanation:
+        'Passwords should be kept secret and never posted publicly.',
+      lesson:
+        'Never share your password with strangers or online audiences.',
     },
     {
       text: 'A photo of your school uniform with your school name clearly visible',
       emoji: '🎒',
       answer: 'Ask First',
-      explanation: 'The image could reveal information about where you study.',
-      lesson: 'Before sharing identifying information, talk to a trusted adult.',
+      explanation:
+        'The image could reveal information about where you study.',
+      lesson:
+        'Before sharing identifying information, talk to a trusted adult.',
     },
     {
       text: 'Your favourite animal',
       emoji: '🐼',
       answer: 'Usually Safe',
       explanation: 'A favourite animal is normally harmless information to share.',
-      lesson: 'Think about whether information could identify, locate or harm you.',
+      lesson:
+        'Think about whether information could identify, locate or harm you.',
     },
     {
       text: 'Your live location while travelling',
       emoji: '📍',
       answer: 'Keep Private',
-      explanation: 'Sharing your location can reveal where you are right now.',
-      lesson: 'Location information can be sensitive and should be handled carefully.',
+      explanation:
+        'Sharing your location can reveal where you are right now.',
+      lesson:
+        'Location information can be sensitive and should be handled carefully.',
     },
   ],
-
   sharing: [
     {
       text: 'You see a surprising story. You check another trustworthy source before sharing it.',
@@ -441,35 +502,43 @@ const QUESTIONS: Record<ActivityId, Question[]> = {
       emoji: '🚨',
       answer: 'Poor Choice',
       explanation: 'Urgency is not proof that information is true.',
-      lesson: 'Pressure to share quickly is a reason to slow down and check.',
+      lesson:
+        'Pressure to share quickly is a reason to slow down and check.',
     },
     {
       text: 'You are unsure whether a message is true, so you ask a trusted adult.',
       emoji: '🧑‍🏫',
       answer: 'Good Choice',
-      explanation: 'Asking for help is a responsible response to uncertainty.',
-      lesson: 'You do not have to solve every information question alone.',
+      explanation:
+        'Asking for help is a responsible response to uncertainty.',
+      lesson:
+        'You do not have to solve every information question alone.',
     },
     {
       text: 'You forward a rumour about another child without checking it.',
       emoji: '💬',
       answer: 'Poor Choice',
-      explanation: 'Unverified rumours can hurt people and spread false information.',
-      lesson: 'Think about accuracy and people’s feelings before sharing.',
+      explanation:
+        'Unverified rumours can hurt people and spread false information.',
+      lesson:
+        'Think about accuracy and people’s feelings before sharing.',
     },
     {
       text: 'You read the whole article instead of judging it only from the headline.',
       emoji: '📖',
       answer: 'Good Choice',
-      explanation: 'The full context can be very different from a short headline.',
-      lesson: 'Read beyond the headline before deciding what something means.',
+      explanation:
+        'The full context can be very different from a short headline.',
+      lesson:
+        'Read beyond the headline before deciding what something means.',
     },
     {
       text: 'You find a claim that makes you very angry and share it immediately.',
       emoji: '😡',
       answer: 'Poor Choice',
       explanation: 'Strong emotions can make us react before checking.',
-      lesson: 'Pause when something makes you angry, excited or afraid.',
+      lesson:
+        'Pause when something makes you angry, excited or afraid.',
     },
   ],
 };
@@ -478,10 +547,37 @@ const getActivityById = (id: ActivityId): Activity => {
   return ACTIVITIES.find((activity) => activity.id === id) ?? ACTIVITIES[0];
 };
 
+/* ============================================================
+   HUB COMPONENT
+   ============================================================ */
+
 export const MediaLiteracy: React.FC = () => {
-  const [selectedActivity, setSelectedActivity] = useState<ActivityId | null>(null);
+  const [selectedActivity, setSelectedActivity] = useState<ActivityId | null>(
+    null
+  );
   const [score, setScore] = useState(0);
-  const [completedActivities, setCompletedActivities] = useState<ActivityId[]>([]);
+  const [completedActivities, setCompletedActivities] = useState<ActivityId[]>(
+    []
+  );
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
+  /* Auto-read the academy intro once on mount */
+  useEffect(() => {
+    if (!autoReadEnabled || selectedActivity !== null) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        'Media and Information Literacy. Learn how to question information, recognise persuasion, check evidence and make thoughtful decisions before sharing.',
+      );
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [selectedActivity, speak, autoReadEnabled]);
 
   const handleActivityComplete = (activityId: ActivityId, earned: number) => {
     setScore((previous) => previous + earned);
@@ -499,6 +595,8 @@ export const MediaLiteracy: React.FC = () => {
     setScore(0);
     setCompletedActivities([]);
     setSelectedActivity(null);
+
+    speak('Progress has been reset. Choose an activity to begin again.');
   };
 
   if (selectedActivity) {
@@ -516,7 +614,7 @@ export const MediaLiteracy: React.FC = () => {
   }
 
   const progressPercentage = Math.round(
-    (completedActivities.length / ACTIVITIES.length) * 100,
+    (completedActivities.length / ACTIVITIES.length) * 100
   );
 
   return (
@@ -536,14 +634,14 @@ export const MediaLiteracy: React.FC = () => {
                 </p>
 
                 <h2 className="text-2xl md:text-3xl font-bold text-white">
-                  Media & Information Literacy
+                  Media &amp; Information Literacy
                 </h2>
               </div>
             </div>
 
             <p className="text-gray-400 max-w-2xl">
-              Learn how to question information, recognise persuasion,
-              check evidence and make thoughtful decisions before sharing.
+              Learn how to question information, recognise persuasion, check
+              evidence and make thoughtful decisions before sharing.
             </p>
           </div>
 
@@ -566,6 +664,19 @@ export const MediaLiteracy: React.FC = () => {
                 {progressPercentage}%
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="rounded-2xl bg-gray-900/70 border border-gray-800 px-4 transition hover:bg-gray-800"
+            >
+              <Volume2
+                className={`w-5 h-5 ${
+                  soundEnabled ? 'text-amber-300' : 'text-gray-500'
+                }`}
+              />
+            </button>
           </div>
         </div>
 
@@ -601,7 +712,9 @@ export const MediaLiteracy: React.FC = () => {
             </h3>
 
             <p className="text-gray-400 mt-1">
-              <span className="text-white font-semibold">Pause → Ask → Check → Think → Share</span>
+              <span className="text-white font-semibold">
+                Pause → Ask → Check → Think → Share
+              </span>
             </p>
 
             <p className="text-gray-500 text-sm mt-2">
@@ -645,13 +758,14 @@ export const MediaLiteracy: React.FC = () => {
                 key={activity.id}
                 whileHover={{ y: -4 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => setSelectedActivity(activity.id)}
+                onClick={() => {
+                  if (soundEnabled) playSoundFeedback('move');
+                  setSelectedActivity(activity.id);
+                }}
                 className="relative text-left bg-app-card border border-app-border rounded-2xl p-5 hover:border-cyan-500/40 transition-all shadow-lg"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div
-                    className={`${activity.iconClass} text-white p-3 rounded-xl`}
-                  >
+                  <div className={`${activity.iconClass} text-white p-3 rounded-xl`}>
                     {activity.icon}
                   </div>
 
@@ -687,6 +801,10 @@ export const MediaLiteracy: React.FC = () => {
   );
 };
 
+/* ============================================================
+   ACTIVITY SUB-COMPONENT
+   ============================================================ */
+
 interface MediaActivityProps {
   activity: Activity;
   questions: Question[];
@@ -708,30 +826,27 @@ const MediaActivity: React.FC<MediaActivityProps> = ({
   const [earnedScore, setEarnedScore] = useState(0);
   const [finished, setFinished] = useState(false);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+
+  const { speak } = useReadAloud();
+
   const currentQuestion = questions[questionIndex];
 
   const answerOptions = useMemo(() => {
     switch (activity.id) {
       case 'fact':
         return ['Fact', 'Opinion'];
-
       case 'advertising':
-        return [true, false];
-
       case 'sources':
       case 'evidence':
       case 'images':
-        return [true, false];
-
       case 'clickbait':
         return [true, false];
-
       case 'privacy':
         return ['Keep Private', 'Usually Safe', 'Ask First'];
-
       case 'sharing':
         return ['Good Choice', 'Poor Choice'];
-
       default:
         return [];
     }
@@ -739,11 +854,15 @@ const MediaActivity: React.FC<MediaActivityProps> = ({
 
   const getOptionLabel = (option: AnswerValue): string => {
     if (activity.id === 'advertising' || activity.id === 'sources') {
-      return option === true ? 'Yes — I would trust this' : 'No — I would check it';
+      return option === true
+        ? 'Yes — I would trust this'
+        : 'No — I would check it';
     }
 
     if (activity.id === 'evidence' || activity.id === 'images') {
-      return option === true ? 'Strong / useful evidence' : 'Not enough to trust';
+      return option === true
+        ? 'Strong / useful evidence'
+        : 'Not enough to trust';
     }
 
     if (activity.id === 'clickbait') {
@@ -777,10 +896,36 @@ const MediaActivity: React.FC<MediaActivityProps> = ({
     return option === 'Good Choice' ? '👍' : '⚠️';
   };
 
+  /* Auto-read the current question when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled || finished) return;
+
+    const timer = window.setTimeout(() => {
+      speak(`"${currentQuestion.text}" Think carefully before choosing.`);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [questionIndex, currentQuestion, finished, speak, autoReadEnabled]);
+
+  /* Announce activity completion once */
+  useEffect(() => {
+    if (!finished) return;
+
+    const percentage = Math.round(
+      (earnedScore / (questions.length * 10)) * 100
+    );
+
+    speak(
+      percentage >= 80
+        ? `Excellent work! You scored ${percentage} percent. You are building strong information-checking habits.`
+        : percentage >= 60
+          ? `Good work! You scored ${percentage} percent. Keep practising how to question and check information.`
+          : `Keep practising. You scored ${percentage} percent. Remember: pause, ask, check, think, then share.`,
+    );
+  }, [finished, earnedScore, questions.length, speak]);
+
   const handleAnswer = (answer: AnswerValue) => {
-    if (selected !== null || finished) {
-      return;
-    }
+    if (selected !== null || finished) return;
 
     const correct = answer === currentQuestion.answer;
 
@@ -797,14 +942,19 @@ const MediaActivity: React.FC<MediaActivityProps> = ({
     setResult(newResult);
 
     if (correct) {
+      if (soundEnabled) playSoundFeedback('correct');
       setEarnedScore((previous) => previous + 10);
+      speak(`Great thinking! ${currentQuestion.explanation}`);
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(
+        `Good attempt. Let's learn from it. ${currentQuestion.explanation}`,
+      );
     }
   };
 
   const handleNext = () => {
-    if (!result) {
-      return;
-    }
+    if (!result) return;
 
     if (questionIndex < questions.length - 1) {
       setQuestionIndex((previous) => previous + 1);
@@ -823,11 +973,13 @@ const MediaActivity: React.FC<MediaActivityProps> = ({
     setResult(null);
     setEarnedScore(0);
     setFinished(false);
+
+    speak("Let's practise this activity again!");
   };
 
   if (finished) {
     const percentage = Math.round(
-      (earnedScore / (questions.length * 10)) * 100,
+      (earnedScore / (questions.length * 10)) * 100
     );
 
     return (
@@ -852,13 +1004,13 @@ const MediaActivity: React.FC<MediaActivityProps> = ({
               {earnedScore}
             </p>
 
-            <p className="text-gray-500 mt-2">
-              {percentage}% correct
-            </p>
+            <p className="text-gray-500 mt-2">{percentage}% correct</p>
           </div>
 
           <div className="mt-6 p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl text-left">
-            <p className="text-cyan-300 font-semibold">Information Detective Skill</p>
+            <p className="text-cyan-300 font-semibold">
+              Information Detective Skill
+            </p>
             <p className="text-gray-400 text-sm mt-1">
               {percentage >= 80
                 ? 'Excellent work. You are building strong information-checking habits.'
@@ -938,12 +1090,10 @@ const MediaActivity: React.FC<MediaActivityProps> = ({
         className="bg-app-card rounded-3xl border border-app-border shadow-xl p-6 md:p-8"
       >
         <div className="text-center">
-          <div className="text-6xl mb-5">
-            {currentQuestion.emoji}
-          </div>
+          <div className="text-6xl mb-5">{currentQuestion.emoji}</div>
 
           <p className="text-white text-xl md:text-2xl font-bold leading-relaxed">
-            "{currentQuestion.text}"
+            &quot;{currentQuestion.text}&quot;
           </p>
 
           <p className="text-gray-500 text-sm mt-4">
@@ -954,9 +1104,7 @@ const MediaActivity: React.FC<MediaActivityProps> = ({
         {/* Answers */}
         <div
           className={`grid gap-3 mt-7 ${
-            answerOptions.length === 3
-              ? 'grid-cols-1'
-              : 'grid-cols-1 sm:grid-cols-2'
+            answerOptions.length === 3 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'
           }`}
         >
           {answerOptions.map((option, index) => {
@@ -968,14 +1116,11 @@ const MediaActivity: React.FC<MediaActivityProps> = ({
 
             if (selected !== null) {
               if (isCorrect) {
-                stateClass =
-                  'bg-green-500/10 border-green-500/50';
+                stateClass = 'bg-green-500/10 border-green-500/50';
               } else if (isSelected) {
-                stateClass =
-                  'bg-red-500/10 border-red-500/50';
+                stateClass = 'bg-red-500/10 border-red-500/50';
               } else {
-                stateClass =
-                  'bg-gray-900/50 border-gray-800 opacity-60';
+                stateClass = 'bg-gray-900/50 border-gray-800 opacity-60';
               }
             }
 
@@ -1031,9 +1176,7 @@ const MediaActivity: React.FC<MediaActivityProps> = ({
               <div>
                 <p
                   className={`font-bold ${
-                    result.correct
-                      ? 'text-green-300'
-                      : 'text-orange-300'
+                    result.correct ? 'text-green-300' : 'text-orange-300'
                   }`}
                 >
                   {result.correct
@@ -1050,9 +1193,7 @@ const MediaActivity: React.FC<MediaActivityProps> = ({
                     Key idea
                   </p>
 
-                  <p className="text-gray-300 text-sm mt-1">
-                    {result.lesson}
-                  </p>
+                  <p className="text-gray-300 text-sm mt-1">{result.lesson}</p>
                 </div>
               </div>
             </div>

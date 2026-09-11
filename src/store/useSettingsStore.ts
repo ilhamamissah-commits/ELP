@@ -1,100 +1,59 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export type AppTheme = 'dark' | 'light' | 'high-contrast';
+export type TextSize = 'small' | 'medium' | 'large';
+export type VoiceAccent = 'auto' | 'en-US' | 'en-GB' | 'en-AU' | 'en-IN';
+
 interface SettingsState {
-  /** Application appearance */
-  isDarkMode: boolean;
+  theme: AppTheme;
+  textSize: TextSize;
+  soundEnabled: boolean;
+  musicEnabled: boolean;
+  reduceMotion: boolean;
+  voiceAccent: VoiceAccent;
+  autoReadEnabled: boolean;
 
-  /** General sound effects */
-  isSoundEnabled: boolean;
-
-  /** Automatically play instructional audio */
-  isAutoPlayAudio: boolean;
-
-  /**
-   * Personalised Islamic learning/content mode.
-   *
-   * This does not control access to Islamic Studies.
-   * Islamic Studies remains an independent academy.
-   */
-  isIslamicMode: boolean;
-
-  toggleDarkMode: () => void;
+  setTheme: (theme: AppTheme) => void;
+  setTextSize: (size: TextSize) => void;
   toggleSound: () => void;
-  toggleAutoPlay: () => void;
-  toggleIslamicMode: () => void;
-
-  setDarkMode: (enabled: boolean) => void;
-  setSoundEnabled: (enabled: boolean) => void;
-  setAutoPlayAudio: (enabled: boolean) => void;
-  setIslamicMode: (enabled: boolean) => void;
-
+  toggleMusic: () => void;
+  toggleReduceMotion: () => void;
+  setVoiceAccent: (accent: VoiceAccent) => void;
+  toggleAutoRead: () => void;
   resetSettings: () => void;
 }
 
-const DEFAULT_SETTINGS = {
-  isDarkMode: true,
-  isSoundEnabled: true,
-  isAutoPlayAudio: false,
-  isIslamicMode: false,
-};
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set) => ({
+      theme: 'dark',
+      textSize: 'medium',
+      soundEnabled: true,
+      musicEnabled: false,
+      reduceMotion: false,
+      voiceAccent: 'auto',
+      autoReadEnabled: false,
 
-export const useSettingsStore =
-  create<SettingsState>()(
-    persist(
-      (set) => ({
-        ...DEFAULT_SETTINGS,
+      setTheme: (theme) => set({ theme }),
+      setTextSize: (textSize) => set({ textSize }),
+      toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
+      toggleMusic: () => set((s) => ({ musicEnabled: !s.musicEnabled })),
+      toggleReduceMotion: () => set((s) => ({ reduceMotion: !s.reduceMotion })),
+      setVoiceAccent: (voiceAccent) => set({ voiceAccent }),
+      toggleAutoRead: () => set((s) => ({ autoReadEnabled: !s.autoReadEnabled })),
 
-        toggleDarkMode: () =>
-          set((state) => ({
-            isDarkMode: !state.isDarkMode,
-          })),
-
-        toggleSound: () =>
-          set((state) => ({
-            isSoundEnabled:
-              !state.isSoundEnabled,
-          })),
-
-        toggleAutoPlay: () =>
-          set((state) => ({
-            isAutoPlayAudio:
-              !state.isAutoPlayAudio,
-          })),
-
-        toggleIslamicMode: () =>
-          set((state) => ({
-            isIslamicMode:
-              !state.isIslamicMode,
-          })),
-
-        setDarkMode: (enabled) =>
-          set({
-            isDarkMode: enabled,
-          }),
-
-        setSoundEnabled: (enabled) =>
-          set({
-            isSoundEnabled: enabled,
-          }),
-
-        setAutoPlayAudio: (enabled) =>
-          set({
-            isAutoPlayAudio: enabled,
-          }),
-
-        setIslamicMode: (enabled) =>
-          set({
-            isIslamicMode: enabled,
-          }),
-
-        resetSettings: () =>
-          set({
-            ...DEFAULT_SETTINGS,
-          }),
-      }),
-      {
-        name: 'settings-storage',
-      }
-    )
-  );
+      resetSettings: () =>
+        set({
+          theme: 'dark',
+          textSize: 'medium',
+          soundEnabled: true,
+          musicEnabled: false,
+          reduceMotion: false,
+          voiceAccent: 'auto',
+          autoReadEnabled: false,
+        }),
+    }),
+    { name: 'app-settings-storage' }
+  )
+);

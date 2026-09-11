@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { VOCABULARY_CURRICULUM } from '../../../data/vocabularyCurriculum';
+import { useReadAloud } from '../../../hooks/useReadAloud';
 
 interface VocabularyBuilderProps {
   onComplete?: (score: number) => void;
@@ -39,6 +40,9 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
   const [quizAttempts, setQuizAttempts] = useState(0);
   const [wordsLearned, setWordsLearned] = useState(0);
 
+  // ✅ NEW: Use the universal read aloud hook
+  const { speak } = useReadAloud();
+
   const level = VOCABULARY_CURRICULUM[currentLevel];
   const currentWord = level.words[currentWordIndex];
 
@@ -48,29 +52,14 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
    * ---------------------------------------------------------
    */
 
-  const speak = useCallback((text: string) => {
-    if (!('speechSynthesis' in window)) return;
-
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-
-    utterance.rate = 0.75;
-    utterance.pitch = 1.05;
-    utterance.volume = 1;
-
-    window.speechSynthesis.speak(utterance);
-  }, []);
-
   /*
    * Automatically pronounce the current word.
-   *
-   * This gives the child a listening-first experience.
+   * Speaks the word AND its meaning for richer learning.
    */
   useEffect(() => {
     if (mode === 'learn' && currentWord?.word) {
       const timer = window.setTimeout(() => {
-        speak(currentWord.word);
+        speak(`${currentWord.word}. ${currentWord.meaning}`);
       }, 500);
 
       return () => window.clearTimeout(timer);
@@ -81,21 +70,12 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
    * ---------------------------------------------------------
    * QUIZ DATA
    * ---------------------------------------------------------
-   *
-   * Important:
-   * We memoize the shuffled words so the options don't
-   * randomly change every time React re-renders.
    */
 
   const shuffledWords = useMemo(() => {
     return [...level.words].sort(() => Math.random() - 0.5);
   }, [currentLevel, level.words]);
 
-  /*
-   * For now the first family's words are the target.
-   *
-   * This remains compatible with your existing curriculum.
-   */
   const targetFamily = level.words[0]?.family ?? '';
 
   const correctWords = useMemo(() => {
@@ -122,13 +102,12 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
       setCurrentWordIndex(nextIndex);
       setWordsLearned((previous) => previous + 1);
 
-      speak(level.words[nextIndex].word);
+      speak(
+        `${level.words[nextIndex].word}. ${level.words[nextIndex].meaning}`
+      );
       return;
     }
 
-    /*
-     * Finished learning all vocabulary.
-     */
     setWordsLearned((previous) => previous + 1);
     setMode('quiz');
     setCurrentWordIndex(0);
@@ -177,9 +156,6 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
     if (allCorrect) {
       setFeedback('correct');
 
-      /*
-       * Give more points on the first attempt.
-       */
       const earnedPoints = quizAttempts === 0 ? 20 : 10;
 
       setLevelScore(earnedPoints);
@@ -202,6 +178,7 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
     setSelectedWords([]);
     setFeedback('idle');
     setShowHint(false);
+    speak('Try again. Find the words in the family.');
   };
 
   /*
@@ -234,9 +211,7 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
     setShowHint(false);
     setQuizAttempts(0);
 
-    /*
-     * We intentionally do NOT reset total score.
-     */
+    speak('Welcome to the next level!');
   };
 
   /*
@@ -253,6 +228,8 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
     setShowHint(false);
     setQuizAttempts(0);
     setLevelScore(0);
+
+    speak('Restarting this level.');
   };
 
   /*
@@ -357,13 +334,31 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
           </p>
         </div>
 
-        <div className="text-right">
-          <div className="text-xs text-gray-500">
-            Points
-          </div>
+        <div className="flex items-center gap-2">
+          {/* ✅ Read instructions aloud */}
+          <button
+            type="button"
+            onClick={() =>
+              speak(
+                mode === 'learn'
+                  ? `Learn the word ${currentWord.word}.`
+                  : `Find all words in the ${targetFamily} family.`
+              )
+            }
+            aria-label="Read instructions aloud"
+            className="p-2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white transition"
+          >
+            <Volume2 className="w-4 h-4" />
+          </button>
 
-          <div className="font-black text-yellow-400">
-            ⭐ {score}
+          <div className="text-right">
+            <div className="text-xs text-gray-500">
+              Points
+            </div>
+
+            <div className="font-black text-yellow-400">
+              ⭐ {score}
+            </div>
           </div>
         </div>
       </div>
@@ -371,46 +366,35 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
       {/* LEVEL INFORMATION */}
 
       <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 mb-5">
-
         <div className="flex justify-between items-center gap-3">
-
           <div>
             <h4 className="font-bold text-white">
               {level.title}
             </h4>
-
             <p className="text-xs text-gray-400 mt-1">
               {level.syllabusFocus}
             </p>
           </div>
-
           <Sparkles className="w-5 h-5 text-indigo-400 shrink-0" />
-
         </div>
-
-        {/* PROGRESS BAR */}
 
         {mode === 'learn' && (
           <div className="mt-4">
-
             <div className="flex justify-between text-[10px] text-gray-500 mb-1">
               <span>
                 Word {currentWordIndex + 1}
               </span>
-
               <span>
                 {level.words.length} words
               </span>
             </div>
 
             <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-
               <motion.div
                 className="h-full bg-indigo-500 rounded-full"
                 animate={{ width: `${progressPercent}%` }}
                 transition={{ duration: 0.4 }}
               />
-
             </div>
           </div>
         )}
@@ -451,7 +435,9 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
                 </h2>
 
                 <button
-                  onClick={() => speak(currentWord.word)}
+                  onClick={() =>
+                    speak(`${currentWord.word}. ${currentWord.meaning}`)
+                  }
                   aria-label={`Hear ${currentWord.word}`}
                   className="p-3 bg-indigo-600 hover:bg-indigo-500 rounded-full text-white shadow-lg"
                 >
@@ -465,15 +451,12 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
               </p>
 
               <div className="mt-5 inline-flex items-center gap-2 bg-gray-800 px-3 py-2 rounded-full">
-
                 <span className="text-xs text-gray-500">
                   Word family
                 </span>
-
                 <span className="text-xs font-bold text-indigo-300">
                   "{currentWord.family}"
                 </span>
-
               </div>
 
             </div>
@@ -481,7 +464,9 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
             {/* LISTEN AGAIN */}
 
             <button
-              onClick={() => speak(currentWord.word)}
+              onClick={() =>
+                speak(`${currentWord.word}. ${currentWord.meaning}`)
+              }
               className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-2"
             >
               <Volume2 className="w-4 h-4" />
@@ -520,7 +505,6 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
             {/* QUIZ HEADER */}
 
             <div className="w-full text-center">
-
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-400/10 text-yellow-400 text-xs font-bold mb-3">
                 <Sparkles className="w-3 h-3" />
                 Vocabulary Challenge
@@ -533,7 +517,6 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
               <p className="text-gray-400 text-sm mt-2">
                 Tap every word that belongs to this family.
               </p>
-
             </div>
 
             {/* HINT */}
@@ -555,7 +538,6 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
             {/* WORD OPTIONS */}
 
             <div className="grid grid-cols-2 gap-3 w-full">
-
               {shuffledWords.map((word) => {
                 const selected = selectedWords.includes(word.id);
 
@@ -567,7 +549,10 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
                   <motion.button
                     key={word.id}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => toggleSelection(word.id)}
+                    onClick={() => {
+                      toggleSelection(word.id);
+                      speak(word.word);
+                    }}
                     disabled={feedback === 'correct'}
                     aria-pressed={selected}
                     className={`
@@ -585,7 +570,6 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
                       }
                     `}
                   >
-
                     <span className="text-4xl">
                       {word.emoji}
                     </span>
@@ -597,19 +581,21 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
                     {selected && !isCorrect && (
                       <CheckCircle className="absolute top-2 right-2 w-4 h-4" />
                     )}
-
                   </motion.button>
                 );
               })}
-
             </div>
 
             {/* ACTION BUTTONS */}
 
             <div className="flex gap-2 w-full">
-
               <button
-                onClick={() => setShowHint((previous) => !previous)}
+                onClick={() => {
+                  setShowHint((previous) => !previous);
+                  speak(
+                    `Hint. Look for words ending in the same sound as ${targetFamily}.`
+                  );
+                }}
                 className="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-yellow-400"
                 aria-label="Show hint"
               >
@@ -626,7 +612,6 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
               >
                 Check My Answer
               </button>
-
             </div>
 
             {/* CORRECT */}
@@ -638,7 +623,6 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
                   animate={{ scale: 1, opacity: 1 }}
                   className="w-full p-5 bg-green-500/10 border border-green-500/30 rounded-2xl text-center"
                 >
-
                   <CheckCircle className="w-10 h-10 text-green-400 mx-auto mb-2" />
 
                   <h4 className="text-lg font-black text-green-400">
@@ -672,7 +656,6 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
 
                     <ArrowRight className="w-4 h-4" />
                   </button>
-
                 </motion.div>
               )}
             </AnimatePresence>
@@ -686,13 +669,10 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
                   animate={{ scale: 1, opacity: 1 }}
                   className="w-full p-4 bg-red-500/10 border border-red-500/30 rounded-2xl"
                 >
-
                   <div className="flex items-center gap-3">
-
                     <XCircle className="w-7 h-7 text-red-400 shrink-0" />
 
                     <div className="flex-1">
-
                       <h4 className="font-black text-red-400">
                         Almost there!
                       </h4>
@@ -701,9 +681,7 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
                         Some words don't belong to the "{targetFamily}" family.
                         Try again.
                       </p>
-
                     </div>
-
                   </div>
 
                   <button
@@ -713,7 +691,6 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
                     <RotateCcw className="w-4 h-4" />
                     Try Again
                   </button>
-
                 </motion.div>
               )}
             </AnimatePresence>
@@ -735,7 +712,6 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
       {/* FOOTER LEARNING INDICATOR */}
 
       <div className="mt-6 pt-4 border-t border-gray-800 flex justify-between text-[10px] text-gray-600">
-
         <span>
           {mode === 'learn'
             ? '🌱 Explore & Listen'
@@ -745,7 +721,6 @@ export const VocabularyBuilder: React.FC<VocabularyBuilderProps> = ({
         <span>
           {wordsLearned} words explored
         </span>
-
       </div>
 
     </div>

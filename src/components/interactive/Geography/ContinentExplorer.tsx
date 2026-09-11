@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2,
@@ -11,7 +11,10 @@ import {
   Trees,
   Snowflake,
 } from 'lucide-react';
-import { speakWord } from '../../../services/audioEngine';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type ContinentId =
   | 'africa'
@@ -44,7 +47,8 @@ const CONTINENTS: Continent[] = [
     location: 'Africa is between the Atlantic Ocean and Indian Ocean.',
     landmark: 'Sahara Desert',
     environment: 'Savanna, rainforest, desert, mountains and coastlines.',
-    populationNote: 'Africa is home to many different peoples, languages and cultures.',
+    populationNote:
+      'Africa is home to many different peoples, languages and cultures.',
     vocabulary: ['desert', 'river', 'savanna', 'rainforest'],
     icon: <Trees size={18} />,
   },
@@ -56,7 +60,8 @@ const CONTINENTS: Continent[] = [
     location: 'Antarctica surrounds the South Pole.',
     landmark: 'South Pole',
     environment: 'Ice sheets, glaciers and very cold polar environments.',
-    populationNote: 'People do not live there permanently, but scientists work at research stations.',
+    populationNote:
+      'People do not live there permanently, but scientists work at research stations.',
     vocabulary: ['ice', 'glacier', 'polar', 'South Pole'],
     icon: <Snowflake size={18} />,
   },
@@ -68,7 +73,8 @@ const CONTINENTS: Continent[] = [
     location: 'Asia is mostly in the Northern and Eastern Hemispheres.',
     landmark: 'Mount Everest',
     environment: 'Mountains, forests, deserts, grasslands and coastal regions.',
-    populationNote: 'Asia contains many countries, cultures, languages and communities.',
+    populationNote:
+      'Asia contains many countries, cultures, languages and communities.',
     vocabulary: ['mountain', 'continent', 'country', 'population'],
     icon: <Mountain size={18} />,
   },
@@ -80,7 +86,8 @@ const CONTINENTS: Continent[] = [
     location: 'Europe lies west of Asia and north of Africa.',
     landmark: 'Alps',
     environment: 'Mountains, forests, plains, rivers and coastlines.',
-    populationNote: 'Europe contains many countries with different languages and traditions.',
+    populationNote:
+      'Europe contains many countries with different languages and traditions.',
     vocabulary: ['country', 'culture', 'mountain', 'river'],
     icon: <Map size={18} />,
   },
@@ -92,7 +99,8 @@ const CONTINENTS: Continent[] = [
     location: 'North America is mostly in the Northern and Western Hemispheres.',
     landmark: 'Rocky Mountains',
     environment: 'Forests, mountains, grasslands, deserts and icy regions.',
-    populationNote: 'North America has many different cultures, languages and environments.',
+    populationNote:
+      'North America has many different cultures, languages and environments.',
     vocabulary: ['mountain', 'forest', 'desert', 'ocean'],
     icon: <Globe2 size={18} />,
   },
@@ -104,7 +112,8 @@ const CONTINENTS: Continent[] = [
     location: 'South America is mostly in the Southern and Western Hemispheres.',
     landmark: 'Amazon Rainforest',
     environment: 'Rainforest, mountains, grasslands, deserts and coastlines.',
-    populationNote: 'South America is home to many cultures, languages and communities.',
+    populationNote:
+      'South America is home to many cultures, languages and communities.',
     vocabulary: ['rainforest', 'mountain', 'river', 'forest'],
     icon: <Trees size={18} />,
   },
@@ -115,12 +124,260 @@ const CONTINENTS: Continent[] = [
     fact: 'Oceania includes Australia and many islands across the Pacific Ocean.',
     location: 'Oceania lies mainly in the Pacific Ocean.',
     landmark: 'Great Barrier Reef',
-    environment: 'Islands, coral reefs, deserts, forests and coastal environments.',
-    populationNote: 'Oceania contains many island communities with rich cultures and traditions.',
+    environment:
+      'Islands, coral reefs, deserts, forests and coastal environments.',
+    populationNote:
+      'Oceania contains many island communities with rich cultures and traditions.',
     vocabulary: ['island', 'ocean', 'reef', 'coast'],
     icon: <Globe2 size={18} />,
   },
 ];
+
+/* =========================================================
+   WORLD MAP — stylised SVG geometry
+   viewBox: 0 0 1000 500
+========================================================= */
+
+type MapContinent = {
+  id: ContinentId;
+  /** Simplified outline path — recognisable, tappable, not geographically exact. */
+  path: string;
+  /** Where the continent name sits inside the SVG. */
+  labelX: number;
+  labelY: number;
+  /** Dot that pulses when the continent is currently selected. */
+  pinX: number;
+  pinY: number;
+  /** Fill colour when not selected. */
+  color: string;
+};
+
+const MAP_CONTINENTS: MapContinent[] = [
+  {
+    id: 'north-america',
+    path: 'M120,80 L280,55 L345,90 L310,160 L255,205 L195,225 L150,200 L105,150 Z',
+    labelX: 220,
+    labelY: 140,
+    pinX: 220,
+    pinY: 140,
+    color: '#10b981',
+  },
+  {
+    id: 'south-america',
+    path: 'M265,235 L320,230 L345,290 L320,365 L280,415 L248,400 L232,340 L242,285 Z',
+    labelX: 288,
+    labelY: 320,
+    pinX: 288,
+    pinY: 320,
+    color: '#22c55e',
+  },
+  {
+    id: 'europe',
+    path: 'M458,88 L545,78 L565,130 L520,172 L470,165 L448,130 Z',
+    labelX: 505,
+    labelY: 125,
+    pinX: 505,
+    pinY: 125,
+    color: '#0ea5e9',
+  },
+  {
+    id: 'africa',
+    path: 'M455,200 L545,195 L570,262 L540,352 L490,402 L455,362 L445,290 Z',
+    labelX: 500,
+    labelY: 292,
+    pinX: 500,
+    pinY: 292,
+    color: '#f59e0b',
+  },
+  {
+    id: 'asia',
+    path: 'M572,78 L800,68 L845,150 L790,232 L700,252 L622,222 L582,162 Z',
+    labelX: 695,
+    labelY: 150,
+    pinX: 695,
+    pinY: 150,
+    color: '#ef4444',
+  },
+  {
+    id: 'oceania',
+    path: 'M778,318 L882,313 L902,372 L850,412 L790,400 L768,360 Z',
+    labelX: 835,
+    labelY: 360,
+    pinX: 835,
+    pinY: 360,
+    color: '#a855f7',
+  },
+  {
+    id: 'antarctica',
+    path: 'M180,455 L820,455 L845,488 L155,488 Z',
+    labelX: 500,
+    labelY: 474,
+    pinX: 500,
+    pinY: 474,
+    color: '#e2e8f0',
+  },
+];
+
+/* =========================================================
+   WORLD MAP COMPONENT
+========================================================= */
+
+interface WorldMapProps {
+  revealed: ContinentId[];
+  selected: ContinentId | null;
+  onSelect: (id: ContinentId) => void;
+}
+
+const WorldMap: React.FC<WorldMapProps> = ({
+  revealed,
+  selected,
+  onSelect,
+}) => {
+  return (
+    <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220]">
+      <svg
+        viewBox="0 0 1000 500"
+        className="h-auto w-full"
+        role="img"
+        aria-label="Interactive world map"
+      >
+        {/* Ocean */}
+        <rect x="0" y="0" width="1000" height="500" fill="#0b1220" />
+
+        {/* Latitude / longitude grid */}
+        {[...Array(9)].map((_, i) => (
+          <line
+            key={`h-${i}`}
+            x1="0"
+            y1={(i + 1) * 50}
+            x2="1000"
+            y2={(i + 1) * 50}
+            stroke="#1e293b"
+            strokeWidth="0.5"
+          />
+        ))}
+        {[...Array(19)].map((_, i) => (
+          <line
+            key={`v-${i}`}
+            x1={(i + 1) * 50}
+            y1="0"
+            x2={(i + 1) * 50}
+            y2="500"
+            stroke="#1e293b"
+            strokeWidth="0.5"
+          />
+        ))}
+
+        {/* Equator highlight */}
+        <line
+          x1="0"
+          y1="250"
+          x2="1000"
+          y2="250"
+          stroke="#334155"
+          strokeWidth="1"
+          strokeDasharray="4 6"
+        />
+
+        {/* Continents */}
+        {MAP_CONTINENTS.map((entry) => {
+          const isSelected = selected === entry.id;
+          const isRevealed = revealed.includes(entry.id);
+
+          return (
+            <g key={entry.id}>
+              <path
+                d={entry.path}
+                fill={entry.color}
+                fillOpacity={isSelected ? 0.7 : isRevealed ? 0.45 : 0.22}
+                stroke={entry.color}
+                strokeWidth={isSelected ? 3 : 1.5}
+                strokeOpacity={isSelected ? 1 : 0.7}
+                className="cursor-pointer transition-all duration-200"
+                onClick={() => onSelect(entry.id)}
+                style={{
+                  filter: isSelected
+                    ? `drop-shadow(0 0 12px ${entry.color})`
+                    : 'none',
+                }}
+              />
+
+              {/* Continent name label */}
+              <text
+                x={entry.labelX}
+                y={entry.labelY}
+                textAnchor="middle"
+                fill="#ffffff"
+                fontSize="13"
+                fontWeight={isSelected ? 700 : 600}
+                className="pointer-events-none select-none"
+                style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}
+              >
+                {CONTINENTS.find((c) => c.id === entry.id)?.name}
+              </text>
+
+              {/* Explored tick */}
+              {isRevealed && (
+                <g
+                  transform={`translate(${entry.labelX + 42}, ${
+                    entry.labelY - 22
+                  })`}
+                  className="pointer-events-none"
+                >
+                  <circle r="9" fill="#10b981" opacity="0.9" />
+                  <path
+                    d="M-4 0 L-1 3 L4 -3"
+                    stroke="#0b1220"
+                    strokeWidth="2"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </g>
+              )}
+
+              {/* Selection pulse ring */}
+              {isSelected && (
+                <motion.circle
+                  cx={entry.pinX}
+                  cy={entry.pinY}
+                  r="10"
+                  fill="none"
+                  stroke={entry.color}
+                  strokeWidth="2"
+                  initial={{ opacity: 0.9, scale: 1 }}
+                  animate={{ opacity: 0, scale: 2.4 }}
+                  transition={{
+                    duration: 1.4,
+                    repeat: Infinity,
+                    ease: 'easeOut',
+                  }}
+                  style={{
+                    transformOrigin: `${entry.pinX}px ${entry.pinY}px`,
+                  }}
+                />
+              )}
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Legend overlay */}
+      <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap gap-2 text-[10px] text-gray-400">
+        <span className="rounded-full bg-black/40 px-2 py-0.5">
+          Tap a continent
+        </span>
+        <span className="rounded-full bg-black/40 px-2 py-0.5">
+          ✓ Explored
+        </span>
+      </div>
+    </div>
+  );
+};
+
+/* =========================================================
+   MAIN COMPONENT
+========================================================= */
 
 type ExplorerMode = 'discover' | 'recall';
 
@@ -133,33 +390,46 @@ export const ContinentExplorer: React.FC = () => {
   const [attempts, setAttempts] = useState(0);
   const [completed, setCompleted] = useState(false);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const selected = useMemo(
     () => CONTINENTS.find((continent) => continent.id === selectedContinent),
     [selectedContinent]
   );
 
-  const progress = Math.round(
-    (revealed.length / CONTINENTS.length) * 100
-  );
+  const progress = Math.round((revealed.length / CONTINENTS.length) * 100);
 
-  const speak = useCallback((text: string) => {
-    speakWord(text);
-  }, []);
+  /* Announce the discovery-complete milestone once */
+  useEffect(() => {
+    if (mode !== 'discover') return;
+    if (revealed.length !== CONTINENTS.length) return;
+
+    speak(
+      'World explorer complete! You have explored all seven continents. You can now test what you remember.',
+    );
+  }, [revealed.length, mode, speak]);
 
   const revealContinent = useCallback(
     (id: ContinentId) => {
       const continent = CONTINENTS.find((item) => item.id === id);
-
       if (!continent) return;
+
+      if (soundEnabled) playSoundFeedback('move');
 
       setSelectedContinent(id);
 
       if (!revealed.includes(id)) {
         setRevealed((current) => [...current, id]);
-        speak(continent.fact);
+        speak(`${continent.name}. ${continent.fact}`);
+      } else {
+        speak(`${continent.name}. ${continent.fact}`);
       }
     },
-    [revealed, speak]
+    [revealed, speak, soundEnabled]
   );
 
   const resetExplorer = () => {
@@ -169,26 +439,36 @@ export const ContinentExplorer: React.FC = () => {
     setAttempts(0);
     setCompleted(false);
     setMode('discover');
+
+    speak("Let's explore the continents again!");
   };
 
   const startRecall = () => {
     if (revealed.length !== CONTINENTS.length) return;
+
+    if (soundEnabled) playSoundFeedback('move');
 
     setMode('recall');
     setSelectedContinent(null);
     setScore(0);
     setAttempts(0);
     setCompleted(false);
+
+    speak('Geography recall. Can you remember where things belong?');
   };
 
   const checkRecall = (answer: ContinentId) => {
-    const target =
-      CONTINENTS[Math.floor(Math.random() * CONTINENTS.length)];
+    const target = CONTINENTS[Math.floor(Math.random() * CONTINENTS.length)];
 
     setAttempts((current) => current + 1);
 
     if (answer === target.id) {
+      if (soundEnabled) playSoundFeedback('correct');
       setScore((current) => current + 1);
+      speak('Correct!');
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak('Not quite. Try the next question.');
     }
   };
 
@@ -215,22 +495,34 @@ export const ContinentExplorer: React.FC = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={resetExplorer}
-            aria-label="Reset continent explorer"
-            className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition"
-          >
-            <RotateCcw size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition"
+            >
+              <Volume2
+                size={18}
+                className={soundEnabled ? 'text-amber-300' : 'text-gray-500'}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={resetExplorer}
+              aria-label="Reset continent explorer"
+              className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition"
+            >
+              <RotateCcw size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Progress */}
         <div className="mt-6">
           <div className="flex items-center justify-between text-xs mb-2">
-            <span className="text-gray-400">
-              Continents explored
-            </span>
+            <span className="text-gray-400">Continents explored</span>
 
             <span className="text-cyan-400 font-semibold">
               {revealed.length}/{CONTINENTS.length}
@@ -281,6 +573,15 @@ export const ContinentExplorer: React.FC = () => {
       {/* Discovery Mode */}
       {mode === 'discover' && (
         <div className="p-6">
+          {/* Interactive world map */}
+          <div className="mb-5">
+            <WorldMap
+              revealed={revealed}
+              selected={selectedContinent}
+              onSelect={revealContinent}
+            />
+          </div>
+
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {CONTINENTS.map((continent) => {
               const isRevealed = revealed.includes(continent.id);
@@ -302,8 +603,8 @@ export const ContinentExplorer: React.FC = () => {
                       isSelected
                         ? 'border-cyan-400 bg-cyan-500/10'
                         : isRevealed
-                        ? 'border-white/15 bg-white/[0.04]'
-                        : 'border-white/10 bg-black/10 hover:border-cyan-400/50'
+                          ? 'border-white/15 bg-white/[0.04]'
+                          : 'border-white/10 bg-black/10 hover:border-cyan-400/50'
                     }
                   `}
                 >
@@ -344,9 +645,7 @@ export const ContinentExplorer: React.FC = () => {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <span className="text-4xl">
-                      {selected.emoji}
-                    </span>
+                    <span className="text-4xl">{selected.emoji}</span>
 
                     <div>
                       <h4 className="text-xl font-bold text-white">
@@ -458,9 +757,7 @@ export const ContinentExplorer: React.FC = () => {
               <Globe2 />
             </span>
 
-            <h4 className="text-xl font-bold text-white">
-              Geography Recall
-            </h4>
+            <h4 className="text-xl font-bold text-white">Geography Recall</h4>
 
             <p className="text-sm text-gray-400 mt-1">
               Can you remember where things belong?
@@ -469,23 +766,23 @@ export const ContinentExplorer: React.FC = () => {
 
           <RecallActivity
             onAnswer={checkRecall}
-            onComplete={() => setCompleted(true)}
+            onComplete={() => {
+              setCompleted(true);
+              speak(
+                `Great geographical thinking! Your score is ${score + 1}.`,
+              );
+            }}
           />
 
           {completed && (
             <div className="mt-5 p-4 rounded-2xl bg-green-500/10 border border-green-500/30 text-center">
-              <CheckCircle2
-                className="mx-auto text-green-400 mb-2"
-                size={28}
-              />
+              <CheckCircle2 className="mx-auto text-green-400 mb-2" size={28} />
 
               <p className="font-bold text-white">
                 Great geographical thinking!
               </p>
 
-              <p className="text-sm text-gray-400 mt-1">
-                Score: {score}
-              </p>
+              <p className="text-sm text-gray-400 mt-1">Score: {score}</p>
             </div>
           )}
 
@@ -506,20 +803,14 @@ type InfoCardProps = {
   text: string;
 };
 
-const InfoCard: React.FC<InfoCardProps> = ({
-  icon,
-  label,
-  text,
-}) => (
+const InfoCard: React.FC<InfoCardProps> = ({ icon, label, text }) => (
   <div className="p-3 rounded-xl bg-black/10 border border-white/5">
     <div className="flex items-center gap-2 text-cyan-400 mb-1">
       {icon}
       <span className="text-xs font-semibold">{label}</span>
     </div>
 
-    <p className="text-xs text-gray-400 leading-relaxed">
-      {text}
-    </p>
+    <p className="text-xs text-gray-400 leading-relaxed">{text}</p>
   </div>
 );
 
@@ -533,8 +824,12 @@ const RecallActivity: React.FC<RecallActivityProps> = ({
   onComplete,
 }) => {
   const [questionIndex, setQuestionIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] =
-    useState<ContinentId | null>(null);
+  const [selectedAnswer, setSelectedAnswer] = useState<ContinentId | null>(null);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+
+  const { speak } = useReadAloud();
 
   const QUESTIONS = [
     {
@@ -560,6 +855,17 @@ const RecallActivity: React.FC<RecallActivityProps> = ({
   ];
 
   const currentQuestion = QUESTIONS[questionIndex];
+
+  /* Auto-read the question when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled || !currentQuestion) return;
+
+    const timer = window.setTimeout(() => {
+      speak(currentQuestion.question);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [questionIndex, currentQuestion, speak, autoReadEnabled]);
 
   const handleAnswer = (id: ContinentId) => {
     setSelectedAnswer(id);
@@ -626,9 +932,7 @@ const RecallActivity: React.FC<RecallActivityProps> = ({
                 }
               `}
             >
-              <span className="text-3xl block mb-2">
-                {continent.emoji}
-              </span>
+              <span className="text-3xl block mb-2">{continent.emoji}</span>
 
               <span className="text-xs font-semibold text-white">
                 {continent.name}

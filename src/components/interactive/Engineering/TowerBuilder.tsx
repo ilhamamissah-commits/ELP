@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle,
@@ -6,7 +6,12 @@ import {
   ArrowRight,
   Blocks,
   Star,
+  Volume2,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type BlockColor = 'red' | 'blue' | 'yellow';
 
@@ -39,18 +44,68 @@ export const TowerBuilder: React.FC = () => {
   const [attempts, setAttempts] = useState(0);
   const [showHint, setShowHint] = useState(false);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const redCount = useMemo(
     () => blocks.filter((block) => block.color === 'red').length,
     [blocks]
   );
 
-  const heightProgress = Math.min(
-    (blocks.length / MIN_BLOCKS) * 100,
-    100
-  );
+  const heightProgress = Math.min((blocks.length / MIN_BLOCKS) * 100, 100);
+
+  /* Auto-read the challenge once on mount */
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        'Tower Builder. Your engineering challenge: build a stable tower. Use at least 6 blocks. Include at least one red block. Build from the bottom upward. Try to make your tower tall and balanced.',
+      );
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [speak, autoReadEnabled]);
+
+  /* Read the hint when it opens */
+  useEffect(() => {
+    if (showHint) {
+      speak(
+        'A strong tower needs a good foundation. Build carefully from the bottom and think about balance as the tower gets taller.',
+      );
+    }
+  }, [showHint, speak]);
+
+  /* Announce success once */
+  useEffect(() => {
+    if (!tested || !passed) return;
+
+    speak(
+      'Excellent engineering! Your tower meets the challenge requirements. You used planning, construction and testing. Engineers think about stability, foundations, materials and constraints when designing structures.',
+    );
+  }, [tested, passed, speak]);
+
+  /* Announce failure once */
+  useEffect(() => {
+    if (!tested || passed) return;
+
+    const reason =
+      blocks.length < MIN_BLOCKS
+        ? `You need at least ${MIN_BLOCKS} blocks.`
+        : redCount < MIN_RED_BLOCKS
+          ? 'Add at least one red block.'
+          : 'Check your design and try testing again.';
+
+    speak(`Your tower needs improvement. ${reason}`);
+  }, [tested, passed, blocks.length, redCount, speak]);
 
   const addBlock = (color: BlockColor) => {
     if (blocks.length >= MAX_BLOCKS) return;
+
+    if (soundEnabled) playSoundFeedback('move');
 
     setTested(false);
     setPassed(false);
@@ -66,6 +121,8 @@ export const TowerBuilder: React.FC = () => {
 
   const removeBlock = () => {
     if (blocks.length === 0) return;
+
+    if (soundEnabled) playSoundFeedback('move');
 
     setTested(false);
     setPassed(false);
@@ -85,7 +142,10 @@ export const TowerBuilder: React.FC = () => {
     setPassed(success);
 
     if (success) {
+      if (soundEnabled) playSoundFeedback('correct');
       setScore((previous) => previous + 10);
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
     }
   };
 
@@ -95,6 +155,8 @@ export const TowerBuilder: React.FC = () => {
     setPassed(false);
     setAttempts(0);
     setShowHint(false);
+
+    speak('Tower reset.');
   };
 
   const nextChallenge = () => {
@@ -109,9 +171,7 @@ export const TowerBuilder: React.FC = () => {
           <div className="flex items-center gap-2">
             <Blocks className="w-6 h-6 text-indigo-400" />
 
-            <h3 className="text-2xl font-bold text-white">
-              Tower Builder
-            </h3>
+            <h3 className="text-2xl font-bold text-white">Tower Builder</h3>
           </div>
 
           <p className="text-gray-400 text-sm mt-1">
@@ -119,9 +179,24 @@ export const TowerBuilder: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-1 text-yellow-400 text-sm font-bold">
-          <Star className="w-4 h-4" />
-          {score}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 text-yellow-400 text-sm font-bold">
+            <Star className="w-4 h-4" />
+            {score}
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
         </div>
       </div>
 
@@ -131,9 +206,7 @@ export const TowerBuilder: React.FC = () => {
           Engineering Challenge
         </p>
 
-        <p className="text-white font-semibold mb-2">
-          Build a stable tower.
-        </p>
+        <p className="text-white font-semibold mb-2">Build a stable tower.</p>
 
         <ul className="space-y-1 text-sm text-gray-400">
           <li>• Use at least {MIN_BLOCKS} blocks.</li>
@@ -173,25 +246,10 @@ export const TowerBuilder: React.FC = () => {
             {blocks.map((block) => (
               <motion.div
                 key={block.id}
-                initial={{
-                  scale: 0,
-                  opacity: 0,
-                  y: -20,
-                }}
-                animate={{
-                  scale: 1,
-                  opacity: 1,
-                  y: 0,
-                }}
-                exit={{
-                  scale: 0,
-                  opacity: 0,
-                }}
-                transition={{
-                  type: 'spring',
-                  stiffness: 400,
-                  damping: 20,
-                }}
+                initial={{ scale: 0, opacity: 0, y: -20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                 className={`w-24 h-7 rounded-md border shadow-lg ${BLOCK_STYLES[block.color]}`}
               >
                 <span className="sr-only">
@@ -213,23 +271,17 @@ export const TowerBuilder: React.FC = () => {
       <div className="grid grid-cols-3 gap-2 mb-5">
         <div className="bg-gray-900 rounded-lg p-2">
           <p className="text-xs text-gray-500">Blocks</p>
-          <p className="text-white font-bold">
-            {blocks.length}
-          </p>
+          <p className="text-white font-bold">{blocks.length}</p>
         </div>
 
         <div className="bg-gray-900 rounded-lg p-2">
           <p className="text-xs text-gray-500">Red</p>
-          <p className="text-red-400 font-bold">
-            {redCount}
-          </p>
+          <p className="text-red-400 font-bold">{redCount}</p>
         </div>
 
         <div className="bg-gray-900 rounded-lg p-2">
           <p className="text-xs text-gray-500">Attempts</p>
-          <p className="text-white font-bold">
-            {attempts}
-          </p>
+          <p className="text-white font-bold">{attempts}</p>
         </div>
       </div>
 
@@ -294,9 +346,7 @@ export const TowerBuilder: React.FC = () => {
       {/* Hint */}
       <div className="mb-4">
         <button
-          onClick={() =>
-            setShowHint((previous) => !previous)
-          }
+          onClick={() => setShowHint((previous) => !previous)}
           className="text-xs text-indigo-300 hover:text-indigo-200"
         >
           {showHint ? 'Hide hint' : 'Need a hint?'}
@@ -309,9 +359,8 @@ export const TowerBuilder: React.FC = () => {
             className="mt-2 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg"
           >
             <p className="text-sm text-indigo-200">
-              A strong tower needs a good foundation. Build
-              carefully from the bottom and think about balance
-              as the tower gets taller.
+              A strong tower needs a good foundation. Build carefully from the
+              bottom and think about balance as the tower gets taller.
             </p>
           </motion.div>
         )}
@@ -332,13 +381,11 @@ export const TowerBuilder: React.FC = () => {
             <>
               <CheckCircle className="w-5 h-5 inline mr-1" />
 
-              <span className="font-bold">
-                Excellent engineering!
-              </span>
+              <span className="font-bold">Excellent engineering!</span>
 
               <p className="text-sm mt-2">
-                Your tower meets the challenge requirements.
-                You used planning, construction and testing.
+                Your tower meets the challenge requirements. You used planning,
+                construction and testing.
               </p>
 
               <button
@@ -351,16 +398,14 @@ export const TowerBuilder: React.FC = () => {
             </>
           ) : (
             <>
-              <p className="font-bold">
-                Your tower needs improvement.
-              </p>
+              <p className="font-bold">Your tower needs improvement.</p>
 
               <p className="text-sm mt-1">
                 {blocks.length < MIN_BLOCKS
                   ? `You need at least ${MIN_BLOCKS} blocks.`
                   : redCount < MIN_RED_BLOCKS
-                  ? 'Add at least one red block.'
-                  : 'Check your design and try testing again.'}
+                    ? 'Add at least one red block.'
+                    : 'Check your design and try testing again.'}
               </p>
             </>
           )}
@@ -374,9 +419,11 @@ export const TowerBuilder: React.FC = () => {
         </p>
 
         <p className="text-sm text-gray-400 mt-1">
-          Engineers think about <strong className="text-gray-300">
+          Engineers think about{' '}
+          <strong className="text-gray-300">
             stability, foundations, materials and constraints
-          </strong> when designing structures.
+          </strong>{' '}
+          when designing structures.
         </p>
       </div>
     </div>

@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ArrowLeft,
   ArrowRight,
   CheckCircle2,
   Coins,
   RotateCcw,
   Target,
   Trophy,
+  Volume2,
   XCircle,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 interface MoneyQuestion {
   question: string;
@@ -96,9 +100,43 @@ export const MoneyGame: React.FC = () => {
   const [score, setScore] = useState(0);
   const [completed, setCompleted] = useState(false);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const current = QUESTIONS[index];
 
   const correctAnswers = Math.floor(score / 10);
+
+  /* Auto-read the question when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled || completed) return;
+
+    const timer = window.setTimeout(() => {
+      speak(current.question);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [index, current, completed, speak, autoReadEnabled]);
+
+  /* Announce completion */
+  useEffect(() => {
+    if (!completed) return;
+
+    const percentage = Math.round(
+      (correctAnswers / QUESTIONS.length) * 100,
+    );
+
+    speak(
+      percentage >= 80
+        ? `Activity complete! You scored ${percentage} percent. Excellent money thinking!`
+        : percentage >= 60
+          ? `Activity complete! You scored ${percentage} percent. Good work! Keep practising.`
+          : `Activity complete! You scored ${percentage} percent. Keep learning. Every try helps you grow!`,
+    );
+  }, [completed, correctAnswers, speak]);
 
   const handleSelect = (optionIndex: number) => {
     if (selected !== null || completed) return;
@@ -106,7 +144,12 @@ export const MoneyGame: React.FC = () => {
     setSelected(optionIndex);
 
     if (optionIndex === current.answer) {
+      if (soundEnabled) playSoundFeedback('correct');
       setScore((currentScore) => currentScore + 10);
+      speak(`Correct! ${current.explanation}`);
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(`Good try! ${current.explanation}`);
     }
   };
 
@@ -127,16 +170,15 @@ export const MoneyGame: React.FC = () => {
     setSelected(null);
     setScore(0);
     setCompleted(false);
+
+    speak("Let's practise money thinking again!");
   };
 
   const progress = completed
     ? 100
     : ((index + 1) / QUESTIONS.length) * 100;
 
-  /* =========================
-     COMPLETION SCREEN
-     ========================= */
-
+  /* COMPLETION SCREEN */
   if (completed) {
     const percentage = Math.round(
       (correctAnswers / QUESTIONS.length) * 100,
@@ -162,9 +204,7 @@ export const MoneyGame: React.FC = () => {
             Activity complete
           </p>
 
-          <h2 className="text-3xl font-bold text-white">
-            Money Explorer
-          </h2>
+          <h2 className="text-3xl font-bold text-white">Money Explorer</h2>
 
           <p className="text-gray-400 mt-2">
             Great work learning about money and saving!
@@ -174,9 +214,7 @@ export const MoneyGame: React.FC = () => {
             <div className="rounded-2xl bg-gray-900 border border-gray-800 p-4">
               <Trophy className="w-5 h-5 text-amber-400 mx-auto mb-2" />
               <p className="text-xs text-gray-500">XP earned</p>
-              <p className="text-2xl font-bold text-amber-400">
-                {score}
-              </p>
+              <p className="text-2xl font-bold text-amber-400">{score}</p>
             </div>
 
             <div className="rounded-2xl bg-gray-900 border border-gray-800 p-4">
@@ -213,7 +251,6 @@ export const MoneyGame: React.FC = () => {
   return (
     <div className="w-full max-w-xl mx-auto px-4 py-6">
       {/* HEADER */}
-
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20">
@@ -221,23 +258,33 @@ export const MoneyGame: React.FC = () => {
           </div>
 
           <div>
-            <h1 className="text-xl font-bold text-white">
-              Money Explorer
-            </h1>
-            <p className="text-xs text-gray-500">
-              Money & Saving
-            </p>
+            <h1 className="text-xl font-bold text-white">Money Explorer</h1>
+            <p className="text-xs text-gray-500">Money &amp; Saving</p>
           </div>
         </div>
 
-        <div className="text-right">
-          <p className="text-xs text-gray-500">XP</p>
-          <p className="font-bold text-amber-400">{score}</p>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <p className="text-xs text-gray-500">XP</p>
+            <p className="font-bold text-amber-400">{score}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
         </div>
       </div>
 
       {/* PROGRESS */}
-
       <div className="mb-6">
         <div className="flex justify-between text-xs text-gray-500 mb-2">
           <span>
@@ -257,7 +304,6 @@ export const MoneyGame: React.FC = () => {
       </div>
 
       {/* QUESTION */}
-
       <AnimatePresence mode="wait">
         <motion.div
           key={index}
@@ -285,7 +331,6 @@ export const MoneyGame: React.FC = () => {
           </div>
 
           {/* OPTIONS */}
-
           <div className="space-y-3">
             {current.options.map((option, optionIndex) => {
               const isSelected = selected === optionIndex;
@@ -299,13 +344,8 @@ export const MoneyGame: React.FC = () => {
                   'bg-green-500/10 border-green-500 text-green-400';
               }
 
-              if (
-                selected !== null &&
-                isSelected &&
-                !isCorrect
-              ) {
-                classes =
-                  'bg-red-500/10 border-red-500 text-red-400';
+              if (selected !== null && isSelected && !isCorrect) {
+                classes = 'bg-red-500/10 border-red-500 text-red-400';
               }
 
               return (
@@ -326,19 +366,15 @@ export const MoneyGame: React.FC = () => {
                       {String.fromCharCode(65 + optionIndex)}
                     </span>
 
-                    <span className="flex-1">
-                      {option}
-                    </span>
+                    <span className="flex-1">{option}</span>
 
                     {selected !== null && isCorrect && (
                       <CheckCircle2 className="w-5 h-5 shrink-0" />
                     )}
 
-                    {selected !== null &&
-                      isSelected &&
-                      !isCorrect && (
-                        <XCircle className="w-5 h-5 shrink-0" />
-                      )}
+                    {selected !== null && isSelected && !isCorrect && (
+                      <XCircle className="w-5 h-5 shrink-0" />
+                    )}
                   </div>
                 </motion.button>
               );
@@ -346,20 +382,11 @@ export const MoneyGame: React.FC = () => {
           </div>
 
           {/* FEEDBACK */}
-
           <AnimatePresence>
             {selected !== null && (
               <motion.div
-                initial={{
-                  opacity: 0,
-                  height: 0,
-                  marginTop: 0,
-                }}
-                animate={{
-                  opacity: 1,
-                  height: 'auto',
-                  marginTop: 20,
-                }}
+                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginTop: 20 }}
                 className={`rounded-2xl p-4 border ${
                   selected === current.answer
                     ? 'bg-green-500/10 border-green-500/20'
@@ -396,7 +423,6 @@ export const MoneyGame: React.FC = () => {
           </AnimatePresence>
 
           {/* NEXT */}
-
           {selected !== null && (
             <motion.button
               initial={{ opacity: 0, y: 8 }}
@@ -415,7 +441,6 @@ export const MoneyGame: React.FC = () => {
       </AnimatePresence>
 
       {/* LEARNING REMINDER */}
-
       <div className="mt-5 text-center">
         <p className="text-xs text-gray-600">
           Think • Choose • Learn • Try again

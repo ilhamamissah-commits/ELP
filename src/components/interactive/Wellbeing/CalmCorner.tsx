@@ -10,6 +10,9 @@ import {
   VolumeX,
 } from 'lucide-react';
 
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -77,10 +80,15 @@ const MOODS: {
 ========================================================= */
 
 export const CalmCorner: React.FC = () => {
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+  const reduceMotion = useSettingsStore((s) => s.reduceMotion);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [phase, setPhase] = useState<CalmPhase>('ready');
   const [round, setRound] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
   const [selectedMood, setSelectedMood] = useState<Mood | null>(
     null
   );
@@ -96,31 +104,6 @@ export const CalmCorner: React.FC = () => {
 
     return Math.round((round / TOTAL_ROUNDS) * 100);
   }, [phase, round]);
-
-  /* -------------------------------------------------------
-     Speech
-  ------------------------------------------------------- */
-
-  const speak = useCallback(
-    (text: string) => {
-      if (
-        !soundEnabled ||
-        typeof window === 'undefined' ||
-        !('speechSynthesis' in window)
-      ) {
-        return;
-      }
-
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.75;
-      utterance.pitch = 1;
-
-      window.speechSynthesis.speak(utterance);
-    },
-    [soundEnabled]
-  );
 
   /* -------------------------------------------------------
      Start exercise
@@ -139,17 +122,12 @@ export const CalmCorner: React.FC = () => {
   ------------------------------------------------------- */
 
   const resetExercise = useCallback(() => {
-    if (
-      typeof window !== 'undefined' &&
-      'speechSynthesis' in window
-    ) {
-      window.speechSynthesis.cancel();
-    }
+    stopSpeaking();
 
     setPhase('ready');
     setRound(0);
     setIsPaused(false);
-  }, []);
+  }, [stopSpeaking]);
 
   /* -------------------------------------------------------
      Breathing engine
@@ -198,19 +176,30 @@ export const CalmCorner: React.FC = () => {
   }, [phase, round, isPaused, speak]);
 
   /* -------------------------------------------------------
-     Cleanup speech
+     Auto-read intro when idle on Ready screen
+  ------------------------------------------------------- */
+
+  useEffect(() => {
+    if (phase !== 'ready') return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        'Calm Corner. A quiet space to pause, breathe and notice how you feel. Press start when you are ready.'
+      );
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [phase, speak]);
+
+  /* -------------------------------------------------------
+     Cleanup speech on unmount
   ------------------------------------------------------- */
 
   useEffect(() => {
     return () => {
-      if (
-        typeof window !== 'undefined' &&
-        'speechSynthesis' in window
-      ) {
-        window.speechSynthesis.cancel();
-      }
+      stopSpeaking();
     };
-  }, []);
+  }, [stopSpeaking]);
 
   /* -------------------------------------------------------
      Phase labels
@@ -233,21 +222,24 @@ export const CalmCorner: React.FC = () => {
   }[phase];
 
   /* -------------------------------------------------------
-     Animation
+     Animation (respect reduceMotion)
   ------------------------------------------------------- */
 
-  const breathingAnimation =
-    phase === 'inhale'
-      ? {
-          scale: 1.35,
-        }
+  const breathingAnimation = reduceMotion
+    ? { scale: 1 }
+    : phase === 'inhale'
+      ? { scale: 1.35 }
       : phase === 'exhale'
-        ? {
-            scale: 0.8,
-          }
-        : {
-            scale: 1,
-          };
+        ? { scale: 0.8 }
+        : { scale: 1 };
+
+  const ambientScale = reduceMotion
+    ? 1
+    : phase === 'inhale'
+      ? [1, 1.08, 1.15]
+      : phase === 'exhale'
+        ? [1.15, 1.08, 1]
+        : 1;
 
   /* =======================================================
      COMPLETE STATE
@@ -258,7 +250,7 @@ export const CalmCorner: React.FC = () => {
       <div className="mx-auto max-w-xl rounded-3xl border border-app-border bg-app-card p-6 shadow-xl md:p-8">
         <div className="text-center">
           <motion.div
-            initial={{ scale: 0 }}
+            initial={reduceMotion ? { scale: 1 } : { scale: 0 }}
             animate={{ scale: 1 }}
             className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/10"
           >
@@ -291,7 +283,10 @@ export const CalmCorner: React.FC = () => {
               <button
                 key={mood.id}
                 type="button"
-                onClick={() => setSelectedMood(mood.id)}
+                onClick={() => {
+                  setSelectedMood(mood.id);
+                  speak(`You feel ${mood.label.toLowerCase()}. Thank you for noticing.`);
+                }}
                 className={`rounded-xl border p-2 text-center transition ${
                   selectedMood === mood.id
                     ? 'border-cyan-400/50 bg-cyan-400/10'
@@ -376,12 +371,7 @@ export const CalmCorner: React.FC = () => {
         {/* Ambient rings */}
         <motion.div
           animate={{
-            scale:
-              phase === 'inhale'
-                ? [1, 1.08, 1.15]
-                : phase === 'exhale'
-                  ? [1.15, 1.08, 1]
-                  : 1,
+            scale: ambientScale,
             opacity:
               phase === 'ready'
                 ? 0.35
@@ -453,9 +443,18 @@ export const CalmCorner: React.FC = () => {
           <>
             <button
               type="button"
-              onClick={() =>
-                setIsPaused((current) => !current)
-              }
+              onClick={() => {
+                setIsPaused((current) => {
+                  const next = !current;
+                  if (next) {
+                    stopSpeaking();
+                  } else {
+                    // Resuming — re-announce the current phase
+                    speak(phaseInstruction);
+                  }
+                  return next;
+                });
+              }}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-teal-600 py-3.5 font-bold text-white transition hover:bg-teal-500"
             >
               {isPaused ? (
@@ -484,7 +483,7 @@ export const CalmCorner: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => setSoundEnabled((current) => !current)}
+          onClick={toggleSound}
           className="rounded-xl border border-app-border px-4 text-gray-300 transition hover:bg-white/5 hover:text-white"
           aria-label={
             soundEnabled
@@ -494,9 +493,9 @@ export const CalmCorner: React.FC = () => {
           aria-pressed={soundEnabled}
         >
           {soundEnabled ? (
-            <Volume2 className="h-4 w-4" />
+            <Volume2 className="h-4 w-4 text-amber-300" />
           ) : (
-            <VolumeX className="h-4 w-4" />
+            <VolumeX className="h-4 w-4 text-gray-500" />
           )}
         </button>
       </div>

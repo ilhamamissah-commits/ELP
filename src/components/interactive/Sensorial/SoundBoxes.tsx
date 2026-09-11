@@ -1,4 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { motion } from 'framer-motion';
 import {
   Volume2,
@@ -10,6 +15,10 @@ import {
   ArrowRight,
   Play,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type SoundId =
   | 'bell'
@@ -102,6 +111,12 @@ const STAGE_LABELS: Record<ActivityStage, string> = {
 };
 
 export const SoundBoxes: React.FC = () => {
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [stage, setStage] = useState<ActivityStage>('listen');
   const [selectedSound, setSelectedSound] = useState<SoundId | null>(
     null
@@ -120,14 +135,9 @@ export const SoundBoxes: React.FC = () => {
 
   const stageIndex = STAGES.indexOf(stage);
 
-  /*
-   * ------------------------------------------------------------
-   * AUDIO ENGINE
-   * ------------------------------------------------------------
-   * These sounds are simple digital representations designed
-   * for auditory discrimination. They are not recordings of
-   * real-world sounds.
-   */
+  /* =======================================================
+     AUDIO ENGINE (unchanged from original)
+  ======================================================= */
 
   const getAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
@@ -207,11 +217,9 @@ export const SoundBoxes: React.FC = () => {
       switch (soundId) {
         case 'bell': {
           playTone(context, 880, 0.7, 'sine', 0.12);
-
           window.setTimeout(() => {
             playTone(context, 1320, 0.45, 'sine', 0.06);
           }, 90);
-
           break;
         }
 
@@ -227,7 +235,6 @@ export const SoundBoxes: React.FC = () => {
               );
             }, i * 65);
           }
-
           break;
         }
 
@@ -253,21 +260,17 @@ export const SoundBoxes: React.FC = () => {
               );
             }, i * 55);
           }
-
           break;
         }
 
         case 'birds': {
           playTone(context, 1700, 0.18, 'sine', 0.07);
-
           window.setTimeout(() => {
             playTone(context, 2100, 0.15, 'sine', 0.06);
           }, 220);
-
           window.setTimeout(() => {
             playTone(context, 1800, 0.2, 'sine', 0.06);
           }, 430);
-
           break;
         }
       }
@@ -284,18 +287,135 @@ export const SoundBoxes: React.FC = () => {
       if (timeoutRef.current) {
         window.clearTimeout(timeoutRef.current);
       }
-
       if (audioContextRef.current) {
         void audioContextRef.current.close();
       }
     };
   }, []);
 
-  /*
-   * ------------------------------------------------------------
-   * ACTIVITY CONTROLS
-   * ------------------------------------------------------------
-   */
+  /* =======================================================
+     AUTO-READ — stage prompts
+     Skipped on 'complete' (has its own effect below).
+     Skipped on 'remember' — that stage must not reveal names.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage === 'complete') return;
+    if (stage === 'remember') return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'listen') {
+        speak(
+          'Listen carefully. Tap each sound box. Close your eyes if you like and concentrate on what you hear.'
+        );
+      } else if (stage === 'identify') {
+        speak(
+          'Identify what you hear. Tap a box to hear its sound and discover its name.'
+        );
+      } else if (stage === 'compare') {
+        speak(
+          'Compare two sounds. Choose two sound boxes, then listen to them one after another.'
+        );
+      } else if (stage === 'sequence') {
+        speak(
+          'Build a sound sequence. Choose three different sounds, then listen to your sequence in order.'
+        );
+      } else if (stage === 'reflect') {
+        speak(
+          'Reflect on listening. Think about the sounds you heard. Which sound was easiest for you to recognise?'
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, autoReadEnabled, speak]);
+
+  /* =======================================================
+     AUTO-READ — remember stage prompt
+     Fires when the remember stage begins, WITHOUT naming any
+     sound. Reads the instruction only.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage !== 'remember') return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        'Remember the sound. Tap play to hear a mystery sound. Then choose the box you think made it.'
+      );
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, autoReadEnabled, speak]);
+
+  /* =======================================================
+     SELECTED SOUND NARRATION — identify stage only
+     Fires when the child taps a box during identify and
+     the tone has finished playing.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'identify') return;
+    if (!selectedSound) return;
+    if (isPlaying) return; // wait until the tone finishes
+
+    const sound = SOUNDS.find((s) => s.id === selectedSound);
+    if (!sound) return;
+
+    const timer = window.setTimeout(() => {
+      speak(`${sound.name}. ${sound.description}`);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [selectedSound, isPlaying, stage, speak]);
+
+  /* =======================================================
+     FEEDBACK NARRATION
+     Every non-empty feedback message is spoken. Covers
+     compare prompt, sequence prompt, and remember-stage
+     feedback. Never names the mystery sound during the
+     remember stage.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!feedback) return;
+
+    speak(feedback);
+  }, [feedback, speak]);
+
+  /* =======================================================
+     COMPLETION NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'complete') return;
+
+    if (soundEnabled) playSoundFeedback('correct');
+
+    speak(
+      `Excellent listening. You listened carefully, compared sounds, used auditory memory, and created a sound sequence. ${
+        reflection.trim()
+          ? 'Thank you for writing your reflection.'
+          : 'Close your eyes and identify three sounds around you.'
+      }`
+    );
+  }, [stage, speak, soundEnabled, reflection]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     ACTIVITY CONTROLS
+  ======================================================= */
 
   const nextStage = () => {
     const nextIndex = stageIndex + 1;
@@ -305,10 +425,12 @@ export const SoundBoxes: React.FC = () => {
       setSelectedSound(null);
       setComparison([]);
       setFeedback('');
+      if (soundEnabled) playSoundFeedback('move');
     }
   };
 
   const reset = () => {
+    stopSpeaking();
     setStage('listen');
     setSelectedSound(null);
     setComparison([]);
@@ -321,11 +443,15 @@ export const SoundBoxes: React.FC = () => {
   };
 
   const handleIdentify = async (sound: SoundBox) => {
+    if (soundEnabled) playSoundFeedback('move');
     setSelectedSound(sound.id);
     await playSound(sound.id);
+    // Narration handled by the selected-sound effect above.
   };
 
   const handleComparisonSelect = (id: SoundId) => {
+    if (soundEnabled) playSoundFeedback('move');
+
     if (comparison.includes(id)) {
       setComparison(
         comparison.filter((soundId) => soundId !== id)
@@ -343,6 +469,7 @@ export const SoundBoxes: React.FC = () => {
 
   const handleCompare = async () => {
     if (comparison.length !== 2) {
+      if (soundEnabled) playSoundFeedback('try-again');
       setFeedback('Choose two sound boxes to compare.');
       return;
     }
@@ -380,14 +507,12 @@ export const SoundBoxes: React.FC = () => {
   const handleMemoryAnswer = async (id: SoundId) => {
     setAttempts((value) => value + 1);
 
-    /*
-     * rememberedSound is temporarily hidden after playback.
-     * It remains available as the correct answer.
-     */
     if (id === rememberedSound) {
+      if (soundEnabled) playSoundFeedback('correct');
       setSelectedSound(id);
       setFeedback('Excellent listening memory.');
     } else {
+      if (soundEnabled) playSoundFeedback('try-again');
       setSelectedSound(id);
       setFeedback(
         'That is okay. Listen again and notice the sound carefully.'
@@ -399,6 +524,8 @@ export const SoundBoxes: React.FC = () => {
 
   const handleSequence = (id: SoundId) => {
     if (sequence.includes(id)) return;
+
+    if (soundEnabled) playSoundFeedback('move');
 
     const nextSequence = [...sequence, id];
 
@@ -513,14 +640,27 @@ export const SoundBoxes: React.FC = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={reset}
-            className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition"
-            aria-label="Reset Sound Boxes"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={reset}
+              className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition"
+              aria-label="Reset Sound Boxes"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Learning progression */}

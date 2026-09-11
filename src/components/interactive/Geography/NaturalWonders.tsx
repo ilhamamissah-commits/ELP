@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Globe2,
@@ -9,9 +9,11 @@ import {
   XCircle,
   Sparkles,
 } from 'lucide-react';
-import { speakWord } from '../../../services/audioEngine';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type WonderCategory = 'natural' | 'human';
 
@@ -346,6 +348,12 @@ export const NaturalWonders: React.FC = () => {
     (state) => state.completeActivity
   );
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const currentLevel = profile?.currentLevel ?? 1;
   const stage = getStage(currentLevel);
 
@@ -386,16 +394,108 @@ export const NaturalWonders: React.FC = () => {
 
   const currentChallenge = CHALLENGES[challengeIndex];
 
+  /* =======================================================
+     AUTO-READ PROMPT ON LOAD / MODE CHANGE
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      if (mode === 'explore') {
+        speak(
+          stage === 'foundation'
+            ? 'World Wonders Explorer. Choose a wonder to discover what makes it special.'
+            : stage === 'developing'
+              ? 'World Wonders Explorer. Explore remarkable natural environments and human-made landmarks. Choose a wonder to begin.'
+              : 'World Wonders Explorer. Compare remarkable natural environments and human-made landmarks around our world.'
+        );
+      } else if (mode === 'challenge' && !challengeComplete) {
+        speak(currentChallenge.question);
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    mode,
+    challengeIndex,
+    challengeComplete,
+    currentChallenge,
+    autoReadEnabled,
+    speak,
+    stage,
+  ]);
+
+  /* =======================================================
+     ANSWER FEEDBACK NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (mode !== 'challenge') return;
+    if (selectedAnswer === null) return;
+
+    const correct =
+      selectedAnswer === currentChallenge.answer;
+
+    if (correct) {
+      if (soundEnabled) playSoundFeedback('correct');
+      speak(`Correct! ${currentChallenge.explanation}`);
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(
+        `Not quite. The correct answer is ${currentChallenge.answer}. ${currentChallenge.explanation}`
+      );
+    }
+  }, [
+    selectedAnswer,
+    mode,
+    currentChallenge,
+    speak,
+    soundEnabled,
+  ]);
+
+  /* =======================================================
+     COMPLETION NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (!challengeComplete) return;
+
+    const percentage = Math.round(
+      (score / CHALLENGES.length) * 100
+    );
+
+    if (percentage >= 80) {
+      speak(
+        `Brilliant work! You scored ${score} out of ${CHALLENGES.length}. Your world knowledge is excellent.`
+      );
+    } else if (percentage >= 60) {
+      speak(
+        `Well done! You scored ${score} out of ${CHALLENGES.length}. Keep exploring the world.`
+      );
+    } else {
+      speak(
+        `You scored ${score} out of ${CHALLENGES.length}. Let's explore some more wonders and try again.`
+      );
+    }
+  }, [challengeComplete, score, speak]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const handleSelect = (wonder: Wonder) => {
     setSelected(wonder.id);
 
-    speakWord(
+    if (soundEnabled) playSoundFeedback('move');
+
+    speak(
       `${wonder.name}. ${wonder.description}`
     );
   };
 
   const speakWonder = (wonder: Wonder) => {
-    speakWord(
+    speak(
       `${wonder.name}. Located in ${wonder.location}. ${wonder.description}`
     );
   };
@@ -478,14 +578,27 @@ export const NaturalWonders: React.FC = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={resetExplorer}
-            className="p-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-colors"
-            aria-label="Reset explorer"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={resetExplorer}
+              className="p-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-colors"
+              aria-label="Reset explorer"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center justify-between mt-4 text-xs">
@@ -504,7 +617,10 @@ export const NaturalWonders: React.FC = () => {
         <div className="grid grid-cols-2 gap-2 max-w-md mx-auto">
           <button
             type="button"
-            onClick={() => setMode('explore')}
+            onClick={() => {
+              setMode('explore');
+              if (soundEnabled) playSoundFeedback('move');
+            }}
             className={`py-3 rounded-xl font-semibold text-sm transition-all ${
               mode === 'explore'
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40'
@@ -516,7 +632,10 @@ export const NaturalWonders: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setMode('challenge')}
+            onClick={() => {
+              setMode('challenge');
+              if (soundEnabled) playSoundFeedback('move');
+            }}
             className={`py-3 rounded-xl font-semibold text-sm transition-all ${
               mode === 'challenge'
                 ? 'bg-purple-500/20 text-purple-300 border border-purple-400/40'
@@ -708,7 +827,7 @@ export const NaturalWonders: React.FC = () => {
                             <button
                               key={word}
                               type="button"
-                              onClick={() => speakWord(word)}
+                              onClick={() => speak(word)}
                               className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-gray-300 hover:text-white"
                             >
                               {word}
@@ -768,7 +887,7 @@ export const NaturalWonders: React.FC = () => {
                 <button
                   type="button"
                   onClick={() =>
-                    speakWord(currentChallenge.question)
+                    speak(currentChallenge.question)
                   }
                   className="flex items-center gap-2 mt-3 text-xs text-cyan-300"
                 >

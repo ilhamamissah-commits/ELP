@@ -8,7 +8,9 @@ import {
   Volume2,
 } from 'lucide-react';
 
-import { speakWord } from '../../../services/audioEngine';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
 
@@ -174,17 +176,10 @@ const buildOptions = (
   ];
 
   const distractors = Array.from(
-    new Set(
-      candidates.filter(
-        (value) => value !== correct,
-      ),
-    ),
+    new Set(candidates.filter((value) => value !== correct)),
   );
 
-  return shuffle([
-    correct,
-    ...shuffle(distractors).slice(0, 2),
-  ]);
+  return shuffle([correct, ...shuffle(distractors).slice(0, 2)]);
 };
 
 const getStage = (level: number) => {
@@ -215,9 +210,7 @@ const getStage = (level: number) => {
   };
 };
 
-const getConceptLabel = (
-  concept: FractionProblem['concept'],
-) => {
+const getConceptLabel = (concept: FractionProblem['concept']) => {
   switch (concept) {
     case 'part-whole':
       return 'Part & Whole';
@@ -235,9 +228,15 @@ export const FractionsGame: React.FC = () => {
 
   const currentLevel = profile?.currentLevel ?? 1;
 
-  const completeActivity = useProgressStore(
-    (state) => state.completeActivity,
-  );
+  const completeActivity = useProgressStore((state) => state.completeActivity);
+
+  // Global sound / auto-read settings
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  // useReadAloud already respects soundEnabled + voiceAccent internally
+  const { speak } = useReadAloud();
 
   const stage = getStage(currentLevel);
 
@@ -252,61 +251,68 @@ export const FractionsGame: React.FC = () => {
     let eligible = FRACTIONS;
 
     if (currentLevel <= 1) {
-      eligible = FRACTIONS.filter(
-        (fraction) =>
-          fraction.denominator <= 2,
-      );
+      eligible = FRACTIONS.filter((fraction) => fraction.denominator <= 2);
     } else if (currentLevel === 2) {
-      eligible = FRACTIONS.filter(
-        (fraction) =>
-          fraction.denominator <= 4,
-      );
+      eligible = FRACTIONS.filter((fraction) => fraction.denominator <= 4);
     }
 
-    return shuffle(
-      eligible.length >= 5
-        ? eligible
-        : FRACTIONS,
-    ).slice(0, 5);
+    return shuffle(eligible.length >= 5 ? eligible : FRACTIONS).slice(0, 5);
   }, [currentLevel]);
 
   const current = sessionProblems[index];
 
+  const correctAnswer = current
+    ? `${current.numerator}/${current.denominator}`
+    : '';
+
   const options = useMemo(() => {
     if (!current) return [];
-
-    return buildOptions(
-      current.numerator,
-      current.denominator,
-    );
+    return buildOptions(current.numerator, current.denominator);
   }, [current]);
 
   const accuracy =
-    attempts > 0
-      ? Math.round(
-          (correctCount / attempts) * 100,
-        )
-      : 0;
+    attempts > 0 ? Math.round((correctCount / attempts) * 100) : 0;
 
   const progress =
-    sessionProblems.length > 0
-      ? (index / sessionProblems.length) * 100
-      : 0;
+    sessionProblems.length > 0 ? (index / sessionProblems.length) * 100 : 0;
 
+  // Reset per-question state + auto-read the question (if enabled)
   useEffect(() => {
     setSelected(null);
     setShowHint(false);
-  }, [index]);
 
-  const finishActivity = (
-    finalCorrect: number,
-    finalAttempts: number,
-  ) => {
+    if (current && autoReadEnabled) {
+      const readOut = `What fraction is shaded? Count the shaded parts and the total equal parts.`;
+      const timer = window.setTimeout(() => speak(readOut), 350);
+      return () => window.clearTimeout(timer);
+    }
+  }, [index, current, speak, autoReadEnabled]);
+
+  // Read hint aloud when it opens
+  useEffect(() => {
+    if (showHint && current) {
+      speak(current.hint);
+    }
+  }, [showHint, current, speak]);
+
+  // Announce completion
+  useEffect(() => {
+    if (!completed) return;
+
+    const finalAccuracy =
+      attempts > 0 ? Math.round((correctCount / attempts) * 100) : 0;
+
+    speak(
+      finalAccuracy >= 80
+        ? `Brilliant work! You scored ${finalAccuracy} percent. You are a fraction star!`
+        : `Well done! You scored ${finalAccuracy} percent. Let's practise fractions again.`,
+    );
+  }, [completed, attempts, correctCount, speak]);
+
+  const finishActivity = (finalCorrect: number, finalAttempts: number) => {
     const finalAccuracy =
       finalAttempts > 0
-        ? Math.round(
-            (finalCorrect / finalAttempts) * 100,
-          )
+        ? Math.round((finalCorrect / finalAttempts) * 100)
         : 0;
 
     completeActivity({
@@ -325,42 +331,42 @@ export const FractionsGame: React.FC = () => {
       return;
     }
 
-    const correctAnswer = `${current.numerator}/${current.denominator}`;
     const isCorrect = answer === correctAnswer;
-
     const nextAttempts = attempts + 1;
-    const nextCorrect =
-      correctCount + (isCorrect ? 1 : 0);
+    const nextCorrect = correctCount + (isCorrect ? 1 : 0);
 
     setAttempts(nextAttempts);
     setSelected(answer);
 
     if (isCorrect) {
+      if (soundEnabled) {
+        playSoundFeedback('correct');
+      }
+
       setCorrectCount(nextCorrect);
 
-      speakWord(
-        `Correct. The fraction is ${current.numerator} over ${current.denominator}.`,
+      speak(
+        `Correct! The fraction is ${current.numerator} over ${current.denominator}. ${current.explanation}`,
       );
 
-      if (
-        index ===
-        sessionProblems.length - 1
-      ) {
+      if (index === sessionProblems.length - 1) {
         setTimeout(() => {
-          finishActivity(
-            nextCorrect,
-            nextAttempts,
-          );
-        }, 1200);
+          finishActivity(nextCorrect, nextAttempts);
+        }, 2200);
       } else {
         setTimeout(() => {
           setIndex((value) => value + 1);
-        }, 1200);
+        }, 2200);
       }
     } else {
-      speakWord(
+      if (soundEnabled) {
+        playSoundFeedback('try-again');
+      }
+
+      speak(
         'Not quite. Count the equal parts and the shaded parts again.',
       );
+      setShowHint(true);
     }
   };
 
@@ -371,10 +377,12 @@ export const FractionsGame: React.FC = () => {
     setAttempts(0);
     setShowHint(false);
     setCompleted(false);
+
+    speak("Let's practise fractions again!");
   };
 
   const readInstructions = () => {
-    speakWord(
+    speak(
       'A fraction shows part of a whole. The denominator tells us how many equal parts there are. The numerator tells us how many parts we have.',
     );
   };
@@ -385,63 +393,40 @@ export const FractionsGame: React.FC = () => {
 
   if (completed) {
     const finalAccuracy =
-      attempts > 0
-        ? Math.round(
-            (correctCount / attempts) * 100,
-          )
-        : 0;
+      attempts > 0 ? Math.round((correctCount / attempts) * 100) : 0;
 
     return (
       <motion.div
-        initial={{
-          opacity: 0,
-          scale: 0.96,
-        }}
-        animate={{
-          opacity: 1,
-          scale: 1,
-        }}
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
         className="max-w-md mx-auto bg-app-card p-7 rounded-2xl border border-app-border shadow-xl text-center"
       >
         <div className="mx-auto mb-5 w-16 h-16 rounded-2xl bg-emerald-500/15 flex items-center justify-center">
           <Trophy className="w-8 h-8 text-emerald-400" />
         </div>
 
-        <h3 className="text-2xl font-bold text-white">
-          Fractions Lab Complete
-        </h3>
+        <h3 className="text-2xl font-bold text-white">Fractions Lab Complete</h3>
 
         <p className="text-gray-400 text-sm mt-2">
-          You practised representing and reasoning
-          about fractions.
+          You practised representing and reasoning about fractions.
         </p>
 
         <div className="grid grid-cols-3 gap-3 mt-6">
           <div className="rounded-xl bg-gray-900/70 p-3">
-            <div className="text-xl font-bold text-white">
-              {correctCount}
-            </div>
-            <div className="text-xs text-gray-500">
-              Correct
-            </div>
+            <div className="text-xl font-bold text-white">{correctCount}</div>
+            <div className="text-xs text-gray-500">Correct</div>
           </div>
 
           <div className="rounded-xl bg-gray-900/70 p-3">
-            <div className="text-xl font-bold text-white">
-              {finalAccuracy}%
-            </div>
-            <div className="text-xs text-gray-500">
-              Accuracy
-            </div>
+            <div className="text-xl font-bold text-white">{finalAccuracy}%</div>
+            <div className="text-xs text-gray-500">Accuracy</div>
           </div>
 
           <div className="rounded-xl bg-gray-900/70 p-3">
             <div className="text-xl font-bold text-white">
               {sessionProblems.length}
             </div>
-            <div className="text-xs text-gray-500">
-              Problems
-            </div>
+            <div className="text-xs text-gray-500">Problems</div>
           </div>
         </div>
 
@@ -451,9 +436,8 @@ export const FractionsGame: React.FC = () => {
           </p>
 
           <p className="text-sm text-gray-300 mt-2">
-            The denominator tells us how many equal
-            parts make the whole. The numerator tells us
-            how many of those parts we are describing.
+            The denominator tells us how many equal parts make the whole. The
+            numerator tells us how many of those parts we are describing.
           </p>
         </div>
 
@@ -469,30 +453,41 @@ export const FractionsGame: React.FC = () => {
     );
   }
 
-  const correctAnswer = `${current.numerator}/${current.denominator}`;
-
   return (
     <div className="max-w-xl mx-auto bg-app-card p-6 md:p-7 rounded-2xl border border-app-border shadow-xl">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
-          <h3 className="text-2xl font-bold text-white">
-            Fraction Lab
-          </h3>
+          <h3 className="text-2xl font-bold text-white">Fraction Lab</h3>
 
           <p className="text-gray-400 text-sm mt-1">
             {stage.title} · {stage.description}
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={readInstructions}
-          aria-label="Read fraction instructions"
-          className="p-2.5 rounded-xl bg-gray-800 border border-gray-700 text-cyan-400 hover:bg-gray-700"
-        >
-          <Volume2 className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={readInstructions}
+            aria-label="Read fraction instructions"
+            className="p-2.5 rounded-xl bg-gray-800 border border-gray-700 text-cyan-400 hover:bg-gray-700"
+          >
+            <Volume2 className="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2.5 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-5 h-5 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Progress */}
@@ -508,12 +503,8 @@ export const FractionsGame: React.FC = () => {
         <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
           <motion.div
             className="h-full bg-cyan-500"
-            animate={{
-              width: `${progress}%`,
-            }}
-            transition={{
-              duration: 0.3,
-            }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.3 }}
           />
         </div>
       </div>
@@ -529,24 +520,14 @@ export const FractionsGame: React.FC = () => {
       <div className="flex justify-center mb-6">
         <motion.div
           key={current.id}
-          initial={{
-            opacity: 0,
-            scale: 0.94,
-          }}
-          animate={{
-            opacity: 1,
-            scale: 1,
-          }}
+          initial={{ opacity: 0, scale: 0.94 }}
+          animate={{ opacity: 1, scale: 1 }}
           className="w-full max-w-sm rounded-2xl bg-gray-900/60 border border-gray-700 p-5"
         >
           <div className="flex justify-center items-center gap-2 mb-5">
-            <span className="text-4xl">
-              {current.emoji}
-            </span>
+            <span className="text-4xl">{current.emoji}</span>
 
-            <span className="text-gray-500 text-2xl">
-              =
-            </span>
+            <span className="text-gray-500 text-2xl">=</span>
 
             <div className="flex flex-col items-center leading-none">
               <span className="text-3xl font-bold text-white">
@@ -568,26 +549,15 @@ export const FractionsGame: React.FC = () => {
               gridTemplateColumns: `repeat(${current.denominator}, minmax(0, 1fr))`,
             }}
           >
-            {Array.from({
-              length: current.denominator,
-            }).map((_, partIndex) => {
-              const shaded =
-                partIndex < current.numerator;
+            {Array.from({ length: current.denominator }).map((_, partIndex) => {
+              const shaded = partIndex < current.numerator;
 
               return (
                 <motion.div
                   key={partIndex}
-                  initial={{
-                    opacity: 0,
-                    y: 5,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    y: 0,
-                  }}
-                  transition={{
-                    delay: partIndex * 0.05,
-                  }}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: partIndex * 0.05 }}
                   className={`h-14 md:h-16 rounded-lg border-2 flex items-center justify-center ${
                     shaded
                       ? 'bg-cyan-500/30 border-cyan-400'
@@ -596,9 +566,7 @@ export const FractionsGame: React.FC = () => {
                 >
                   <span
                     className={`text-xl ${
-                      shaded
-                        ? 'opacity-100'
-                        : 'opacity-20'
+                      shaded ? 'opacity-100' : 'opacity-20'
                     }`}
                   >
                     {current.emoji}
@@ -609,22 +577,16 @@ export const FractionsGame: React.FC = () => {
           </div>
 
           <div className="flex justify-between mt-3 text-xs text-gray-500">
-            <span>
-              {current.numerator} shaded
-            </span>
+            <span>{current.numerator} shaded</span>
 
-            <span>
-              {current.denominator} equal parts
-            </span>
+            <span>{current.denominator} equal parts</span>
           </div>
         </motion.div>
       </div>
 
       {/* Question */}
       <div className="text-center mb-4">
-        <p className="text-white font-semibold">
-          What fraction is shaded?
-        </p>
+        <p className="text-white font-semibold">What fraction is shaded?</p>
 
         <p className="text-gray-500 text-xs mt-1">
           Count the shaded parts and the total equal parts.
@@ -641,30 +603,19 @@ export const FractionsGame: React.FC = () => {
             'bg-gray-800 border-gray-700 text-white hover:bg-gray-700';
 
           if (isSelected && isCorrect) {
-            classes =
-              'bg-emerald-500/20 border-emerald-400 text-emerald-300';
-          } else if (
-            isSelected &&
-            !isCorrect
-          ) {
-            classes =
-              'bg-red-500/20 border-red-400 text-red-300';
+            classes = 'bg-emerald-500/20 border-emerald-400 text-emerald-300';
+          } else if (isSelected && !isCorrect) {
+            classes = 'bg-red-500/20 border-red-400 text-red-300';
           }
 
           return (
             <motion.button
               key={option}
               type="button"
-              whileHover={{
-                scale: selected === null ? 1.03 : 1,
-              }}
-              whileTap={{
-                scale: selected === null ? 0.97 : 1,
-              }}
+              whileHover={{ scale: selected === null ? 1.03 : 1 }}
+              whileTap={{ scale: selected === null ? 0.97 : 1 }}
               disabled={selected !== null}
-              onClick={() =>
-                handleAnswer(option)
-              }
+              onClick={() => handleAnswer(option)}
               className={`min-h-16 rounded-xl border-2 text-xl font-bold transition-colors ${classes}`}
             >
               {option}
@@ -677,9 +628,7 @@ export const FractionsGame: React.FC = () => {
       {!selected && (
         <button
           type="button"
-          onClick={() =>
-            setShowHint((value) => !value)
-          }
+          onClick={() => setShowHint((value) => !value)}
           className="mt-5 mx-auto flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300"
         >
           <Lightbulb className="w-4 h-4" />
@@ -689,14 +638,8 @@ export const FractionsGame: React.FC = () => {
 
       {showHint && !selected && (
         <motion.div
-          initial={{
-            opacity: 0,
-            y: 5,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
           className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm text-amber-200"
         >
           {current.hint}
@@ -706,14 +649,8 @@ export const FractionsGame: React.FC = () => {
       {/* Feedback */}
       {selected !== null && (
         <motion.div
-          initial={{
-            opacity: 0,
-            y: 8,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
           className={`mt-5 p-4 rounded-xl border ${
             selected === correctAnswer
               ? 'bg-emerald-500/10 border-emerald-500/20'
@@ -728,9 +665,7 @@ export const FractionsGame: React.FC = () => {
               </div>
 
               <p className="text-sm text-gray-300 mt-2">
-                {current.numerator} out of{' '}
-                {current.denominator} equal parts =
-                {' '}
+                {current.numerator} out of {current.denominator} equal parts ={' '}
                 {correctAnswer}
               </p>
 
@@ -740,18 +675,18 @@ export const FractionsGame: React.FC = () => {
             </>
           ) : (
             <>
-              <p className="text-red-300 font-semibold">
-                Not quite.
-              </p>
+              <p className="text-red-300 font-semibold">Not quite.</p>
 
               <p className="text-xs text-gray-500 mt-1">
-                Count the shaded parts first, then count
-                all the equal parts.
+                Count the shaded parts first, then count all the equal parts.
               </p>
 
               <button
                 type="button"
-                onClick={() => setSelected(null)}
+                onClick={() => {
+                  setSelected(null);
+                  setShowHint(false);
+                }}
                 className="mt-3 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white text-sm font-semibold"
               >
                 Try Again
@@ -765,9 +700,7 @@ export const FractionsGame: React.FC = () => {
       <div className="mt-6 pt-5 border-t border-app-border flex justify-between text-sm">
         <span className="text-gray-500">
           Score:{' '}
-          <span className="text-white font-semibold">
-            {correctCount * 10}
-          </span>
+          <span className="text-white font-semibold">{correctCount * 10}</span>
         </span>
 
         <span className="text-gray-500">
@@ -789,8 +722,7 @@ export const FractionsGame: React.FC = () => {
         </p>
 
         <p className="text-xs text-cyan-400 mt-2">
-          Remember: the denominator tells how many equal
-          parts make the whole.
+          Remember: the denominator tells how many equal parts make the whole.
         </p>
       </div>
     </div>

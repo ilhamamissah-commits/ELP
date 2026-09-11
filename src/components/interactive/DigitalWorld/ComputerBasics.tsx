@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle,
@@ -17,6 +17,10 @@ import {
   ShieldCheck,
   Lightbulb,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type ComputerConcept =
   | 'display'
@@ -48,16 +52,13 @@ const COMPUTER_PARTS: ComputerPart[] = [
     id: 1,
     name: 'Monitor',
     concept: 'display',
-    description: 'A monitor displays pictures, text, videos and other information from a computer.',
+    description:
+      'A monitor displays pictures, text, videos and other information from a computer.',
     example: 'You look at the monitor to see what the computer is doing.',
     icon: <Monitor className="w-16 h-16" />,
     question: 'What does a monitor help you do?',
     answer: 'See information',
-    options: [
-      'See information',
-      'Type letters',
-      'Print paper',
-    ],
+    options: ['See information', 'Type letters', 'Print paper'],
     explanation:
       'A monitor is an output device. It shows information from the computer.',
   },
@@ -65,16 +66,13 @@ const COMPUTER_PARTS: ComputerPart[] = [
     id: 2,
     name: 'Keyboard',
     concept: 'input',
-    description: 'A keyboard lets you enter letters, numbers and commands into a computer.',
+    description:
+      'A keyboard lets you enter letters, numbers and commands into a computer.',
     example: 'You can use it to type your name.',
     icon: <Keyboard className="w-16 h-16" />,
     question: 'What can you use a keyboard for?',
     answer: 'Typing',
-    options: [
-      'Typing',
-      'Printing',
-      'Taking photos',
-    ],
+    options: ['Typing', 'Printing', 'Taking photos'],
     explanation:
       'A keyboard is an input device because it sends information to the computer.',
   },
@@ -82,16 +80,13 @@ const COMPUTER_PARTS: ComputerPart[] = [
     id: 3,
     name: 'Mouse',
     concept: 'input',
-    description: 'A mouse helps you point, click, select and move things on a computer screen.',
+    description:
+      'A mouse helps you point, click, select and move things on a computer screen.',
     example: 'You can click an icon to open an application.',
     icon: <Mouse className="w-16 h-16" />,
     question: 'What can you use a mouse to do?',
     answer: 'Click',
-    options: [
-      'Click',
-      'Print',
-      'Play sound',
-    ],
+    options: ['Click', 'Print', 'Play sound'],
     explanation:
       'A mouse is an input device. It lets you control the pointer on the screen.',
   },
@@ -99,16 +94,14 @@ const COMPUTER_PARTS: ComputerPart[] = [
     id: 4,
     name: 'CPU',
     concept: 'processing',
-    description: 'The CPU processes instructions and helps the computer perform tasks.',
-    example: 'When you open an application, the CPU helps process the instructions needed to run it.',
+    description:
+      'The CPU processes instructions and helps the computer perform tasks.',
+    example:
+      'When you open an application, the CPU helps process the instructions needed to run it.',
     icon: <Cpu className="w-16 h-16" />,
     question: 'What does the CPU mainly do?',
     answer: 'Process instructions',
-    options: [
-      'Process instructions',
-      'Print paper',
-      'Take photographs',
-    ],
+    options: ['Process instructions', 'Print paper', 'Take photographs'],
     explanation:
       'The CPU is a major processing component. It carries out instructions and calculations.',
   },
@@ -116,16 +109,13 @@ const COMPUTER_PARTS: ComputerPart[] = [
     id: 5,
     name: 'Printer',
     concept: 'output',
-    description: 'A printer produces a physical copy of digital information on paper.',
+    description:
+      'A printer produces a physical copy of digital information on paper.',
     example: 'You can print a drawing or document.',
     icon: <Printer className="w-16 h-16" />,
     question: 'What does a printer produce?',
     answer: 'Paper copies',
-    options: [
-      'Paper copies',
-      'Computer instructions',
-      'Internet signals',
-    ],
+    options: ['Paper copies', 'Computer instructions', 'Internet signals'],
     explanation:
       'A printer is an output device because it turns digital information into a physical result.',
   },
@@ -133,33 +123,26 @@ const COMPUTER_PARTS: ComputerPart[] = [
     id: 6,
     name: 'Tablet',
     concept: 'mobile',
-    description: 'A tablet is a portable computer that usually uses a touchscreen.',
+    description:
+      'A tablet is a portable computer that usually uses a touchscreen.',
     example: 'You can tap the screen to open an application.',
     icon: <Smartphone className="w-16 h-16" />,
     question: 'How do you commonly control a tablet?',
     answer: 'Touch the screen',
-    options: [
-      'Touch the screen',
-      'Print the screen',
-      'Shake the keyboard',
-    ],
-    explanation:
-      'Many tablets use touch as an input method.',
+    options: ['Touch the screen', 'Print the screen', 'Shake the keyboard'],
+    explanation: 'Many tablets use touch as an input method.',
   },
   {
     id: 7,
     name: 'Speaker',
     concept: 'audio',
     description: 'Speakers allow a computer or device to produce sound.',
-    example: 'You can hear music, stories and learning instructions through speakers.',
+    example:
+      'You can hear music, stories and learning instructions through speakers.',
     icon: <Volume2 className="w-16 h-16" />,
     question: 'What does a speaker produce?',
     answer: 'Sound',
-    options: [
-      'Sound',
-      'Paper',
-      'Pictures',
-    ],
+    options: ['Sound', 'Paper', 'Pictures'],
     explanation:
       'A speaker is an output device that converts digital audio into sound we can hear.',
   },
@@ -168,7 +151,8 @@ const COMPUTER_PARTS: ComputerPart[] = [
     name: 'Camera',
     concept: 'camera',
     description: 'A camera captures photographs and videos.',
-    example: 'A computer or tablet camera can be used for taking a picture.',
+    example:
+      'A computer or tablet camera can be used for taking a picture.',
     icon: <Camera className="w-16 h-16" />,
     question: 'What can a camera capture?',
     answer: 'Photos and videos',
@@ -184,24 +168,21 @@ const COMPUTER_PARTS: ComputerPart[] = [
     id: 9,
     name: 'Storage',
     concept: 'storage',
-    description: 'Storage keeps digital information so it can be used later.',
+    description:
+      'Storage keeps digital information so it can be used later.',
     example: 'Photos, documents and applications can be stored on a device.',
     icon: <HardDrive className="w-16 h-16" />,
     question: 'What does storage help a computer do?',
     answer: 'Keep information',
-    options: [
-      'Keep information',
-      'Make paper',
-      'Display sound',
-    ],
-    explanation:
-      'Storage holds digital information for later use.',
+    options: ['Keep information', 'Make paper', 'Display sound'],
+    explanation: 'Storage holds digital information for later use.',
   },
   {
     id: 10,
     name: 'Wi-Fi',
     concept: 'network',
-    description: 'Wi-Fi allows compatible devices to connect to a network without a physical network cable.',
+    description:
+      'Wi-Fi allows compatible devices to connect to a network without a physical network cable.',
     example: 'A tablet can use Wi-Fi to connect to the internet.',
     icon: <Wifi className="w-16 h-16" />,
     question: 'What can Wi-Fi help a device do?',
@@ -218,8 +199,10 @@ const COMPUTER_PARTS: ComputerPart[] = [
     id: 11,
     name: 'Digital Safety',
     concept: 'safety',
-    description: 'Digital safety means using devices, information and online services responsibly and carefully.',
-    example: 'Ask a trusted adult before sharing personal information online.',
+    description:
+      'Digital safety means using devices, information and online services responsibly and carefully.',
+    example:
+      'Ask a trusted adult before sharing personal information online.',
     icon: <ShieldCheck className="w-16 h-16" />,
     question: 'What should you do before sharing personal information online?',
     answer: 'Ask a trusted adult',
@@ -253,18 +236,52 @@ export const ComputerBasics: React.FC = () => {
   const [completed, setCompleted] = useState(false);
   const [showHint, setShowHint] = useState(false);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const current = COMPUTER_PARTS[index];
 
-  const handleAnswer = (answer: string) => {
-    if (completed) {
-      return;
+  /* Auto-read the current computer part + question when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        `${current.name}. ${current.description}. ${current.question}`,
+      );
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [index, current, speak, autoReadEnabled]);
+
+  /* Read the learning tip when it opens */
+  useEffect(() => {
+    if (showHint && !completed) {
+      speak('Think about what the device is designed to help you do.');
     }
+  }, [showHint, completed, speak]);
+
+  const handleAnswer = (answer: string) => {
+    if (completed) return;
 
     setSelected(answer);
 
     if (answer === current.answer) {
+      if (soundEnabled) playSoundFeedback('correct');
+
       setCompleted(true);
       setScore((previous) => previous + 10);
+
+      speak(`Correct! ${current.explanation}`);
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+
+      speak(
+        'Not quite. Think about what this device is used for, and try again.',
+      );
     }
   };
 
@@ -279,6 +296,8 @@ export const ComputerBasics: React.FC = () => {
     setSelected(null);
     setCompleted(false);
     setShowHint(false);
+
+    speak('Lesson reset.');
   };
 
   const progress =
@@ -286,7 +305,6 @@ export const ComputerBasics: React.FC = () => {
 
   return (
     <div className="max-w-2xl mx-auto bg-app-card p-6 rounded-3xl border border-app-border shadow-xl">
-
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
@@ -305,14 +323,25 @@ export const ComputerBasics: React.FC = () => {
           </div>
         </div>
 
-        <div className="text-right">
-          <div className="text-xs text-gray-500">
-            SCORE
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <div className="text-xs text-gray-500">SCORE</div>
+
+            <div className="text-xl font-bold text-white">{score}</div>
           </div>
 
-          <div className="text-xl font-bold text-white">
-            {score}
-          </div>
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
         </div>
       </div>
 
@@ -323,9 +352,7 @@ export const ComputerBasics: React.FC = () => {
             Lesson {index + 1} of {COMPUTER_PARTS.length}
           </span>
 
-          <span>
-            {Math.round(progress)}%
-          </span>
+          <span>{Math.round(progress)}%</span>
         </div>
 
         <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
@@ -344,7 +371,6 @@ export const ComputerBasics: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
       >
         <div className="bg-[#171717] rounded-2xl border border-gray-800 p-6 mb-5 text-center">
-
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-800 text-gray-400 text-xs mb-4">
             {CONCEPT_LABELS[current.concept]}
           </div>
@@ -366,9 +392,7 @@ export const ComputerBasics: React.FC = () => {
               Example
             </p>
 
-            <p className="text-sm text-gray-300">
-              {current.example}
-            </p>
+            <p className="text-sm text-gray-300">{current.example}</p>
           </div>
         </div>
 
@@ -387,11 +411,9 @@ export const ComputerBasics: React.FC = () => {
                 'bg-gray-800 border-gray-700 hover:border-indigo-400';
 
               if (completed && isCorrect) {
-                stateClass =
-                  'bg-green-500/20 border-green-500 text-green-300';
+                stateClass = 'bg-green-500/20 border-green-500 text-green-300';
               } else if (isSelected && !isCorrect) {
-                stateClass =
-                  'bg-red-500/20 border-red-500 text-red-300';
+                stateClass = 'bg-red-500/20 border-red-500 text-red-300';
               }
 
               return (
@@ -450,9 +472,7 @@ export const ComputerBasics: React.FC = () => {
                 <>
                   <CheckCircle className="w-5 h-5 inline mr-2 text-green-400" />
 
-                  <span className="font-bold text-green-400">
-                    Correct!
-                  </span>
+                  <span className="font-bold text-green-400">Correct!</span>
 
                   <p className="text-sm text-gray-300 mt-2">
                     {current.explanation}
@@ -500,8 +520,8 @@ export const ComputerBasics: React.FC = () => {
       {/* Footer */}
       <div className="mt-6 pt-4 border-t border-gray-800 text-center">
         <p className="text-xs text-gray-500">
-          Computers use input, processing, storage and output to help us
-          work with information.
+          Computers use input, processing, storage and output to help us work
+          with information.
         </p>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -8,6 +8,10 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react';
+
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
+
 type EmpathyStage = 'notice' | 'understand' | 'choose' | 'reflect' | 'complete';
 
 type EmpathyResponse = {
@@ -132,44 +136,43 @@ const SCENARIOS: EmpathyScenario[] = [
       },
     ],
     reflection:
-  'Think about a time you felt scared. What helped you feel safe? You can offer that same kind of kindness to someone else.',
+      'Think about a time you felt scared. What helped you feel safe? You can offer that same kind of kindness to someone else.',
   },
   {
-  id: 4,
-  title: 'A Friend Made a Mistake',
-  scenario:
-    'Your friend makes a mistake during a class activity and looks embarrassed.',
-  feeling: 'Embarrassed or worried',
-  feelingEmoji: '😳',
-  perspective:
-    'Making a mistake in front of other people can make us worry about what they think of us.',
-  responses: [
-    {
-      id: 'laugh',
-      text: 'Laugh so everyone notices the mistake.',
-      helpful: false,
-      explanation:
-        'Drawing more attention to the mistake may increase your friend’s embarrassment.',
-    },
-    {
-      id: 'encourage',
-      text: 'Tell them that mistakes are part of learning.',
-      helpful: true,
-      explanation:
-        'Encouragement can help your friend feel safe enough to keep trying.',
-    },
-    {
-      id: 'leave',
-      text: 'Tell everyone that your friend failed.',
-      helpful: false,
-      explanation:
-        'Sharing someone’s embarrassing moment is not a kind way to support them.',
-    },
-  ],
-  reflection:
-    'Everyone makes mistakes. A supportive friend helps others keep learning.',
-},
-    
+    id: 4,
+    title: 'A Friend Made a Mistake',
+    scenario:
+      'Your friend makes a mistake during a class activity and looks embarrassed.',
+    feeling: 'Embarrassed or worried',
+    feelingEmoji: '😳',
+    perspective:
+      'Making a mistake in front of other people can make us worry about what they think of us.',
+    responses: [
+      {
+        id: 'laugh',
+        text: 'Laugh so everyone notices the mistake.',
+        helpful: false,
+        explanation:
+          'Drawing more attention to the mistake may increase your friend’s embarrassment.',
+      },
+      {
+        id: 'encourage',
+        text: 'Tell them that mistakes are part of learning.',
+        helpful: true,
+        explanation:
+          'Encouragement can help your friend feel safe enough to keep trying.',
+      },
+      {
+        id: 'leave',
+        text: 'Tell everyone that your friend failed.',
+        helpful: false,
+        explanation:
+          'Sharing someone’s embarrassing moment is not a kind way to support them.',
+      },
+    ],
+    reflection:
+      'Everyone makes mistakes. A supportive friend helps others keep learning.',
+  },
 ];
 
 const STAGE_LABELS: Record<EmpathyStage, string> = {
@@ -189,6 +192,10 @@ const STAGE_ORDER: EmpathyStage[] = [
 ];
 
 export const EmpathyBuilder: React.FC = () => {
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [scenarioIndex, setScenarioIndex] = useState(0);
   const [stage, setStage] = useState<EmpathyStage>('notice');
   const [selectedResponse, setSelectedResponse] = useState<string | null>(null);
@@ -205,9 +212,88 @@ export const EmpathyBuilder: React.FC = () => {
     (response) => response.id === selectedResponse
   );
 
+  /* =======================================================
+     AUTO-READ — scenario + stage prompt
+     Fires when the scenario changes OR the stage changes.
+     Gates on autoReadEnabled; delays so UI paints first.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage === 'complete') return;
+    if (!scenario) return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'notice') {
+        speak(
+          `${scenario.scenario} How might this person be feeling?`
+        );
+      } else if (stage === 'understand') {
+        speak(
+          `They might feel ${scenario.feeling.toLowerCase()}. ${scenario.perspective}`
+        );
+      } else if (stage === 'choose') {
+        speak(
+          'Choose a caring response. Think about how your choice might make the other person feel.'
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [scenarioIndex, stage, scenario, autoReadEnabled, speak]);
+
+  /* =======================================================
+     AUTO-READ — reflection on the reflect stage
+     Fires after the child has chosen a response.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'reflect') return;
+    if (!selectedOption) return;
+    if (!scenario) return;
+
+    const timer = window.setTimeout(() => {
+      const opening = selectedOption.helpful
+        ? 'That is a caring choice.'
+        : 'Let us think about that choice.';
+      speak(
+        `${opening} ${selectedOption.explanation} ${scenario.reflection}`
+      );
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, selectedOption, scenario, speak]);
+
+  /* =======================================================
+     COMPLETION NARRATION — fires once on stage === 'complete'
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'complete') return;
+
+    speak(
+      'Empathy Builder complete. You practised noticing feelings, thinking about another person\'s perspective, choosing a caring response, and reflecting on kindness. Empathy means trying to understand, listening, and choosing a caring response.'
+    );
+  }, [stage, speak]);
+
+  /* =======================================================
+     CLEANUP — stop any in-flight speech on unmount
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const handleChooseResponse = (response: EmpathyResponse) => {
     setSelectedResponse(response.id);
     setStage('reflect');
+    // Narration is driven by the reflect-stage effect — do not speak here.
   };
 
   const handleNextScenario = () => {
@@ -226,6 +312,8 @@ export const EmpathyBuilder: React.FC = () => {
   };
 
   const restart = () => {
+    stopSpeaking();
+
     setScenarioIndex(0);
     setStage('notice');
     setSelectedResponse(null);

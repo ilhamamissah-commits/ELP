@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Compass,
@@ -14,9 +14,11 @@ import {
   ArrowLeft,
   ArrowRight,
 } from 'lucide-react';
-import { speakWord } from '../../../services/audioEngine';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type DirectionName = 'North' | 'South' | 'East' | 'West';
 
@@ -180,6 +182,12 @@ export const MapReader: React.FC = () => {
     (state) => state.completeActivity
   );
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const currentLevel = profile?.currentLevel ?? 1;
   const stage = getStage(currentLevel);
 
@@ -208,24 +216,106 @@ export const MapReader: React.FC = () => {
     );
   }, [challengeIndex, selectedAnswer]);
 
-  const speak = useCallback((text: string) => {
-    speakWord(text);
-  }, []);
+  /* =======================================================
+     AUTO-READ PROMPT ON MODE / QUESTION CHANGE
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      if (mode === 'explore') {
+        speak(
+          'Directions. A compass helps us understand which way we are going. Choose a direction to learn more.'
+        );
+      } else if (mode === 'symbols') {
+        speak(
+          'Map symbols. Maps use symbols to show places and features. Choose a symbol to learn what it means.'
+        );
+      } else if (mode === 'challenge' && !challengeComplete) {
+        speak(currentChallenge.question);
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    mode,
+    challengeIndex,
+    challengeComplete,
+    currentChallenge,
+    autoReadEnabled,
+    speak,
+  ]);
+
+  /* =======================================================
+     ANSWER FEEDBACK NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (mode !== 'challenge') return;
+    if (selectedAnswer === null) return;
+
+    const correct = selectedAnswer === currentChallenge.answer;
+
+    if (correct) {
+      if (soundEnabled) playSoundFeedback('correct');
+      speak(`Correct! ${currentChallenge.explanation}`);
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(
+        `Not quite. The answer is ${currentChallenge.answer}. ${currentChallenge.explanation}`
+      );
+    }
+  }, [
+    selectedAnswer,
+    mode,
+    currentChallenge,
+    speak,
+    soundEnabled,
+  ]);
+
+  /* =======================================================
+     COMPLETION NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (!challengeComplete) return;
+
+    const percentage = Math.round((score / CHALLENGES.length) * 100);
+
+    if (percentage >= 80) {
+      speak(
+        `Brilliant work! You scored ${score} out of ${CHALLENGES.length}. Your map reading skills are excellent.`
+      );
+    } else if (percentage >= 60) {
+      speak(
+        `Well done! You scored ${score} out of ${CHALLENGES.length}. Keep practising your map skills.`
+      );
+    } else {
+      speak(
+        `You scored ${score} out of ${CHALLENGES.length}. Let's practise directions and symbols again.`
+      );
+    }
+  }, [challengeComplete, score, speak]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
 
   const handleDirectionClick = (direction: Direction) => {
     setSelectedDirection(direction.name);
 
-    speak(
-      `${direction.name}. ${direction.description}`
-    );
+    if (soundEnabled) playSoundFeedback('move');
+
+    speak(`${direction.name}. ${direction.description}`);
   };
 
   const handleSymbolClick = (symbol: MapSymbol) => {
     setSelectedSymbol(symbol.id);
 
-    speak(
-      `${symbol.name}. ${symbol.description}`
-    );
+    if (soundEnabled) playSoundFeedback('move');
+
+    speak(`${symbol.name}. ${symbol.description}`);
   };
 
   const handleAnswer = (answer: string) => {
@@ -304,14 +394,27 @@ export const MapReader: React.FC = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={resetExplorer}
-            aria-label="Reset map reader"
-            className="p-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-colors"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={resetExplorer}
+              aria-label="Reset map reader"
+              className="p-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Learning stage */}
@@ -352,7 +455,10 @@ export const MapReader: React.FC = () => {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setMode(item.id)}
+                onClick={() => {
+                  setMode(item.id);
+                  if (soundEnabled) playSoundFeedback('move');
+                }}
                 className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold transition-all ${
                   mode === item.id
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40'

@@ -11,6 +11,9 @@ import {
   Volume2,
 } from 'lucide-react';
 
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
+
 type WordStage =
   | 'observe'
   | 'listen'
@@ -104,6 +107,12 @@ const shuffle = (letters: string[]) => {
 };
 
 export const WordBuilder: React.FC = () => {
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [wordIndex, setWordIndex] = useState(0);
   const [stage, setStage] = useState<WordStage>('observe');
   const [built, setBuilt] = useState<string[]>([]);
@@ -122,20 +131,6 @@ export const WordBuilder: React.FC = () => {
     [stageIndex]
   );
 
-  const speak = useCallback((text: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.75;
-    utterance.pitch = 1;
-
-    window.speechSynthesis.speak(utterance);
-  }, []);
-
   const prepareWord = useCallback(() => {
     setBuilt([]);
     setAvailableLetters(shuffle(currentWord.word.split('')));
@@ -150,17 +145,88 @@ export const WordBuilder: React.FC = () => {
     setStage('observe');
   }, [prepareWord, wordIndex]);
 
+  /* =======================================================
+     AUTO-READ — stage prompts
+     'build' does NOT read the word (that would give away the
+     answer). Every other stage reads its prompt.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          `Look carefully at the word. ${currentWord.word}.`
+        );
+      } else if (stage === 'listen') {
+        speak(
+          `Listen carefully. ${currentWord.word}. ${currentWord.hint}.`
+        );
+      } else if (stage === 'understand') {
+        speak(
+          `What does this word mean? ${currentWord.word}. ${currentWord.meaning}`
+        );
+      } else if (stage === 'build') {
+        // Deliberately does NOT read the word.
+        speak(
+          'Build the word. Put the letters in the correct order.'
+        );
+      } else if (stage === 'check') {
+        speak(
+          `You built it! ${currentWord.word}. You put all the sounds and letters in the correct order.`
+        );
+      } else if (stage === 'use') {
+        speak(
+          `See the word in a sentence. ${currentWord.sentence}`
+        );
+      } else if (stage === 'master') {
+        speak(
+          `Word mastered. You practised seeing, hearing, building, and using the word ${currentWord.word}. ${currentWord.meaning}`
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    stage,
+    currentWord.word,
+    currentWord.hint,
+    currentWord.meaning,
+    currentWord.sentence,
+    autoReadEnabled,
+    speak,
+  ]);
+
+  /* =======================================================
+     FEEDBACK NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (!feedback) return;
+
+    speak(feedback);
+  }, [feedback, speak]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
   useEffect(() => {
     return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopSpeaking();
     };
-  }, []);
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
 
   const handleAddLetter = (letter: string, index: number) => {
     if (stage !== 'build') return;
 
+    // Deliberately does not speak the letter — the child is
+    // producing the word from sound memory, not dictation.
     setBuilt((previous) => [...previous, letter]);
 
     setAvailableLetters((previous) =>
@@ -215,11 +281,13 @@ export const WordBuilder: React.FC = () => {
   };
 
   const handleNextWord = () => {
+    stopSpeaking();
     setWordIndex((previous) => (previous + 1) % WORDS.length);
     setStage('observe');
   };
 
   const handleReset = () => {
+    stopSpeaking();
     prepareWord();
     setStage('observe');
   };
@@ -232,7 +300,7 @@ export const WordBuilder: React.FC = () => {
   const moveToListen = () => {
     setFeedback(null);
     setStage('listen');
-    speak(currentWord.word);
+    // The auto-read effect above will speak the word + hint.
   };
 
   const moveToUnderstand = () => {
@@ -268,14 +336,27 @@ export const WordBuilder: React.FC = () => {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleReset}
-              className="p-2 rounded-lg border border-gray-700 text-gray-400 hover:text-white hover:bg-gray-800 transition"
-              aria-label="Reset activity"
-            >
-              <RotateCcw className="w-5 h-5" />
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={toggleSound}
+                aria-label="Toggle sound"
+                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+              >
+                <Volume2
+                  className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+                />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleReset}
+                className="p-2 rounded-lg border border-gray-700 text-gray-400 hover:text-white hover:bg-gray-800 transition"
+                aria-label="Reset activity"
+              >
+                <RotateCcw className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Progress */}

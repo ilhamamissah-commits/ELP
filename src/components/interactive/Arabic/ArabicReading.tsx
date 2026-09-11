@@ -6,8 +6,12 @@ import {
   RotateCcw,
   ArrowRight,
 } from 'lucide-react';
+
 import { ARABIC_PHRASES } from '../../../data/arabicPhrases';
 import { speakArabic } from '../../../services/arabicSpeech';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 interface ArabicReadingProps {
   onComplete?: (score: number) => void;
@@ -33,90 +37,85 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
   const [progress, setProgress] = useState<PhraseProgress[]>([]);
   const [isComplete, setIsComplete] = useState(false);
   const [hasFinished, setHasFinished] = useState(false);
-  const [feedback, setFeedback] = useState<
-    'mastered' | 'practice' | null
-  >(null);
+  const [feedback, setFeedback] = useState<'mastered' | 'practice' | null>(
+    null
+  );
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
 
   const current = ARABIC_PHRASES[index];
 
   const totalPhrases = ARABIC_PHRASES.length;
 
-  const masteredCount = progress.filter(
-    (item) => item.mastered
-  ).length;
+  const masteredCount = progress.filter((item) => item.mastered).length;
 
   const progressPercent =
-    totalPhrases > 0
-      ? Math.round((masteredCount / totalPhrases) * 100)
-      : 0;
+    totalPhrases > 0 ? Math.round((masteredCount / totalPhrases) * 100) : 0;
 
   const currentProgress = useMemo(() => {
     if (!current) return undefined;
-
     return progress.find((item) => item.id === current.id);
   }, [current, progress]);
 
-  /*
-   * Automatically pronounce the current Arabic phrase.
-   * A short delay gives the interface time to render before speech begins.
-   */
+  // Arabic voice gated on soundEnabled
+  const speakArabicGated = (text: string) => {
+    if (!soundEnabled) return;
+    speakArabic(text);
+  };
+
+  // Auto-pronounce current phrase (guided + practice only)
   useEffect(() => {
     if (!current || isComplete || mode === 'mastery') return;
+    if (!autoReadEnabled) return;
 
     const timer = window.setTimeout(() => {
-      speakArabic(current.arabic);
+      speakArabicGated(current.arabic);
     }, 500);
 
     return () => window.clearTimeout(timer);
-  }, [index, current, isComplete, mode]);
+  }, [index, current, isComplete, mode, autoReadEnabled, soundEnabled]);
 
-  /*
-   * Reset the feedback state whenever the phrase changes.
-   */
+  // Reset per-phrase UI state
   useEffect(() => {
     setFeedback(null);
     setRevealed(false);
   }, [index]);
 
-  /*
-   * Final completion callback.
-   * This is deliberately protected so the Academy only receives
-   * the completion event once.
-   */
+  // Announce completion + fire callback once
   useEffect(() => {
-    if (!isComplete || hasFinished || !onComplete) return;
+    if (!isComplete || hasFinished) return;
 
     setHasFinished(true);
-    onComplete(score);
-  }, [isComplete, hasFinished, onComplete, score]);
+    onComplete?.(score);
 
-  const speak = () => {
+    const percentage = Math.round((masteredCount / totalPhrases) * 100);
+    speak(
+      percentage >= 80
+        ? `Masha'Allah! You mastered ${masteredCount} of ${totalPhrases} phrases.`
+        : `Well done! You mastered ${masteredCount} of ${totalPhrases} phrases. Let's practise again.`,
+    );
+  }, [isComplete, hasFinished, onComplete, score, masteredCount, totalPhrases, speak]);
+
+  const speakPhrase = () => {
     if (!current) return;
-    speakArabic(current.arabic);
+    speakArabicGated(current.arabic);
   };
 
-  /*
-   * Mark the current phrase as mastered.
-   *
-   * First successful reading:
-   * +10 points
-   *
-   * Maintaining a reading streak:
-   * +5 bonus
-   *
-   * Repeated mastery:
-   * no additional points
-   */
   const markAsMastered = () => {
     if (!current) return;
 
-    const alreadyMastered =
-      currentProgress?.mastered === true;
+    const alreadyMastered = currentProgress?.mastered === true;
 
     if (alreadyMastered) {
       setFeedback('mastered');
       return;
     }
+
+    if (soundEnabled) playSoundFeedback('correct');
 
     const streakBonus = streak >= 2 ? 5 : 0;
     const earned = 10 + streakBonus;
@@ -125,86 +124,62 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
     setStreak((previous) => previous + 1);
 
     setProgress((previous) => {
-      const existing = previous.find(
-        (item) => item.id === current.id
-      );
+      const existing = previous.find((item) => item.id === current.id);
 
       if (existing) {
         return previous.map((item) =>
           item.id === current.id
-            ? {
-                ...item,
-                attempts: item.attempts + 1,
-                mastered: true,
-              }
+            ? { ...item, attempts: item.attempts + 1, mastered: true }
             : item
         );
       }
 
       return [
         ...previous,
-        {
-          id: current.id,
-          attempts: 1,
-          mastered: true,
-        },
+        { id: current.id, attempts: 1, mastered: true },
       ];
     });
 
     setLearned((previous) =>
-      previous.includes(current.id)
-        ? previous
-        : [...previous, current.id]
+      previous.includes(current.id) ? previous : [...previous, current.id]
     );
 
     setFeedback('mastered');
+
+    speak(`Excellent reading! You mastered the phrase: ${current.meaning}.`);
   };
 
-  /*
-   * Record that the learner needs more practice.
-   * This does not punish the learner.
-   */
   const markForPractice = () => {
     if (!current) return;
+
+    if (soundEnabled) playSoundFeedback('try-again');
 
     setStreak(0);
 
     setProgress((previous) => {
-      const existing = previous.find(
-        (item) => item.id === current.id
-      );
+      const existing = previous.find((item) => item.id === current.id);
 
       if (existing) {
         return previous.map((item) =>
           item.id === current.id
-            ? {
-                ...item,
-                attempts: item.attempts + 1,
-              }
+            ? { ...item, attempts: item.attempts + 1 }
             : item
         );
       }
 
       return [
         ...previous,
-        {
-          id: current.id,
-          attempts: 1,
-          mastered: false,
-        },
+        { id: current.id, attempts: 1, mastered: false },
       ];
     });
 
     setFeedback('practice');
+
+    speak(
+      "That's okay. Listening and repeating is part of learning. Keep practising!",
+    );
   };
 
-  /*
-   * Move to the next phrase.
-   *
-   * If the current phrase has not been mastered yet,
-   * the learner can still continue. This prevents the curriculum
-   * from becoming unnecessarily locked.
-   */
   const handleNext = () => {
     if (!current) return;
 
@@ -236,11 +211,10 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
     setIsComplete(false);
     setHasFinished(false);
     setFeedback(null);
+
+    speak("Let's practise Arabic reading again!");
   };
 
-  /*
-   * Empty dataset protection.
-   */
   if (totalPhrases === 0) {
     return (
       <div className="max-w-md mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl text-center">
@@ -249,16 +223,13 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
         </h3>
 
         <p className="text-gray-400 text-sm">
-          No Arabic reading material is available yet.
-          Add phrases to arabicPhrases.ts and return to this lesson.
+          No Arabic reading material is available yet. Add phrases to
+          arabicPhrases.ts and return to this lesson.
         </p>
       </div>
     );
   }
 
-  /*
-   * COMPLETION SCREEN
-   */
   if (isComplete) {
     return (
       <div className="max-w-md mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl text-center">
@@ -272,7 +243,7 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
         </motion.div>
 
         <p className="text-2xl font-bold text-emerald-400 mb-2">
-          Masha'Allah!
+          Masha&apos;Allah!
         </p>
 
         <p className="text-gray-300 mb-6">
@@ -284,27 +255,19 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
             <div className="text-xl font-bold text-emerald-400">
               {learned.length}
             </div>
-            <div className="text-[11px] text-gray-500">
-              Mastered
-            </div>
+            <div className="text-[11px] text-gray-500">Mastered</div>
           </div>
 
           <div className="bg-gray-900 rounded-xl p-3 border border-gray-800">
-            <div className="text-xl font-bold text-yellow-400">
-              {score}
-            </div>
-            <div className="text-[11px] text-gray-500">
-              Score
-            </div>
+            <div className="text-xl font-bold text-yellow-400">{score}</div>
+            <div className="text-[11px] text-gray-500">Score</div>
           </div>
 
           <div className="bg-gray-900 rounded-xl p-3 border border-gray-800">
             <div className="text-xl font-bold text-indigo-400">
               {progressPercent}%
             </div>
-            <div className="text-[11px] text-gray-500">
-              Mastery
-            </div>
+            <div className="text-[11px] text-gray-500">Mastery</div>
           </div>
         </div>
 
@@ -334,7 +297,7 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
             onClick={() => onComplete?.(score)}
             className="px-6 py-3 bg-indigo-600 rounded-xl text-white font-bold hover:bg-indigo-500 transition-colors"
           >
-            Finish & Move Up
+            Finish &amp; Move Up
           </button>
         </div>
       </div>
@@ -345,28 +308,43 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
     <div className="max-w-xl mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl text-center">
       {/* HEADER */}
       <div className="flex justify-between items-center mb-2">
-        <h3 className="text-2xl font-bold text-white">
-          📚 Arabic Reading
-        </h3>
+        <h3 className="text-2xl font-bold text-white">📚 Arabic Reading</h3>
 
-        <button
-          onClick={handleReset}
-          title="Reset lesson"
-          className="p-2 bg-gray-800 rounded-lg text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+
+          <button
+            onClick={handleReset}
+            title="Reset lesson"
+            className="p-2 bg-gray-800 rounded-lg text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <p className="text-gray-400 text-sm mb-5">
-        Read, listen, understand, and build confidence with
-        progressive Arabic phrases and sentences.
+        Read, listen, understand, and build confidence with progressive
+        Arabic phrases and sentences.
       </p>
 
       {/* MODE SELECTOR */}
       <div className="flex justify-center gap-1 mb-5 bg-gray-900 p-1 rounded-xl border border-gray-800">
         <button
-          onClick={() => setMode('guided')}
+          onClick={() => {
+            setMode('guided');
+            speak('Guided reading mode. Listen first, then try reading aloud.');
+          }}
           className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
             mode === 'guided'
               ? 'bg-emerald-600 text-white'
@@ -377,7 +355,10 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
         </button>
 
         <button
-          onClick={() => setMode('practice')}
+          onClick={() => {
+            setMode('practice');
+            speak('Practice mode. Try reading the Arabic before revealing the meaning.');
+          }}
           className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
             mode === 'practice'
               ? 'bg-indigo-600 text-white'
@@ -388,7 +369,10 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
         </button>
 
         <button
-          onClick={() => setMode('mastery')}
+          onClick={() => {
+            setMode('mastery');
+            speak('Mastery mode. Read the phrase aloud, then tell yourself what it means.');
+          }}
           className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
             mode === 'mastery'
               ? 'bg-yellow-600 text-white'
@@ -402,10 +386,7 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
       {/* PROGRESS SUMMARY */}
       <div className="flex justify-between items-center mb-2">
         <span className="text-xs text-gray-500">
-          Phrase{' '}
-          <span className="text-emerald-400 font-bold">
-            {index + 1}
-          </span>{' '}
+          Phrase <span className="text-emerald-400 font-bold">{index + 1}</span>{' '}
           / {totalPhrases}
         </span>
 
@@ -422,7 +403,7 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
         </div>
       </div>
 
-      {/* MASTERy BAR */}
+      {/* MASTERY BAR */}
       <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden mb-5">
         <motion.div
           className="h-full bg-emerald-500"
@@ -439,11 +420,7 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
         animate={{ opacity: 1, y: 0 }}
         className="bg-[#1a1a1a] p-7 rounded-xl border border-gray-800 mb-5"
       >
-        {current.emoji && (
-          <div className="text-5xl mb-4">
-            {current.emoji}
-          </div>
-        )}
+        {current.emoji && <div className="text-5xl mb-4">{current.emoji}</div>}
 
         <div
           dir="rtl"
@@ -500,7 +477,7 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
       {/* AUDIO + MEANING */}
       <div className="flex flex-wrap justify-center gap-3 mb-5">
         <button
-          onClick={speak}
+          onClick={speakPhrase}
           className="px-4 py-2 bg-emerald-600 rounded-lg text-white font-bold flex items-center gap-2 hover:bg-emerald-500 transition-colors"
         >
           <Volume2 className="w-4 h-4" />
@@ -535,21 +512,15 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
             }`}
           >
             <CheckCircle className="w-5 h-5 mx-auto mb-1" />
-            <span className="text-xs font-bold">
-              I Can Read This
-            </span>
+            <span className="text-xs font-bold">I Can Read This</span>
           </button>
 
           <button
             onClick={markForPractice}
             className="px-3 py-3 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:border-indigo-500 hover:text-white transition-all"
           >
-            <span className="text-lg block mb-1">
-              🔁
-            </span>
-            <span className="text-xs font-bold">
-              I Need Practice
-            </span>
+            <span className="text-lg block mb-1">🔁</span>
+            <span className="text-xs font-bold">I Need Practice</span>
           </button>
         </div>
       </div>
@@ -569,13 +540,12 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
             <>
               <strong>Excellent reading! ✓</strong>
               <p className="text-xs mt-1 text-gray-400">
-                This phrase has been added to your mastered
-                reading skills.
+                This phrase has been added to your mastered reading skills.
               </p>
             </>
           ) : (
             <>
-              <strong>That's okay — keep practicing!</strong>
+              <strong>That&apos;s okay — keep practicing!</strong>
               <p className="text-xs mt-1 text-gray-400">
                 Listening and repeating is part of learning.
               </p>
@@ -610,10 +580,7 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
           onClick={handleNext}
           className="px-5 py-2 bg-indigo-600 rounded-lg text-white font-bold flex items-center gap-2 hover:bg-indigo-500 transition-colors"
         >
-          {index === totalPhrases - 1
-            ? 'Complete'
-            : 'Next'}
-
+          {index === totalPhrases - 1 ? 'Complete' : 'Next'}
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
@@ -621,8 +588,8 @@ export const ArabicReading: React.FC<ArabicReadingProps> = ({
       {/* CURRICULUM NOTE */}
       <div className="mt-5 pt-4 border-t border-gray-800">
         <p className="text-[11px] text-gray-600">
-          Arabic Reading Progression • Read → Listen → Understand
-          → Practice → Master
+          Arabic Reading Progression • Read → Listen → Understand → Practice →
+          Master
         </p>
       </div>
     </div>

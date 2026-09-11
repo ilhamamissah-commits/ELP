@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Volume2,
@@ -13,7 +13,11 @@ import {
   BookOpen,
   Award,
 } from 'lucide-react';
+
 import { ROBOT_PARTS } from './roboticsData';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type ExplorerMode = 'explore' | 'question' | 'complete';
 
@@ -26,6 +30,12 @@ export const RobotExplorer: React.FC = () => {
   const [questionCorrect, setQuestionCorrect] = useState<boolean | null>(null);
   const [showTechnical, setShowTechnical] = useState(false);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const part = ROBOT_PARTS[partIndex];
 
   const progress = Math.round(
@@ -34,23 +44,10 @@ export const RobotExplorer: React.FC = () => {
       100
   );
 
-  const speak = useCallback((text: string) => {
-    if (!('speechSynthesis' in window)) return;
-
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.8;
-    utterance.pitch = 1;
-
-    window.speechSynthesis.speak(utterance);
-  }, []);
-
   const speakPart = useCallback(() => {
-    speak(
-      `${part.name}. ${part.childDescription}`
-    );
-  }, [part, speak]);
+    if (!soundEnabled) return;
+    speak(`${part.name}. ${part.childDescription}`);
+  }, [part, speak, soundEnabled]);
 
   const markAsLearned = useCallback(() => {
     setLearned((previous) => {
@@ -58,6 +55,37 @@ export const RobotExplorer: React.FC = () => {
       return [...previous, part.id];
     });
   }, [part.id]);
+
+  /* Auto-read the current part when it changes in explore mode */
+  useEffect(() => {
+    if (mode !== 'explore' || !autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(`${part.name}. ${part.childDescription}`);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [partIndex, part, mode, speak, autoReadEnabled]);
+
+  /* Auto-read the question prompt when it appears */
+  useEffect(() => {
+    if (mode !== 'question' || !part.question || !autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(part.question!.prompt);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [mode, part, speak, autoReadEnabled]);
+
+  /* Announce completion once */
+  useEffect(() => {
+    if (mode !== 'complete') return;
+
+    speak(
+      `Robot Explorer complete. You explored ${learned.length} parts and earned ${score} points.`,
+    );
+  }, [mode, learned.length, score, speak]);
 
   const handleLearn = () => {
     markAsLearned();
@@ -73,8 +101,13 @@ export const RobotExplorer: React.FC = () => {
     setQuestionCorrect(correct);
 
     if (correct) {
+      if (soundEnabled) playSoundFeedback('correct');
       setScore((previous) => previous + 10);
       markAsLearned();
+      speak('Excellent! Plus ten points.');
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(`Not quite. Remember: ${part.childDescription}`);
     }
   };
 
@@ -104,7 +137,9 @@ export const RobotExplorer: React.FC = () => {
   };
 
   const reset = () => {
-    window.speechSynthesis?.cancel();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
 
     setPartIndex(0);
     setScore(0);
@@ -113,6 +148,8 @@ export const RobotExplorer: React.FC = () => {
     setSelectedAnswer(null);
     setQuestionCorrect(null);
     setShowTechnical(false);
+
+    speak("Let's explore the robot parts again!");
   };
 
   const realityLabel = useMemo(() => {
@@ -129,8 +166,7 @@ export const RobotExplorer: React.FC = () => {
         return {
           label: 'Simplified Model',
           description: 'A child-friendly model of a real idea.',
-          className:
-            'bg-blue-500/10 text-blue-300 border-blue-500/20',
+          className: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
         };
 
       case 'imagination':
@@ -182,9 +218,7 @@ export const RobotExplorer: React.FC = () => {
           </div>
 
           <div className="p-4 rounded-2xl bg-gray-900/70 border border-gray-800">
-            <div className="text-2xl font-bold text-yellow-400">
-              {score}
-            </div>
+            <div className="text-2xl font-bold text-yellow-400">{score}</div>
             <div className="text-xs text-gray-500 mt-1">
               Points earned
             </div>
@@ -214,22 +248,35 @@ export const RobotExplorer: React.FC = () => {
             </span>
           </div>
 
-          <h3 className="text-2xl font-bold text-white">
-            Robot Explorer
-          </h3>
+          <h3 className="text-2xl font-bold text-white">Robot Explorer</h3>
 
           <p className="text-sm text-gray-400 mt-1">
             Discover how robots sense, think and act.
           </p>
         </div>
 
-        <button
-          onClick={reset}
-          aria-label="Reset Robot Explorer"
-          className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+
+          <button
+            onClick={reset}
+            aria-label="Reset Robot Explorer"
+            className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* PROGRESS */}
@@ -336,7 +383,7 @@ export const RobotExplorer: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <Brain className="w-4 h-4 text-purple-400" />
                   <span className="text-sm font-semibold text-white">
-                    Engineer's View
+                    Engineer&apos;s View
                   </span>
                 </div>
 
@@ -431,11 +478,9 @@ export const RobotExplorer: React.FC = () => {
                   'border-gray-800 bg-gray-900/60 hover:border-indigo-500/50';
 
                 if (questionCorrect !== null && isCorrect) {
-                  className =
-                    'border-emerald-500/40 bg-emerald-500/10';
+                  className = 'border-emerald-500/40 bg-emerald-500/10';
                 } else if (isSelected && questionCorrect === false) {
-                  className =
-                    'border-red-500/40 bg-red-500/10';
+                  className = 'border-red-500/40 bg-red-500/10';
                 }
 
                 return (
@@ -477,9 +522,7 @@ export const RobotExplorer: React.FC = () => {
               >
                 <div
                   className={`font-bold mb-1 ${
-                    questionCorrect
-                      ? 'text-emerald-400'
-                      : 'text-red-400'
+                    questionCorrect ? 'text-emerald-400' : 'text-red-400'
                   }`}
                 >
                   {questionCorrect

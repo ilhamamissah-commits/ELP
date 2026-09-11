@@ -7,7 +7,11 @@ import {
   Eye,
   Sparkles,
   Lightbulb,
+  Volume2,
 } from 'lucide-react';
+
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type PracticeStage =
   | 'observe'
@@ -66,6 +70,12 @@ const CANVAS_HEIGHT = 300;
 export const HandwritingPractice: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [wordIndex, setWordIndex] = useState(0);
   const [stage, setStage] = useState<PracticeStage>('observe');
   const [isDrawing, setIsDrawing] = useState(false);
@@ -77,12 +87,10 @@ export const HandwritingPractice: React.FC = () => {
 
   const stageIndex = STAGE_ORDER.indexOf(stage);
 
-  /**
-   * Draw the handwriting guide.
-   *
-   * The guide uses a simple handwriting baseline rather than
-   * pretending that the browser can perfectly judge handwriting.
-   */
+  /* =======================================================
+     CANVAS DRAWING (unchanged from original)
+  ======================================================= */
+
   const drawGuide = useCallback(
     (
       ctx: CanvasRenderingContext2D,
@@ -91,35 +99,29 @@ export const HandwritingPractice: React.FC = () => {
     ) => {
       ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-      // White writing surface
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-      // Writing lines
       ctx.strokeStyle = '#cbd5e1';
       ctx.lineWidth = 2;
 
-      // Top guide
       ctx.beginPath();
       ctx.moveTo(40, 80);
       ctx.lineTo(CANVAS_WIDTH - 40, 80);
       ctx.stroke();
 
-      // Middle guide
       ctx.setLineDash([8, 8]);
       ctx.beginPath();
       ctx.moveTo(40, 145);
       ctx.lineTo(CANVAS_WIDTH - 40, 145);
       ctx.stroke();
 
-      // Baseline
       ctx.setLineDash([]);
       ctx.beginPath();
       ctx.moveTo(40, 210);
       ctx.lineTo(CANVAS_WIDTH - 40, 210);
       ctx.stroke();
 
-      // Descender guide
       ctx.setLineDash([4, 6]);
       ctx.beginPath();
       ctx.moveTo(40, 255);
@@ -136,7 +138,6 @@ export const HandwritingPractice: React.FC = () => {
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#cbd5e1';
 
-        // Light template behind the child's writing.
         ctx.fillText(word, CANVAS_WIDTH / 2, 155);
 
         ctx.restore();
@@ -164,11 +165,6 @@ export const HandwritingPractice: React.FC = () => {
     redrawCanvas(stage === 'observe' || stage === 'trace');
   }, [redrawCanvas, stage]);
 
-  /**
-   * Convert pointer coordinates into canvas coordinates.
-   * Pointer events allow mouse, touch and stylus input
-   * without maintaining separate mouse/touch handlers.
-   */
   const getCanvasPosition = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
@@ -205,6 +201,9 @@ export const HandwritingPractice: React.FC = () => {
 
       if (!ctx) return;
 
+      // Yield narration as soon as the child starts writing.
+      stopSpeaking();
+
       const { x, y } = getCanvasPosition(event);
 
       ctx.beginPath();
@@ -218,7 +217,7 @@ export const HandwritingPractice: React.FC = () => {
       setIsDrawing(true);
       setHasWritten(true);
     },
-    [getCanvasPosition, stage]
+    [getCanvasPosition, stage, stopSpeaking]
   );
 
   const draw = useCallback(
@@ -253,19 +252,78 @@ export const HandwritingPractice: React.FC = () => {
   );
 
   const clearWriting = useCallback(() => {
+    stopSpeaking();
     redrawCanvas(stage === 'trace');
 
     setHasWritten(false);
     setFeedback(null);
-  }, [redrawCanvas, stage]);
+  }, [redrawCanvas, stage, stopSpeaking]);
 
-  /**
-   * We deliberately do not generate a fake handwriting percentage.
-   *
-   * Browser canvas input can tell us whether the learner wrote
-   * something, but reliable handwriting recognition requires a
-   * proper handwriting-analysis model.
-   */
+  /* =======================================================
+     AUTO-READ — stage prompts
+     Skipped on 'write' — the child is producing the word from
+     memory and must not hear it.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          `Look carefully at the word ${currentWord.word}. Notice the shape of each letter and where the letters sit on the writing lines.`
+        );
+      } else if (stage === 'trace') {
+        speak(
+          'Trace the word. Follow the light letters slowly. Try to stay close to their shapes.'
+        );
+      } else if (stage === 'write') {
+        // Deliberately does not speak the word.
+        speak(
+          'Your turn. Write the word yourself using the handwriting lines.'
+        );
+      } else if (stage === 'check') {
+        speak(
+          'You made an attempt. Now compare your writing with the example. Look at the letter shapes, size, spacing, and position on the line.'
+        );
+      } else if (stage === 'improve') {
+        speak(
+          'One more careful try. Remember: slow movements can help you control the shape of your letters.'
+        );
+      } else if (stage === 'complete') {
+        speak(
+          `Practice complete. You practised forming the word ${currentWord.word}.`
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, currentWord.word, autoReadEnabled, speak]);
+
+  /* =======================================================
+     READ FEEDBACK WHEN IT CHANGES
+  ======================================================= */
+
+  useEffect(() => {
+    if (!feedback) return;
+
+    speak(feedback);
+  }, [feedback, speak]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const handleCheck = useCallback(() => {
     if (!hasWritten) {
       setFeedback(
@@ -304,14 +362,18 @@ export const HandwritingPractice: React.FC = () => {
 
     const nextIndex = (wordIndex + 1) % WORDS.length;
 
+    stopSpeaking();
+
     setWordIndex(nextIndex);
     setStage('observe');
     setHasWritten(false);
     setFeedback(null);
     setAttempts(0);
-  }, [stage, wordIndex]);
+  }, [stage, wordIndex, stopSpeaking]);
 
   const handleReset = useCallback(() => {
+    stopSpeaking();
+
     setStage('observe');
     setHasWritten(false);
     setFeedback(null);
@@ -320,7 +382,17 @@ export const HandwritingPractice: React.FC = () => {
     setTimeout(() => {
       redrawCanvas(true);
     }, 0);
-  }, [redrawCanvas]);
+  }, [redrawCanvas, stopSpeaking]);
+
+  /* =======================================================
+     MANUAL "HEAR THE WORD" — for parent/child who wants it
+     on demand. Respects mute. Does not fire automatically
+     during the write stage.
+  ======================================================= */
+
+  const hearWord = () => {
+    speak(currentWord.word);
+  };
 
   const renderStageContent = () => {
     switch (stage) {
@@ -581,14 +653,27 @@ export const HandwritingPractice: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleReset}
-          aria-label="Reset handwriting practice"
-          className="rounded-lg bg-gray-800 p-2 text-gray-300 transition hover:bg-gray-700"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="rounded-lg bg-gray-800 p-2 transition-colors hover:bg-gray-700"
+          >
+            <Volume2
+              className={`h-4 w-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleReset}
+            aria-label="Reset handwriting practice"
+            className="rounded-lg bg-gray-800 p-2 text-gray-300 transition hover:bg-gray-700"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Progress */}
@@ -624,6 +709,16 @@ export const HandwritingPractice: React.FC = () => {
         <p className="mt-1 text-xs text-gray-500">
           {currentWord.prompt}
         </p>
+
+        <button
+          type="button"
+          onClick={hearWord}
+          aria-label={`Hear the word ${currentWord.word}`}
+          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-gray-800 px-3 py-2 text-xs text-gray-300 transition hover:text-white"
+        >
+          <Volume2 className="h-3 w-3" />
+          Hear the word
+        </button>
       </div>
 
       {/* Canvas */}
@@ -670,61 +765,37 @@ export const HandwritingPractice: React.FC = () => {
       {/* Learning model */}
       <div className="mt-6 border-t border-app-border pt-4">
         <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-gray-500">
-          <span
-            className={
-              stageIndex >= 0 ? 'text-cyan-400' : ''
-            }
-          >
+          <span className={stageIndex >= 0 ? 'text-cyan-400' : ''}>
             Observe
           </span>
 
           <span>→</span>
 
-          <span
-            className={
-              stageIndex >= 1 ? 'text-cyan-400' : ''
-            }
-          >
+          <span className={stageIndex >= 1 ? 'text-cyan-400' : ''}>
             Trace
           </span>
 
           <span>→</span>
 
-          <span
-            className={
-              stageIndex >= 2 ? 'text-cyan-400' : ''
-            }
-          >
+          <span className={stageIndex >= 2 ? 'text-cyan-400' : ''}>
             Write
           </span>
 
           <span>→</span>
 
-          <span
-            className={
-              stageIndex >= 3 ? 'text-cyan-400' : ''
-            }
-          >
+          <span className={stageIndex >= 3 ? 'text-cyan-400' : ''}>
             Check
           </span>
 
           <span>→</span>
 
-          <span
-            className={
-              stageIndex >= 4 ? 'text-cyan-400' : ''
-            }
-          >
+          <span className={stageIndex >= 4 ? 'text-cyan-400' : ''}>
             Improve
           </span>
 
           <span>→</span>
 
-          <span
-            className={
-              stageIndex >= 5 ? 'text-cyan-400' : ''
-            }
-          >
+          <span className={stageIndex >= 5 ? 'text-cyan-400' : ''}>
             Reflect
           </span>
         </div>

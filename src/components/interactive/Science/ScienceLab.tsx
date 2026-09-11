@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useEffect, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   ArrowRight,
@@ -18,27 +18,32 @@ import {
   Search,
   Trophy,
   Sparkles,
-} from "lucide-react";
+  Volume2,
+} from 'lucide-react';
 import {
   BIOLOGY_EXPERIMENTS,
   PHYSICS_EXPERIMENTS,
   CHEMISTRY_EXPERIMENTS,
   Experiment,
-} from "../../../data/scienceData";
+} from '../../../data/scienceData';
 
-type ScienceType = "biology" | "physics" | "chemistry";
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
-type LearningMode = "guided" | "practice" | "mastery";
+type ScienceType = 'biology' | 'physics' | 'chemistry';
+
+type LearningMode = 'guided' | 'practice' | 'mastery';
 
 type Stage =
-  | "question"
-  | "materials"
-  | "prediction"
-  | "experiment"
-  | "observation"
-  | "challenge"
-  | "reflection"
-  | "complete";
+  | 'question'
+  | 'materials'
+  | 'prediction'
+  | 'experiment'
+  | 'observation'
+  | 'challenge'
+  | 'reflection'
+  | 'complete';
 
 interface ScienceLabProps {
   type: ScienceType;
@@ -53,41 +58,39 @@ interface ExperimentProgress {
 }
 
 const getExperiments = (type: ScienceType): Experiment[] => {
-  if (type === "biology") return BIOLOGY_EXPERIMENTS;
-  if (type === "physics") return PHYSICS_EXPERIMENTS;
+  if (type === 'biology') return BIOLOGY_EXPERIMENTS;
+  if (type === 'physics') return PHYSICS_EXPERIMENTS;
   return CHEMISTRY_EXPERIMENTS;
 };
 
 const getScienceTitle = (type: ScienceType) => {
-  if (type === "biology") return "Biology Lab";
-  if (type === "physics") return "Physics Lab";
-  return "Chemistry Lab";
+  if (type === 'biology') return 'Biology Lab';
+  if (type === 'physics') return 'Physics Lab';
+  return 'Chemistry Lab';
 };
 
 const getScienceDescription = (type: ScienceType) => {
-  if (type === "biology") {
-    return "Explore living things, plants, animals, the human body and life around us.";
+  if (type === 'biology') {
+    return 'Explore living things, plants, animals, the human body and life around us.';
   }
-
-  if (type === "physics") {
-    return "Discover forces, motion, energy, light, sound, magnets and how things work.";
+  if (type === 'physics') {
+    return 'Discover forces, motion, energy, light, sound, magnets and how things work.';
   }
-
-  return "Explore matter, materials, mixtures, changes and the building blocks of our world.";
+  return 'Explore matter, materials, mixtures, changes and the building blocks of our world.';
 };
 
 const getScienceIcon = (type: ScienceType) => {
-  if (type === "biology") return Microscope;
-  if (type === "physics") return Atom;
+  if (type === 'biology') return Microscope;
+  if (type === 'physics') return Atom;
   return FlaskConical;
 };
 
 const getDifficultyLabel = (level: number) => {
-  if (level <= 2) return "Foundation";
-  if (level <= 4) return "Developing";
-  if (level <= 6) return "Intermediate";
-  if (level <= 8) return "Advanced";
-  return "Mastery";
+  if (level <= 2) return 'Foundation';
+  if (level <= 4) return 'Developing';
+  if (level <= 6) return 'Intermediate';
+  if (level <= 8) return 'Advanced';
+  return 'Mastery';
 };
 
 const normalizeExperiment = (experiment: Experiment) => {
@@ -122,7 +125,7 @@ const normalizeExperiment = (experiment: Experiment) => {
     objective:
       item.objective ||
       item.description ||
-      "Explore the science idea and observe what happens.",
+      'Explore the science idea and observe what happens.',
     materials: item.materials || [],
     prediction: item.prediction,
     observation: item.observation,
@@ -130,11 +133,11 @@ const normalizeExperiment = (experiment: Experiment) => {
     explanation:
       item.explanation ||
       item.conclusion ||
-      "Science helps us understand what happens and why.",
+      'Science helps us understand what happens and why.',
     keyLearning: item.keyLearning || [
-      "Scientists observe carefully.",
-      "Scientists make predictions.",
-      "Scientists learn from evidence.",
+      'Scientists observe carefully.',
+      'Scientists make predictions.',
+      'Scientists learn from evidence.',
     ],
   };
 };
@@ -145,11 +148,17 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
 }) => {
   const experiments = useMemo(() => getExperiments(type), [type]);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const [selectedExperiment, setSelectedExperiment] =
     useState<Experiment | null>(null);
 
-  const [stage, setStage] = useState<Stage>("question");
-  const [mode, setMode] = useState<LearningMode>("guided");
+  const [stage, setStage] = useState<Stage>('question');
+  const [mode, setMode] = useState<LearningMode>('guided');
 
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [answerChecked, setAnswerChecked] = useState(false);
@@ -186,18 +195,87 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
     (item) => item.mastered,
   ).length;
 
+  const getQuestionForStage = () => {
+    if (!current) return null;
+    if (stage === 'prediction') return current.prediction;
+    if (stage === 'observation') return current.observation;
+    if (stage === 'challenge') return current.challenge;
+    return null;
+  };
+
+  const question = getQuestionForStage();
+
+  // Auto-read the stage prompt whenever the experiment or stage changes
+  useEffect(() => {
+    if (!autoReadEnabled || !current) return;
+
+    let readOut = '';
+
+    switch (stage) {
+      case 'question':
+        readOut = `${current.question}. ${current.objective}`;
+        break;
+      case 'materials':
+        readOut =
+          current.materials.length > 0
+            ? `Prepare your materials. ${current.materials.join(', ')}.`
+            : 'This activity needs no special materials.';
+        break;
+      case 'prediction':
+        readOut = question
+          ? `Make a prediction. ${question.question}`
+          : 'Make a prediction about what will happen.';
+        break;
+      case 'experiment':
+        readOut = `Run the experiment. ${current.steps.join(' ')}`;
+        break;
+      case 'observation':
+        readOut = question
+          ? `Observe carefully. ${question.question}`
+          : 'Observe carefully what happened.';
+        break;
+      case 'challenge':
+        readOut = question
+          ? `Science challenge. ${question.question}`
+          : 'Science challenge.';
+        break;
+      case 'reflection':
+        readOut = `Think about your discovery. Key learning: ${current.keyLearning.join(' ')}`;
+        break;
+      case 'complete':
+        readOut = `Experiment complete! ${current.keyLearning.join(' ')}`;
+        break;
+    }
+
+    if (!readOut) return;
+
+    const timer = window.setTimeout(() => speak(readOut), 350);
+    return () => window.clearTimeout(timer);
+  }, [stage, current, question, speak, autoReadEnabled]);
+
+  // Read hint when it opens
+  useEffect(() => {
+    if (showHint) {
+      speak(
+        'Think carefully about what you observed. Scientists use evidence rather than simply guessing.',
+      );
+    }
+  }, [showHint, speak]);
+
   const selectExperiment = (experiment: Experiment) => {
     setSelectedExperiment(experiment);
-    setStage("question");
+    setStage('question');
     setSelectedAnswer(null);
     setAnswerChecked(false);
     setAnswerCorrect(false);
     setUsedHint(false);
     setShowHint(false);
+
+    if (soundEnabled) playSoundFeedback('move');
   };
 
   const resetExperimentState = () => {
-    setStage("question");
+    setStage('question');
     setSelectedAnswer(null);
     setAnswerChecked(false);
     setAnswerCorrect(false);
@@ -215,34 +293,16 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
     setProgress({});
     setScore(0);
     setStreak(0);
-    setStage("question");
+    setStage('question');
     setSelectedAnswer(null);
     setAnswerChecked(false);
     setAnswerCorrect(false);
     setUsedHint(false);
     setShowHint(false);
     setHasFinished(false);
+
+    speak('Progress reset. Choose an experiment to begin again.');
   };
-
-  const getQuestionForStage = () => {
-    if (!current) return null;
-
-    if (stage === "prediction") {
-      return current.prediction;
-    }
-
-    if (stage === "observation") {
-      return current.observation;
-    }
-
-    if (stage === "challenge") {
-      return current.challenge;
-    }
-
-    return null;
-  };
-
-  const question = getQuestionForStage();
 
   const updateProgress = (
     experimentId: string | number,
@@ -264,12 +324,10 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
   };
 
   const awardCompletion = () => {
-    if (!current || currentProgress?.mastered) {
-      return;
-    }
+    if (!current || currentProgress?.mastered) return;
 
     const basePoints = 10;
-    const streakBonus = mode === "mastery" && streak >= 2 ? 5 : 0;
+    const streakBonus = mode === 'mastery' && streak >= 2 ? 5 : 0;
     const hintPenalty = usedHint ? 5 : 0;
 
     const earned = Math.max(5, basePoints + streakBonus - hintPenalty);
@@ -286,9 +344,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
   };
 
   const checkAnswer = () => {
-    if (!question || selectedAnswer === null || answerChecked) {
-      return;
-    }
+    if (!question || selectedAnswer === null || answerChecked) return;
 
     const correct = selectedAnswer === question.answer;
 
@@ -303,11 +359,19 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
     }
 
     if (correct) {
-      if (stage === "challenge" || mode !== "mastery") {
+      if (soundEnabled) playSoundFeedback('correct');
+      speak(`Correct! ${current.explanation}`);
+
+      if (stage === 'challenge' || mode !== 'mastery') {
         awardCompletion();
       }
     } else {
+      if (soundEnabled) playSoundFeedback('try-again');
       setStreak(0);
+
+      speak(
+        'Not quite. Scientists sometimes make predictions that do not match the result. That is part of learning. Look carefully at the evidence and try again.',
+      );
     }
   };
 
@@ -319,74 +383,73 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
     setAnswerCorrect(false);
     setShowHint(false);
 
-    if (stage === "question") {
-      setStage(current.materials.length > 0 ? "materials" : "prediction");
+    if (stage === 'question') {
+      setStage(current.materials.length > 0 ? 'materials' : 'prediction');
       return;
     }
-
-    if (stage === "materials") {
-      setStage("prediction");
+    if (stage === 'materials') {
+      setStage('prediction');
       return;
     }
-
-    if (stage === "prediction") {
-      setStage("experiment");
+    if (stage === 'prediction') {
+      setStage('experiment');
       return;
     }
-
-    if (stage === "experiment") {
+    if (stage === 'experiment') {
       setStage(
-        current.observation ? "observation" : current.challenge ? "challenge" : "reflection",
+        current.observation
+          ? 'observation'
+          : current.challenge
+            ? 'challenge'
+            : 'reflection',
       );
       return;
     }
-
-    if (stage === "observation") {
-      setStage(current.challenge ? "challenge" : "reflection");
+    if (stage === 'observation') {
+      setStage(current.challenge ? 'challenge' : 'reflection');
       return;
     }
-
-    if (stage === "challenge") {
-      setStage("reflection");
+    if (stage === 'challenge') {
+      setStage('reflection');
       return;
     }
-
-    if (stage === "reflection") {
-      setStage("complete");
+    if (stage === 'reflection') {
+      setStage('complete');
     }
   };
 
   const goBackStage = () => {
-    if (stage === "materials") {
-      setStage("question");
-    } else if (stage === "prediction") {
-      setStage(current?.materials.length ? "materials" : "question");
-    } else if (stage === "experiment") {
-      setStage("prediction");
-    } else if (stage === "observation") {
-      setStage("experiment");
-    } else if (stage === "challenge") {
-      setStage(current?.observation ? "observation" : "experiment");
-    } else if (stage === "reflection") {
-      setStage(current?.challenge ? "challenge" : "experiment");
+    if (stage === 'materials') {
+      setStage('question');
+    } else if (stage === 'prediction') {
+      setStage(current?.materials.length ? 'materials' : 'question');
+    } else if (stage === 'experiment') {
+      setStage('prediction');
+    } else if (stage === 'observation') {
+      setStage('experiment');
+    } else if (stage === 'challenge') {
+      setStage(current?.observation ? 'observation' : 'experiment');
+    } else if (stage === 'reflection') {
+      setStage(current?.challenge ? 'challenge' : 'experiment');
     }
   };
 
   const finishAndMoveUp = () => {
     if (hasFinished) return;
-
     setHasFinished(true);
     onComplete?.(score);
+
+    speak(`Well done! You earned ${score} science points.`);
   };
 
   const stageLabels: { id: Stage; label: string }[] = [
-    { id: "question", label: "Question" },
-    { id: "materials", label: "Prepare" },
-    { id: "prediction", label: "Predict" },
-    { id: "experiment", label: "Explore" },
-    { id: "observation", label: "Observe" },
-    { id: "challenge", label: "Challenge" },
-    { id: "reflection", label: "Reflect" },
+    { id: 'question', label: 'Question' },
+    { id: 'materials', label: 'Prepare' },
+    { id: 'prediction', label: 'Predict' },
+    { id: 'experiment', label: 'Explore' },
+    { id: 'observation', label: 'Observe' },
+    { id: 'challenge', label: 'Challenge' },
+    { id: 'reflection', label: 'Reflect' },
   ];
 
   if (!selectedExperiment) {
@@ -394,11 +457,11 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
       <div className="max-w-5xl w-full mx-auto bg-app-card/90 backdrop-blur-md border border-white/10 rounded-3xl shadow-2xl p-6 md:p-8 relative overflow-hidden">
         <div
           className={`absolute inset-0 ${
-            type === "biology"
-              ? "bg-emerald-500/5"
-              : type === "physics"
-                ? "bg-blue-500/5"
-                : "bg-purple-500/5"
+            type === 'biology'
+              ? 'bg-emerald-500/5'
+              : type === 'physics'
+                ? 'bg-blue-500/5'
+                : 'bg-purple-500/5'
           } blur-[100px] -z-10`}
         />
 
@@ -415,10 +478,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
                 <h2 className="text-3xl font-bold text-white">
                   {getScienceTitle(type)}
                 </h2>
-
-                <p className="text-gray-400 text-sm">
-                  STEM Discovery Academy
-                </p>
+                <p className="text-gray-400 text-sm">STEM Discovery Academy</p>
               </div>
             </div>
 
@@ -429,9 +489,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
 
           <div className="flex items-center gap-3">
             <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-center">
-              <div className="text-yellow-400 font-bold text-xl">
-                {score}
-              </div>
+              <div className="text-yellow-400 font-bold text-xl">{score}</div>
               <div className="text-[10px] text-gray-500 uppercase">
                 Science Points
               </div>
@@ -445,19 +503,41 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
                 Mastered
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+            >
+              <Volume2
+                className={`w-5 h-5 ${
+                  soundEnabled ? 'text-amber-300' : 'text-gray-500'
+                }`}
+              />
+            </button>
           </div>
         </div>
 
         <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-3">
-          {(["guided", "practice", "mastery"] as LearningMode[]).map(
+          {(['guided', 'practice', 'mastery'] as LearningMode[]).map(
             (learningMode) => (
               <button
                 key={learningMode}
-                onClick={() => setMode(learningMode)}
+                onClick={() => {
+                  setMode(learningMode);
+                  speak(
+                    learningMode === 'guided'
+                      ? 'Guided mode. Learn with step-by-step support.'
+                      : learningMode === 'practice'
+                        ? 'Practice mode. Practise what you discovered.'
+                        : 'Mastery mode. Test your understanding independently.',
+                  );
+                }}
                 className={`p-4 rounded-2xl border text-left transition-all ${
                   mode === learningMode
-                    ? "bg-indigo-500/15 border-indigo-400/60"
-                    : "bg-white/[0.03] border-white/10 hover:border-white/20"
+                    ? 'bg-indigo-500/15 border-indigo-400/60'
+                    : 'bg-white/[0.03] border-white/10 hover:border-white/20'
                 }`}
               >
                 <div className="font-bold text-white capitalize">
@@ -465,14 +545,12 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
                 </div>
 
                 <div className="text-xs text-gray-400 mt-1">
-                  {learningMode === "guided" &&
-                    "Learn with step-by-step support."}
-
-                  {learningMode === "practice" &&
-                    "Practice what you discovered."}
-
-                  {learningMode === "mastery" &&
-                    "Test your understanding independently."}
+                  {learningMode === 'guided' &&
+                    'Learn with step-by-step support.'}
+                  {learningMode === 'practice' &&
+                    'Practice what you discovered.'}
+                  {learningMode === 'mastery' &&
+                    'Test your understanding independently.'}
                 </div>
               </button>
             ),
@@ -566,11 +644,9 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
     );
   }
 
-  if (!current) {
-    return null;
-  }
+  if (!current) return null;
 
-  if (stage === "complete") {
+  if (stage === 'complete') {
     const mastered = progress[current.id]?.mastered ?? false;
 
     return (
@@ -609,15 +685,13 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
 
           <div className="bg-white/5 rounded-2xl p-4">
             <div className="text-emerald-400 text-2xl font-bold">
-              {mastered ? "Yes" : "Keep Going"}
+              {mastered ? 'Yes' : 'Keep Going'}
             </div>
             <div className="text-xs text-gray-500">Mastered</div>
           </div>
 
           <div className="bg-white/5 rounded-2xl p-4">
-            <div className="text-purple-400 text-2xl font-bold">
-              {streak}
-            </div>
+            <div className="text-purple-400 text-2xl font-bold">{streak}</div>
             <div className="text-xs text-gray-500">Streak</div>
           </div>
         </div>
@@ -657,7 +731,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
             onClick={finishAndMoveUp}
             className="flex-1 px-5 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500"
           >
-            Finish & Move Up
+            Finish &amp; Move Up
           </button>
         </div>
       </motion.div>
@@ -687,9 +761,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
               {getScienceTitle(type)}
             </div>
 
-            <h2 className="text-2xl font-bold text-white">
-              {current.title}
-            </h2>
+            <h2 className="text-2xl font-bold text-white">{current.title}</h2>
           </div>
         </div>
 
@@ -703,6 +775,19 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
             <span className="text-xs text-gray-500">Streak</span>
             <span className="ml-2 text-orange-400 font-bold">{streak}</span>
           </div>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+          >
+            <Volume2
+              className={`w-5 h-5 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
         </div>
       </div>
 
@@ -718,10 +803,10 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
                 <div
                   className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
                     active
-                      ? "bg-indigo-500/15 border-indigo-400/50 text-indigo-300"
+                      ? 'bg-indigo-500/15 border-indigo-400/50 text-indigo-300'
                       : completed
-                        ? "bg-emerald-500/10 border-emerald-400/30 text-emerald-400"
-                        : "bg-white/[0.03] border-white/10 text-gray-600"
+                        ? 'bg-emerald-500/10 border-emerald-400/30 text-emerald-400'
+                        : 'bg-white/[0.03] border-white/10 text-gray-600'
                   }`}
                 >
                   {completed ? (
@@ -732,9 +817,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
                     </span>
                   )}
 
-                  <span className="text-xs font-bold">
-                    {item.label}
-                  </span>
+                  <span className="text-xs font-bold">{item.label}</span>
                 </div>
 
                 {index < stageLabels.length - 1 && (
@@ -755,7 +838,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
           transition={{ duration: 0.2 }}
         >
           {/* QUESTION */}
-          {stage === "question" && (
+          {stage === 'question' && (
             <div className="text-center">
               <div className="w-20 h-20 mx-auto rounded-2xl bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center mb-5">
                 <Target className="w-10 h-10 text-indigo-400" />
@@ -793,7 +876,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
           )}
 
           {/* MATERIALS */}
-          {stage === "materials" && (
+          {stage === 'materials' && (
             <div>
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-3 rounded-xl bg-amber-500/10">
@@ -822,9 +905,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
                         {index + 1}
                       </span>
 
-                      <span className="text-white text-sm">
-                        {material}
-                      </span>
+                      <span className="text-white text-sm">{material}</span>
                     </div>
                   ))}
                 </div>
@@ -847,43 +928,37 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
           )}
 
           {/* PREDICTION / OBSERVATION / CHALLENGE */}
-          {(stage === "prediction" ||
-            stage === "observation" ||
-            stage === "challenge") && (
+          {(stage === 'prediction' ||
+            stage === 'observation' ||
+            stage === 'challenge') && (
             <div>
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-3 rounded-xl bg-indigo-500/10">
-                  {stage === "prediction" && (
+                  {stage === 'prediction' && (
                     <Lightbulb className="w-7 h-7 text-yellow-400" />
                   )}
-
-                  {stage === "observation" && (
+                  {stage === 'observation' && (
                     <Eye className="w-7 h-7 text-blue-400" />
                   )}
-
-                  {stage === "challenge" && (
+                  {stage === 'challenge' && (
                     <Target className="w-7 h-7 text-purple-400" />
                   )}
                 </div>
 
                 <div>
                   <h3 className="text-2xl font-bold text-white">
-                    {stage === "prediction" && "Make a Prediction"}
-
-                    {stage === "observation" && "Observe Carefully"}
-
-                    {stage === "challenge" && "Science Challenge"}
+                    {stage === 'prediction' && 'Make a Prediction'}
+                    {stage === 'observation' && 'Observe Carefully'}
+                    {stage === 'challenge' && 'Science Challenge'}
                   </h3>
 
                   <p className="text-sm text-gray-400">
-                    {stage === "prediction" &&
-                      "What do you think will happen?"}
-
-                    {stage === "observation" &&
-                      "What did you notice during the experiment?"}
-
-                    {stage === "challenge" &&
-                      "Use what you discovered to solve this question."}
+                    {stage === 'prediction' &&
+                      'What do you think will happen?'}
+                    {stage === 'observation' &&
+                      'What did you notice during the experiment?'}
+                    {stage === 'challenge' &&
+                      'Use what you discovered to solve this question.'}
                   </p>
                 </div>
               </div>
@@ -893,8 +968,8 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
                   <Search className="w-10 h-10 text-gray-600 mx-auto mb-3" />
 
                   <p className="text-gray-400">
-                    This experiment does not yet have a separate{" "}
-                    {stage} question.
+                    This experiment does not yet have a separate {stage}{' '}
+                    question.
                   </p>
                 </div>
               ) : (
@@ -909,16 +984,14 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
                       const correct = question.answer === index;
 
                       let stateClass =
-                        "bg-white/[0.03] border-white/10 hover:border-indigo-400/50";
+                        'bg-white/[0.03] border-white/10 hover:border-indigo-400/50';
 
                       if (answerChecked && correct) {
-                        stateClass =
-                          "bg-emerald-500/10 border-emerald-400/60";
+                        stateClass = 'bg-emerald-500/10 border-emerald-400/60';
                       } else if (answerChecked && selected && !correct) {
-                        stateClass = "bg-red-500/10 border-red-400/60";
+                        stateClass = 'bg-red-500/10 border-red-400/60';
                       } else if (selected) {
-                        stateClass =
-                          "bg-indigo-500/15 border-indigo-400/60";
+                        stateClass = 'bg-indigo-500/15 border-indigo-400/60';
                       }
 
                       return (
@@ -952,8 +1025,8 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
                       animate={{ opacity: 1, y: 0 }}
                       className={`mt-5 p-5 rounded-2xl border ${
                         answerCorrect
-                          ? "bg-emerald-500/10 border-emerald-400/30"
-                          : "bg-red-500/10 border-red-400/30"
+                          ? 'bg-emerald-500/10 border-emerald-400/30'
+                          : 'bg-red-500/10 border-red-400/30'
                       }`}
                     >
                       <div className="flex items-start gap-3">
@@ -966,14 +1039,14 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
                         <div>
                           <h4 className="font-bold text-white mb-1">
                             {answerCorrect
-                              ? "Excellent observation!"
-                              : "Keep investigating!"}
+                              ? 'Excellent observation!'
+                              : 'Keep investigating!'}
                           </h4>
 
                           <p className="text-sm text-gray-300">
                             {answerCorrect
                               ? current.explanation
-                              : "Scientists sometimes make predictions that do not match the result. That is part of learning. Look carefully at the evidence and try again."}
+                              : 'Scientists sometimes make predictions that do not match the result. That is part of learning. Look carefully at the evidence and try again.'}
                           </p>
                         </div>
                       </div>
@@ -989,7 +1062,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
                       className="mt-5 text-sm text-yellow-400 hover:text-yellow-300 flex items-center gap-2"
                     >
                       <Lightbulb className="w-4 h-4" />
-                      {showHint ? "Hint shown" : "Need a hint?"}
+                      {showHint ? 'Hint shown' : 'Need a hint?'}
                     </button>
                   )}
 
@@ -1005,7 +1078,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
           )}
 
           {/* EXPERIMENT */}
-          {stage === "experiment" && (
+          {stage === 'experiment' && (
             <div>
               <div className="text-center mb-6">
                 <div className="w-20 h-20 mx-auto rounded-2xl bg-purple-500/10 border border-purple-400/20 flex items-center justify-center mb-4">
@@ -1058,7 +1131,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
           )}
 
           {/* REFLECTION */}
-          {stage === "reflection" && (
+          {stage === 'reflection' && (
             <div className="text-center">
               <div className="w-20 h-20 mx-auto rounded-full bg-yellow-500/10 border border-yellow-400/20 flex items-center justify-center mb-5">
                 <Star className="w-10 h-10 text-yellow-400" />
@@ -1074,17 +1147,13 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
               </p>
 
               <div className="mt-7 p-6 rounded-2xl bg-white/[0.03] border border-white/10 text-left">
-                <h4 className="font-bold text-white mb-4">
-                  Key Learning
-                </h4>
+                <h4 className="font-bold text-white mb-4">Key Learning</h4>
 
                 <div className="space-y-3">
                   {current.keyLearning.map((point, index) => (
                     <div key={index} className="flex gap-3">
                       <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
-                      <span className="text-sm text-gray-300">
-                        {point}
-                      </span>
+                      <span className="text-sm text-gray-300">{point}</span>
                     </div>
                   ))}
                 </div>
@@ -1113,15 +1182,15 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
       {/* Footer Controls */}
       <div className="flex justify-between items-center gap-3 mt-8 pt-6 border-t border-white/10">
         <button
-  onClick={goBackStage}
-  disabled={stage === "question"}
-    className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
->
-      <span className="flex items-center gap-2">
-      <ArrowLeft className="w-4 h-4" />
-        Back
-         </span>
-       </button>
+          onClick={goBackStage}
+          disabled={stage === 'question'}
+          className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <span className="flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </span>
+        </button>
 
         {question && !answerChecked ? (
           <button
@@ -1137,7 +1206,7 @@ export const ScienceLab: React.FC<ScienceLabProps> = ({
             className="px-6 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500"
           >
             <span className="flex items-center gap-2">
-              {stage === "reflection" ? "Complete Experiment" : "Continue"}
+              {stage === 'reflection' ? 'Complete Experiment' : 'Continue'}
               <ArrowRight className="w-4 h-4" />
             </span>
           </button>

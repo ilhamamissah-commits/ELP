@@ -13,6 +13,9 @@ import {
 } from 'lucide-react';
 
 import { speakArabic } from '../../../services/arabicSpeech';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 interface ArabicHarakatLabProps {
   onComplete?: (score: number) => void;
@@ -51,33 +54,9 @@ interface PracticeQuestion {
 }
 
 const LETTERS = [
-  'ب',
-  'ت',
-  'ث',
-  'ج',
-  'ح',
-  'خ',
-  'د',
-  'ذ',
-  'ر',
-  'ز',
-  'س',
-  'ش',
-  'ص',
-  'ض',
-  'ط',
-  'ظ',
-  'ع',
-  'غ',
-  'ف',
-  'ق',
-  'ك',
-  'ل',
-  'م',
-  'ن',
-  'ه',
-  'و',
-  'ي',
+  'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز',
+  'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق',
+  'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي',
 ];
 
 const HARAKAT: Haraka[] = [
@@ -209,9 +188,7 @@ const SHORT_VOWELS = HARAKAT.filter(
 );
 
 const createQuestion = (): PracticeQuestion => {
-  const letter =
-    LETTERS[Math.floor(Math.random() * LETTERS.length)];
-
+  const letter = LETTERS[Math.floor(Math.random() * LETTERS.length)];
   const haraka =
     SHORT_VOWELS[Math.floor(Math.random() * SHORT_VOWELS.length)];
 
@@ -220,9 +197,8 @@ const createQuestion = (): PracticeQuestion => {
     .slice(0, 3);
 
   if (!shuffledOptions.some((option) => option.id === haraka.id)) {
-    shuffledOptions[
-      Math.floor(Math.random() * shuffledOptions.length)
-    ] = haraka;
+    shuffledOptions[Math.floor(Math.random() * shuffledOptions.length)] =
+      haraka;
   }
 
   return {
@@ -251,16 +227,20 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
   const [questionIndex, setQuestionIndex] = useState(0);
   const [practiceScore, setPracticeScore] = useState(0);
   const [answered, setAnswered] = useState(false);
-  const [selectedAnswer, setSelectedAnswer] =
-    useState<HarakaId | null>(null);
+  const [selectedAnswer, setSelectedAnswer] = useState<HarakaId | null>(null);
 
   const [masteryScore, setMasteryScore] = useState(0);
   const [masteryAttempts, setMasteryAttempts] = useState(0);
   const [completed, setCompleted] = useState(false);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const selectedHaraka =
-    HARAKAT.find((haraka) => haraka.id === selectedHarakaId) ??
-    HARAKAT[0];
+    HARAKAT.find((haraka) => haraka.id === selectedHarakaId) ?? HARAKAT[0];
 
   const currentQuestion = questions[questionIndex];
 
@@ -268,15 +248,12 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
     if (selectedHaraka.id === 'madd-fatha') {
       return `${selectedLetter}َ${selectedHaraka.symbol}`;
     }
-
     if (selectedHaraka.id === 'madd-kasra') {
       return `${selectedLetter}ِ${selectedHaraka.symbol}`;
     }
-
     if (selectedHaraka.id === 'madd-damma') {
       return `${selectedLetter}ُ${selectedHaraka.symbol}`;
     }
-
     return `${selectedLetter}${selectedHaraka.symbol}`;
   }, [selectedLetter, selectedHaraka]);
 
@@ -287,21 +264,56 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
     mastery: 'Harakat Mastery',
   }[mode];
 
+  // Arabic voice gated on soundEnabled
   const handleSpeak = (text = combinedCharacter) => {
+    if (!soundEnabled) return;
     speakArabic(text);
   };
 
+  // Auto-read the explore mode + other mode prompts
   useEffect(() => {
-    if (mode !== 'explore') {
-      return;
+    if (!autoReadEnabled) return;
+
+    let readOut = '';
+
+    if (mode === 'explore') {
+      readOut = `${selectedHaraka.name}. Sound: ${selectedHaraka.sound}. ${selectedHaraka.description}`;
+    } else if (mode === 'learn') {
+      readOut =
+        'Learn the Arabic marks. Explore each mark, hear its sound, and compare how it changes a letter.';
+    } else if (mode === 'practice' || mode === 'mastery') {
+      if (!answered && currentQuestion) {
+        readOut =
+          mode === 'practice'
+            ? 'Practice. Listen and choose the correct haraka.'
+            : 'Mastery assessment. Listen and choose the correct haraka.';
+      }
     }
 
+    if (!readOut) return;
+
     const timer = window.setTimeout(() => {
-      handleSpeak();
+      if (mode === 'explore') {
+        // Explore mode reads Arabic symbol aloud
+        handleSpeak();
+      } else {
+        speak(readOut);
+      }
     }, 450);
 
     return () => window.clearTimeout(timer);
-  }, [selectedLetter, selectedHarakaId, mode]);
+  }, [
+    mode,
+    selectedLetter,
+    selectedHarakaId,
+    questionIndex,
+    answered,
+    currentQuestion,
+    speak,
+    autoReadEnabled,
+    soundEnabled,
+    selectedHaraka,
+  ]);
 
   const resetLab = () => {
     setMode('explore');
@@ -315,6 +327,8 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
     setMasteryScore(0);
     setMasteryAttempts(0);
     setCompleted(false);
+
+    speak("Let's explore the harakat again!");
   };
 
   const startPractice = () => {
@@ -325,6 +339,8 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
     setSelectedAnswer(null);
     setCompleted(false);
     setMode('practice');
+
+    speak('Practice mode. Listen and choose the correct haraka.');
   };
 
   const startMastery = () => {
@@ -336,12 +352,12 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
     setSelectedAnswer(null);
     setCompleted(false);
     setMode('mastery');
+
+    speak('Mastery assessment. Listen and choose the correct haraka.');
   };
 
   const handleAnswer = (answer: HarakaId) => {
-    if (answered || !currentQuestion) {
-      return;
-    }
+    if (answered || !currentQuestion) return;
 
     const correct = answer === currentQuestion.haraka.id;
 
@@ -350,7 +366,14 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
 
     if (mode === 'practice') {
       if (correct) {
+        if (soundEnabled) playSoundFeedback('correct');
         setPracticeScore((previous) => previous + 10);
+        speak('Correct!');
+      } else {
+        if (soundEnabled) playSoundFeedback('try-again');
+        speak(
+          `Not quite. The correct answer is ${currentQuestion.haraka.name}.`,
+        );
       }
     }
 
@@ -358,7 +381,14 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
       setMasteryAttempts((previous) => previous + 1);
 
       if (correct) {
+        if (soundEnabled) playSoundFeedback('correct');
         setMasteryScore((previous) => previous + 10);
+        speak('Correct!');
+      } else {
+        if (soundEnabled) playSoundFeedback('try-again');
+        speak(
+          `Not quite. The correct answer is ${currentQuestion.haraka.name}.`,
+        );
       }
     }
 
@@ -368,12 +398,9 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
   };
 
   const moveToNextQuestion = () => {
-    if (!currentQuestion) {
-      return;
-    }
+    if (!currentQuestion) return;
 
-    const isLastQuestion =
-      questionIndex === questions.length - 1;
+    const isLastQuestion = questionIndex === questions.length - 1;
 
     if (isLastQuestion) {
       const finalScore =
@@ -385,6 +412,16 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
 
       setCompleted(true);
       onComplete?.(finalScore);
+
+      const percentage = Math.round(
+        (finalScore / (questions.length * 10)) * 100
+      );
+
+      speak(
+        percentage >= 80
+          ? `Masha'Allah! You scored ${percentage} percent.`
+          : `Well done! You scored ${percentage} percent. Let's practise again.`,
+      );
       return;
     }
 
@@ -491,8 +528,8 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
             </h3>
 
             <p className="text-sm text-gray-400 mt-1">
-              Explore each mark, hear its sound and compare how
-              it changes a letter.
+              Explore each mark, hear its sound and compare how it changes a
+              letter.
             </p>
           </div>
         </div>
@@ -550,8 +587,7 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
     if (completed) {
       const totalQuestions = questions.length;
 
-      const finalScore =
-        mode === 'practice' ? practiceScore : masteryScore;
+      const finalScore = mode === 'practice' ? practiceScore : masteryScore;
 
       const percentage = Math.round(
         (finalScore / (totalQuestions * 10)) * 100
@@ -569,9 +605,7 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
       );
     }
 
-    if (!currentQuestion) {
-      return null;
-    }
+    if (!currentQuestion) return null;
 
     const correctAnswer = currentQuestion.haraka.id;
     const isCorrect = selectedAnswer === correctAnswer;
@@ -581,9 +615,7 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
         <div className="flex items-center justify-between mb-5">
           <div>
             <div className="text-xs uppercase tracking-wider text-indigo-400 font-bold">
-              {mode === 'practice'
-                ? 'Practice'
-                : 'Mastery Assessment'}
+              {mode === 'practice' ? 'Practice' : 'Mastery Assessment'}
             </div>
 
             <div className="text-sm text-gray-400 mt-1">
@@ -593,18 +625,14 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
 
           <div className="flex items-center gap-2 text-yellow-400 font-bold">
             <Star size={17} fill="currentColor" />
-            {mode === 'practice'
-              ? practiceScore
-              : masteryScore}
+            {mode === 'practice' ? practiceScore : masteryScore}
           </div>
         </div>
 
         <div className="h-2 bg-gray-800 rounded-full overflow-hidden mb-6">
           <motion.div
             animate={{
-              width: `${
-                ((questionIndex + 1) / questions.length) * 100
-              }%`,
+              width: `${((questionIndex + 1) / questions.length) * 100}%`,
             }}
             className="h-full bg-indigo-500 rounded-full"
           />
@@ -641,21 +669,16 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {currentQuestion.options.map((haraka) => {
-            const isSelected =
-              selectedAnswer === haraka.id;
-
-            const isCorrectOption =
-              haraka.id === correctAnswer;
+            const isSelected = selectedAnswer === haraka.id;
+            const isCorrectOption = haraka.id === correctAnswer;
 
             let stateClass =
               'bg-app-card border-app-border hover:border-indigo-400';
 
             if (answered && isCorrectOption) {
-              stateClass =
-                'bg-green-500/10 border-green-500/40';
+              stateClass = 'bg-green-500/10 border-green-500/40';
             } else if (answered && isSelected && !isCorrect) {
-              stateClass =
-                'bg-red-500/10 border-red-500/40';
+              stateClass = 'bg-red-500/10 border-red-500/40';
             }
 
             return (
@@ -668,10 +691,7 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
                 disabled={answered}
                 className={`p-5 rounded-2xl border-2 transition-all ${stateClass}`}
               >
-                <div
-                  className="text-5xl text-white mb-3"
-                  dir="rtl"
-                >
+                <div className="text-5xl text-white mb-3" dir="rtl">
                   {currentQuestion.letter}
                   {haraka.symbol}
                 </div>
@@ -692,10 +712,7 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
                 )}
 
                 {answered && isSelected && !isCorrect && (
-                  <XCircle
-                    size={18}
-                    className="mx-auto mt-3 text-red-400"
-                  />
+                  <XCircle size={18} className="mx-auto mt-3 text-red-400" />
                 )}
               </motion.button>
             );
@@ -719,23 +736,16 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
                   className="text-green-400 flex-shrink-0"
                 />
               ) : (
-                <XCircle
-                  size={21}
-                  className="text-red-400 flex-shrink-0"
-                />
+                <XCircle size={21} className="text-red-400 flex-shrink-0" />
               )}
 
               <div>
                 <div
                   className={`font-bold ${
-                    isCorrect
-                      ? 'text-green-300'
-                      : 'text-red-300'
+                    isCorrect ? 'text-green-300' : 'text-red-300'
                   }`}
                 >
-                  {isCorrect
-                    ? 'Excellent!'
-                    : 'Keep practising!'}
+                  {isCorrect ? 'Excellent!' : 'Keep practising!'}
                 </div>
 
                 <p className="text-sm text-gray-400 mt-1">
@@ -790,14 +800,28 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={resetLab}
-            className="p-2.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white transition-colors"
-            aria-label="Reset Arabic Harakat Lab"
-          >
-            <RotateCcw size={17} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                size={17}
+                className={soundEnabled ? 'text-amber-300' : 'text-gray-500'}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={resetLab}
+              className="p-2.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white transition-colors"
+              aria-label="Reset Arabic Harakat Lab"
+            >
+              <RotateCcw size={17} />
+            </button>
+          </div>
         </div>
 
         {/* Mode navigation */}
@@ -816,17 +840,11 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
             Learn
           </ModeButton>
 
-          <ModeButton
-            active={mode === 'practice'}
-            onClick={startPractice}
-          >
+          <ModeButton active={mode === 'practice'} onClick={startPractice}>
             Practice
           </ModeButton>
 
-          <ModeButton
-            active={mode === 'mastery'}
-            onClick={startMastery}
-          >
+          <ModeButton active={mode === 'mastery'} onClick={startMastery}>
             Mastery
           </ModeButton>
         </div>
@@ -841,17 +859,13 @@ export const ArabicHarakatLab: React.FC<ArabicHarakatLabProps> = ({
       >
         {mode === 'explore' && renderExploreMode()}
         {mode === 'learn' && renderLearnMode()}
-        {(mode === 'practice' || mode === 'mastery') &&
-          renderQuestionMode()}
+        {(mode === 'practice' || mode === 'mastery') && renderQuestionMode()}
       </motion.div>
 
       {/* Learning principle */}
       <div className="mt-6 bg-app-card border border-app-border rounded-2xl p-5">
         <div className="flex gap-3">
-          <Target
-            size={20}
-            className="text-indigo-400 flex-shrink-0"
-          />
+          <Target size={20} className="text-indigo-400 flex-shrink-0" />
 
           <div>
             <div className="text-white font-semibold">
@@ -873,18 +887,13 @@ interface SectionTitleProps {
   title: string;
 }
 
-const SectionTitle: React.FC<SectionTitleProps> = ({
-  number,
-  title,
-}) => (
+const SectionTitle: React.FC<SectionTitleProps> = ({ number, title }) => (
   <div className="flex items-center gap-3 mb-3">
     <div className="w-7 h-7 rounded-full bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center text-xs text-indigo-300 font-bold">
       {number}
     </div>
 
-    <h3 className="text-sm font-semibold text-white">
-      {title}
-    </h3>
+    <h3 className="text-sm font-semibold text-white">{title}</h3>
   </div>
 );
 
@@ -910,10 +919,7 @@ const HarakaButton: React.FC<HarakaButtonProps> = ({
         : 'bg-gray-800 border-gray-700 hover:border-gray-500'
     }`}
   >
-    <div
-      className="text-4xl text-white mb-2"
-      dir="rtl"
-    >
+    <div className="text-4xl text-white mb-2" dir="rtl">
       ب{haraka.symbol}
     </div>
 
@@ -987,11 +993,7 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
             : 'bg-indigo-500/10 text-indigo-400'
         }`}
       >
-        {isMastered ? (
-          <CheckCircle size={32} />
-        ) : (
-          <Star size={32} />
-        )}
+        {isMastered ? <CheckCircle size={32} /> : <Star size={32} />}
       </div>
 
       <div className="text-xs uppercase tracking-wider text-indigo-400 font-bold">
@@ -1001,9 +1003,7 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
       </div>
 
       <h3 className="text-2xl font-bold text-white mt-2">
-        {isMastered
-          ? 'Harakat Mastery Achieved!'
-          : 'Good Practice!'}
+        {isMastered ? 'Harakat Mastery Achieved!' : 'Good Practice!'}
       </h3>
 
       <p className="text-gray-500 text-sm mt-2">
@@ -1012,21 +1012,13 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
 
       <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto mt-6">
         <div className="bg-gray-900 rounded-xl p-4">
-          <div className="text-2xl font-bold text-white">
-            {score}
-          </div>
-          <div className="text-xs text-gray-500 mt-1">
-            Score
-          </div>
+          <div className="text-2xl font-bold text-white">{score}</div>
+          <div className="text-xs text-gray-500 mt-1">Score</div>
         </div>
 
         <div className="bg-gray-900 rounded-xl p-4">
-          <div className="text-2xl font-bold text-white">
-            {percentage}%
-          </div>
-          <div className="text-xs text-gray-500 mt-1">
-            Accuracy
-          </div>
+          <div className="text-2xl font-bold text-white">{percentage}%</div>
+          <div className="text-xs text-gray-500 mt-1">Accuracy</div>
         </div>
       </div>
 

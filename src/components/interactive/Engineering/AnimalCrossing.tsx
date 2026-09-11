@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   CheckCircle,
   RotateCcw,
   ArrowRight,
   Lightbulb,
+  Volume2,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type Tool = 'raft' | 'rope' | 'bridge' | 'boat';
 
@@ -50,10 +55,38 @@ export const AnimalCrossing: React.FC = () => {
   const [attempts, setAttempts] = useState(0);
   const [showHint, setShowHint] = useState(false);
 
-  const toggleTool = (tool: Tool) => {
-    if (tested) {
-      return;
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
+  /* Auto-read the challenge once on mount */
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        'Animal Crossing. Your challenge: the fox needs to cross the river to reach the forest. The river is too wide to jump across. Can you choose the right tools to help the fox cross safely?',
+      );
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [speak, autoReadEnabled]);
+
+  /* Read the hint when it opens */
+  useEffect(() => {
+    if (showHint && !tested) {
+      speak(
+        'The fox needs something that can float and something that can help keep it connected to the shore.',
+      );
     }
+  }, [showHint, tested, speak]);
+
+  const toggleTool = (tool: Tool) => {
+    if (tested) return;
+
+    if (soundEnabled) playSoundFeedback('move');
 
     setSelectedTools((previous) =>
       previous.includes(tool)
@@ -71,6 +104,18 @@ export const AnimalCrossing: React.FC = () => {
     setPassed(success);
     setTested(true);
     setAttempts((previous) => previous + 1);
+
+    if (success) {
+      if (soundEnabled) playSoundFeedback('correct');
+      speak(
+        'Solution worked! Excellent problem solving. You chose a floating platform and a way to secure it. The fox can safely cross the river. Engineering lesson: engineers choose materials and tools based on the problem they need to solve.',
+      );
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(
+        'The fox still cannot cross safely. Think about what can float on water and what could help keep the crossing secure. Change your design and test again.',
+      );
+    }
   };
 
   const resetChallenge = () => {
@@ -78,6 +123,8 @@ export const AnimalCrossing: React.FC = () => {
     setTested(false);
     setPassed(false);
     setShowHint(false);
+
+    speak('Challenge reset.');
   };
 
   const hasRaft = selectedTools.includes('raft');
@@ -86,16 +133,29 @@ export const AnimalCrossing: React.FC = () => {
   return (
     <div className="max-w-lg mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl">
       {/* Header */}
-      <div className="text-center mb-5">
-        <div className="text-5xl mb-2">🦊</div>
+      <div className="flex items-start justify-between gap-3 mb-5">
+        <div className="flex-1 text-center">
+          <div className="text-5xl mb-2">🦊</div>
 
-        <h3 className="text-2xl font-bold text-white">
-          Animal Crossing
-        </h3>
+          <h3 className="text-2xl font-bold text-white">Animal Crossing</h3>
 
-        <p className="text-gray-400 text-sm mt-1">
-          Solve an engineering problem!
-        </p>
+          <p className="text-gray-400 text-sm mt-1">
+            Solve an engineering problem!
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={toggleSound}
+          aria-label="Toggle sound"
+          className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors shrink-0"
+        >
+          <Volume2
+            className={`w-4 h-4 ${
+              soundEnabled ? 'text-amber-300' : 'text-gray-500'
+            }`}
+          />
+        </button>
       </div>
 
       {/* Challenge */}
@@ -171,9 +231,7 @@ export const AnimalCrossing: React.FC = () => {
 
       {/* Tool Selection */}
       <div className="mb-5">
-        <p className="text-white font-bold text-sm mb-3">
-          Choose your tools
-        </p>
+        <p className="text-white font-bold text-sm mb-3">Choose your tools</p>
 
         <div className="grid grid-cols-2 gap-3">
           {TOOLS.map((tool) => {
@@ -270,9 +328,7 @@ export const AnimalCrossing: React.FC = () => {
             <>
               <div className="flex items-center justify-center gap-2 mb-2">
                 <CheckCircle className="w-5 h-5 text-green-400" />
-                <p className="font-bold text-green-400">
-                  Solution Worked!
-                </p>
+                <p className="font-bold text-green-400">Solution Worked!</p>
               </div>
 
               <p className="text-gray-300 text-sm">

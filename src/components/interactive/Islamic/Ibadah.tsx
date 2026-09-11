@@ -12,6 +12,10 @@ import {
   Heart,
 } from 'lucide-react';
 
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
+
 type LearningMode = 'guided' | 'practice' | 'mastery';
 
 interface IbadahQuestion {
@@ -102,8 +106,7 @@ const LESSONS: IbadahLesson[] = [
         'It is only important at school.',
         'It does not matter.',
       ],
-      answer:
-        'It helps us care for ourselves and prepare for worship.',
+      answer: 'It helps us care for ourselves and prepare for worship.',
       explanation:
         'Islam teaches cleanliness and purification as important parts of a Muslim’s life.',
     },
@@ -139,8 +142,7 @@ const LESSONS: IbadahLesson[] = [
         'A type of food',
         'A type of clothing',
       ],
-      answer:
-        'A purification performed before certain acts of worship',
+      answer: 'A purification performed before certain acts of worship',
       explanation:
         'Wudu is a prescribed purification that Muslims perform before Salah and other acts of worship where it is required.',
     },
@@ -236,8 +238,7 @@ const LESSONS: IbadahLesson[] = [
       question: 'What is Ruku?',
       options: ['Bowing', 'Running', 'Sleeping'],
       answer: 'Bowing',
-      explanation:
-        'Ruku is the bowing position performed during Salah.',
+      explanation: 'Ruku is the bowing position performed during Salah.',
     },
   },
   {
@@ -269,8 +270,7 @@ const LESSONS: IbadahLesson[] = [
         'To begin a race',
       ],
       answer: 'To announce the time for prayer',
-      explanation:
-        'The Adhan is the call to prayer.',
+      explanation: 'The Adhan is the call to prayer.',
     },
   },
   {
@@ -341,13 +341,14 @@ const LESSONS: IbadahLesson[] = [
     introduction:
       'Hajj is the pilgrimage to Makkah and is an obligation for Muslims who are able to perform it.',
     explanation:
-"Children can learn the major ideas of Hajj, including the Ka'bah, Ihram, Tawaf, Sa'i, Arafah, and the meaning of worshipping Allah together.",    steps: [
-  "Learn about the Ka'bah.",
-  'Learn what Ihram means.',
-  'Learn about Tawaf.',
-  "Learn about Sa'i.",
-  'Learn about standing at Arafah.',
-],
+      "Children can learn the major ideas of Hajj, including the Ka'bah, Ihram, Tawaf, Sa'i, Arafah, and the meaning of worshipping Allah together.",
+    steps: [
+      "Learn about the Ka'bah.",
+      'Learn what Ihram means.',
+      'Learn about Tawaf.',
+      "Learn about Sa'i.",
+      'Learn about standing at Arafah.',
+    ],
     keyPoints: [
       'Hajj takes place in Makkah.',
       'Hajj is one of the pillars of Islam.',
@@ -396,8 +397,7 @@ const LESSONS: IbadahLesson[] = [
     title: 'Worship and Good Character',
     emoji: '🌱',
     category: 'Character',
-    introduction:
-      'Worship should help us become better people.',
+    introduction: 'Worship should help us become better people.',
     explanation:
       'A Muslim learns to connect worship with good character: honesty, kindness, patience, respect, forgiveness, and helping others.',
     steps: [
@@ -422,24 +422,6 @@ const LESSONS: IbadahLesson[] = [
   },
 ];
 
-const speakArabic = (text: string) => {
-  if (
-    typeof window === 'undefined' ||
-    !('speechSynthesis' in window)
-  ) {
-    return;
-  }
-
-  window.speechSynthesis.cancel();
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'ar-SA';
-  utterance.rate = 0.72;
-  utterance.pitch = 1;
-
-  window.speechSynthesis.speak(utterance);
-};
-
 const getInitialProgress = (): IbadahProgress[] =>
   LESSONS.map((lesson) => ({
     id: lesson.id,
@@ -453,15 +435,20 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
   const [progress, setProgress] = useState<IbadahProgress[]>(
     getInitialProgress
   );
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(
-    null
-  );
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [answerChecked, setAnswerChecked] = useState(false);
   const [reflectionShown, setReflectionShown] = useState(false);
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [hasFinished, setHasFinished] = useState(false);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  // English narration uses the shared pipeline
+  const { speak } = useReadAloud();
 
   const currentLesson = LESSONS[index];
 
@@ -484,6 +471,22 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
     (masteredCount / LESSONS.length) * 100
   );
 
+  // Arabic still uses its own voice, but gated on soundEnabled
+  const speakArabic = (text: string) => {
+    if (!soundEnabled) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ar-SA';
+    utterance.rate = 0.72;
+    utterance.pitch = 1;
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Reset per-lesson state + auto-read Arabic or English prompt
   useEffect(() => {
     if (!currentLesson) return;
 
@@ -491,25 +494,27 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
     setAnswerChecked(false);
     setReflectionShown(false);
 
-    if (mode !== 'mastery' && currentLesson.arabic) {
-      const timer = window.setTimeout(() => {
-        speakArabic(currentLesson.arabic!);
-      }, 400);
+    if (!autoReadEnabled) return;
 
-      return () => window.clearTimeout(timer);
-    }
-  }, [index, mode, currentLesson]);
-
-  useEffect(() => {
-    return () => {
-      if (
-        typeof window !== 'undefined' &&
-        'speechSynthesis' in window
-      ) {
-        window.speechSynthesis.cancel();
+    const timer = window.setTimeout(() => {
+      if (mode === 'mastery') {
+        speak(`${currentLesson.title}. ${currentLesson.question.question}`);
+      } else if (currentLesson.arabic) {
+        speakArabic(currentLesson.arabic);
       }
-    };
-  }, []);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [index, mode, currentLesson, speak, autoReadEnabled, soundEnabled]);
+
+  // Read the reflection when it opens
+  useEffect(() => {
+    if (!reflectionShown) return;
+
+    speak(
+      'How could this lesson help you become a better Muslim in your everyday life?',
+    );
+  }, [reflectionShown, speak]);
 
   const updateProgress = (
     lessonId: number,
@@ -525,8 +530,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
   const checkAnswer = () => {
     if (!selectedAnswer || answerChecked) return;
 
-    const isCorrect =
-      selectedAnswer === currentLesson.question.answer;
+    const isCorrect = selectedAnswer === currentLesson.question.answer;
 
     const alreadyMastered = currentProgress.mastered;
     const nextAttempts = currentProgress.attempts + 1;
@@ -539,15 +543,24 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
     });
 
     if (isCorrect) {
+      if (soundEnabled) playSoundFeedback('correct');
+
+      speak(`Correct! ${currentLesson.question.explanation}`);
+
       if (!alreadyMastered) {
         const bonus = streak >= 1 ? 5 : 0;
-
         setScore((previous) => previous + 10 + bonus);
       }
 
       setStreak((previous) => previous + 1);
     } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+
       setStreak(0);
+
+      speak(
+        `Keep practising. The correct answer is: ${currentLesson.question.answer}. ${currentLesson.question.explanation}`,
+      );
     }
   };
 
@@ -571,13 +584,14 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
 
     setHasFinished(true);
     onComplete?.(score);
+
+    speak(
+      `Masha'Allah! You mastered ${masteredCount} of ${LESSONS.length} lessons and earned ${score} points.`,
+    );
   };
 
   const reset = () => {
-    if (
-      typeof window !== 'undefined' &&
-      'speechSynthesis' in window
-    ) {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
 
@@ -591,6 +605,8 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
     setStreak(0);
     setIsComplete(false);
     setHasFinished(false);
+
+    speak("Let's learn about worship and Ibadah again!");
   };
 
   if (!currentLesson) {
@@ -626,9 +642,8 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
           </h2>
 
           <p className="mx-auto mt-3 max-w-2xl text-slate-600">
-            You explored the foundations of worship, purification,
-            Salah, fasting, charity, Hajj, dua, dhikr, and good
-            character.
+            You explored the foundations of worship, purification, Salah,
+            fasting, charity, Hajj, dua, dhikr, and good character.
           </p>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -642,9 +657,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
             </div>
 
             <div className="rounded-2xl bg-slate-50 p-5">
-              <div className="text-3xl font-bold text-slate-900">
-                {score}
-              </div>
+              <div className="text-3xl font-bold text-slate-900">{score}</div>
               <div className="mt-1 text-sm text-slate-500">
                 Points earned
               </div>
@@ -654,9 +667,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
               <div className="text-3xl font-bold text-slate-900">
                 {masteryPercentage}%
               </div>
-              <div className="mt-1 text-sm text-slate-500">
-                Mastery
-              </div>
+              <div className="mt-1 text-sm text-slate-500">Mastery</div>
             </div>
           </div>
 
@@ -684,8 +695,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
 
               <li className="flex gap-2">
                 <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                Understand foundational ideas about fasting, zakah,
-                and Hajj.
+                Understand foundational ideas about fasting, zakah, and Hajj.
               </li>
 
               <li className="flex gap-2">
@@ -712,9 +722,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Star className="h-4 w-4" />
-              {hasFinished
-                ? 'Progress Saved'
-                : 'Finish & Move Up'}
+              {hasFinished ? 'Progress Saved' : 'Finish & Move Up'}
             </button>
           </div>
         </motion.div>
@@ -723,8 +731,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
   }
 
   const isCorrect =
-    answerChecked &&
-    selectedAnswer === currentLesson.question.answer;
+    answerChecked && selectedAnswer === currentLesson.question.answer;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
@@ -737,21 +744,19 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
           </div>
 
           <h1 className="mt-1 text-3xl font-bold text-slate-900">
-            Worship & Ibadah
+            Worship &amp; Ibadah
           </h1>
 
           <p className="mt-1 text-sm text-slate-500">
-            Learn how Muslims worship Allah and practise good
-            habits of worship.
+            Learn how Muslims worship Allah and practise good habits of
+            worship.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-slate-100 px-4 py-2 text-sm">
             <span className="text-slate-500">Score:</span>{' '}
-            <span className="font-bold text-slate-900">
-              {score}
-            </span>
+            <span className="font-bold text-slate-900">{score}</span>
           </div>
 
           <div className="rounded-xl bg-emerald-50 px-4 py-2 text-sm">
@@ -760,6 +765,19 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
               {masteredCount}/{LESSONS.length}
             </span>
           </div>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+          >
+            <Volume2
+              className={`w-5 h-5 ${
+                soundEnabled ? 'text-amber-500' : 'text-slate-400'
+              }`}
+            />
+          </button>
         </div>
       </div>
 
@@ -777,9 +795,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
           <motion.div
             className="h-full bg-emerald-500"
             initial={{ width: 0 }}
-            animate={{
-              width: `${((index + 1) / LESSONS.length) * 100}%`,
-            }}
+            animate={{ width: `${((index + 1) / LESSONS.length) * 100}%` }}
             transition={{ duration: 0.3 }}
           />
         </div>
@@ -807,16 +823,24 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
           <button
             key={item.id}
             type="button"
-            onClick={() => setMode(item.id)}
+            onClick={() => {
+              setMode(item.id);
+
+              speak(
+                item.id === 'guided'
+                  ? 'Guided mode. Learn with support.'
+                  : item.id === 'practice'
+                    ? 'Practice mode. Check understanding.'
+                    : 'Mastery mode. Recall independently.',
+              );
+            }}
             className={`rounded-2xl border p-4 text-left transition ${
               mode === item.id
                 ? 'border-emerald-500 bg-emerald-50'
                 : 'border-slate-200 bg-white hover:border-emerald-200'
             }`}
           >
-            <div className="font-semibold text-slate-900">
-              {item.title}
-            </div>
+            <div className="font-semibold text-slate-900">{item.title}</div>
 
             <div className="mt-1 text-xs text-slate-500">
               {item.description}
@@ -834,9 +858,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
       >
         <div className="border-b border-slate-100 bg-slate-50 p-6">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-4xl">
-              {currentLesson.emoji}
-            </span>
+            <span className="text-4xl">{currentLesson.emoji}</span>
 
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
@@ -871,9 +893,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
 
               <button
                 type="button"
-                onClick={() =>
-                  speakArabic(currentLesson.arabic!)
-                }
+                onClick={() => speakArabic(currentLesson.arabic!)}
                 className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
               >
                 <Volume2 className="h-4 w-4" />
@@ -884,9 +904,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
 
           {/* Introduction */}
           <div className="mt-6 rounded-2xl border border-slate-200 p-5">
-            <h3 className="font-semibold text-slate-900">
-              Introduction
-            </h3>
+            <h3 className="font-semibold text-slate-900">Introduction</h3>
 
             <p className="mt-2 leading-7 text-slate-600">
               {currentLesson.introduction}
@@ -906,9 +924,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
 
           {/* Steps */}
           <div className="mt-6">
-            <h3 className="font-semibold text-slate-900">
-              Learning steps
-            </h3>
+            <h3 className="font-semibold text-slate-900">Learning steps</h3>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {currentLesson.steps.map((step, stepIndex) => (
@@ -920,9 +936,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
                     {stepIndex + 1}
                   </div>
 
-                  <p className="text-sm leading-6 text-slate-600">
-                    {step}
-                  </p>
+                  <p className="text-sm leading-6 text-slate-600">{step}</p>
                 </div>
               ))}
             </div>
@@ -937,9 +951,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
               >
                 <CheckCircle className="mb-2 h-4 w-4 text-emerald-600" />
 
-                <p className="text-sm text-slate-600">
-                  {point}
-                </p>
+                <p className="text-sm text-slate-600">{point}</p>
               </div>
             ))}
           </div>
@@ -950,14 +962,11 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="font-semibold text-slate-900">
-                    {mode === 'mastery'
-                      ? 'Mastery Check'
-                      : 'Practice Check'}
+                    {mode === 'mastery' ? 'Mastery Check' : 'Practice Check'}
                   </h3>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    Choose the answer that best shows your
-                    understanding.
+                    Choose the answer that best shows your understanding.
                   </p>
                 </div>
 
@@ -972,10 +981,8 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
                 {currentLesson.question.options.map((option) => {
                   const selected = selectedAnswer === option;
                   const correct =
-                    answerChecked &&
-                    option === currentLesson.question.answer;
-                  const incorrect =
-                    answerChecked && selected && !correct;
+                    answerChecked && option === currentLesson.question.answer;
+                  const incorrect = answerChecked && selected && !correct;
 
                   return (
                     <button
@@ -1021,10 +1028,7 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
                 >
                   <div className="flex items-center gap-2 font-semibold">
                     <CheckCircle className="h-4 w-4" />
-
-                    {isCorrect
-                      ? 'Excellent!'
-                      : 'Keep practicing'}
+                    {isCorrect ? 'Excellent!' : 'Keep practicing'}
                   </div>
 
                   <p className="mt-2 text-sm">
@@ -1055,17 +1059,15 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
                   </div>
 
                   <p className="mt-3 text-slate-600">
-                    How could this lesson help you become a better
-                    Muslim in your everyday life?
+                    How could this lesson help you become a better Muslim in
+                    your everyday life?
                   </p>
 
                   <div className="mt-4 rounded-xl bg-white p-4 text-sm text-slate-600">
-                    <strong className="text-slate-900">
-                      Remember:
-                    </strong>{' '}
-                    Ibadah is not only about knowing information.
-                    We learn so that knowledge can guide our actions,
-                    intentions, and character.
+                    <strong className="text-slate-900">Remember:</strong>{' '}
+                    Ibadah is not only about knowing information. We learn so
+                    that knowledge can guide our actions, intentions, and
+                    character.
                   </div>
                 </div>
               )}
@@ -1099,12 +1101,10 @@ export const Ibadah: React.FC<IbadahProps> = ({ onComplete }) => {
           onClick={nextLesson}
           className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white transition hover:bg-emerald-700"
         >
-          {index === LESSONS.length - 1
-            ? 'Complete'
-            : 'Next Lesson'}
+          {index === LESSONS.length - 1 ? 'Complete' : 'Next Lesson'}
           <ArrowRight className="h-4 w-4" />
         </button>
       </div>
     </div>
   );
-}
+};

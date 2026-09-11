@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle,
@@ -8,7 +8,12 @@ import {
   Ruler,
   Sparkles,
   ArrowRight,
+  Volume2,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type StairPiece = {
   id: number;
@@ -52,7 +57,16 @@ const STAGE_LABELS: Record<ActivityStage, string> = {
   complete: 'Complete',
 };
 
+const STAGE_ORDER_INDEX = (stage: ActivityStage): number =>
+  STAGES.indexOf(stage);
+
 export const BrownStair: React.FC = () => {
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [placed, setPlaced] = useState<number[]>([]);
   const [stage, setStage] = useState<ActivityStage>('observe');
   const [attempts, setAttempts] = useState(0);
@@ -76,11 +90,120 @@ export const BrownStair: React.FC = () => {
     (piece) => !placed.includes(piece.id)
   );
 
+  /* =======================================================
+     AUTO-READ — stage-driven narration
+     Fires when the stage changes. Never on 'complete'
+     (has its own effect below).
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage === 'complete') return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          'The Brown Stair is made of prisms that have the same length but different thicknesses. Your task is to notice the difference in thickness and build the stair from the thickest prism to the thinnest.'
+        );
+      } else if (stage === 'compare') {
+        speak(
+          'Compare two prisms. Select two pieces and look closely at their thickness. Which one is thicker?'
+        );
+      } else if (stage === 'build') {
+        speak(
+          'Build the Brown Stair. Place the thickest prism first, then each thinner piece. Thickest first, thinnest last.'
+        );
+      } else if (stage === 'check') {
+        speak(
+          'Look at your stair. Does it gradually change from the thickest prism to the thinnest prism?'
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, autoReadEnabled, speak]);
+
+  /* =======================================================
+     READ HINT WHEN IT OPENS
+     Gated on soundEnabled so it plays even if auto-read is off.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!showHint) return;
+    if (!soundEnabled) return;
+
+    speak(
+      'Hint. Look at the last prism you placed. Find one that is thinner than it.'
+    );
+  }, [showHint, soundEnabled, speak]);
+
+  /* =======================================================
+     SPEAK SPECIFIC FAILURE REASON
+     When the child places a wrong piece, showHint flips true —
+     but we want the failure message to be specific, not
+     generic. This effect reads the specific reason whenever
+     a wrong piece is placed.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!showHint) return;
+    if (!soundEnabled) return;
+    if (placed.length === 0) return;
+
+    const previousId = placed[placed.length - 1];
+    const previousPiece = PRISMS.find((p) => p.id === previousId);
+    if (!previousPiece) return;
+
+    // The hint effect above already reads the generic message —
+    // this one adds the specific comparison for context.
+    // Skip if the child is just tapping "Need a hint?".
+    const timer = window.setTimeout(() => {
+      speak(
+        `The piece you tried was not thinner than the ${previousPiece.label.toLowerCase()} prism. Try again.`
+      );
+    }, 1600);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showHint]);
+
+  /* =======================================================
+     SUCCESS + COMPLETION
+     Fires once when the stage flips to 'complete'.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'complete') return;
+
+    if (soundEnabled) playSoundFeedback('correct');
+
+    speak(
+      'Brown Stair complete. You successfully ordered the prisms by thickness, from thickest to thinnest. You used your eyes to discriminate differences in thickness and arranged objects in a gradual sequence. This kind of activity prepares the mind for ordering, comparison, measurement, and mathematical thinking.'
+    );
+  }, [stage, speak, soundEnabled]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const handleStart = () => {
     setStage('compare');
+    if (soundEnabled) playSoundFeedback('move');
   };
 
   const handleComparison = (id: number) => {
+    if (soundEnabled) playSoundFeedback('move');
+
     setSelectedForComparison((current) => {
       if (current.includes(id)) {
         return current.filter((pieceId) => pieceId !== id);
@@ -97,6 +220,7 @@ export const BrownStair: React.FC = () => {
   const startBuilding = () => {
     setSelectedForComparison([]);
     setStage('build');
+    if (soundEnabled) playSoundFeedback('move');
   };
 
   const handlePlace = (id: number) => {
@@ -105,11 +229,15 @@ export const BrownStair: React.FC = () => {
     if (placed.length === 0) {
       if (id !== 10) {
         setShowHint(true);
+        // Narration handled by the hint effect.
         return;
       }
 
       setPlaced([id]);
       setShowHint(false);
+
+      if (soundEnabled) playSoundFeedback('move');
+      speak(`The ${PRISMS.find((p) => p.id === id)?.label.toLowerCase()} prism. Good start.`);
       return;
     }
 
@@ -117,6 +245,7 @@ export const BrownStair: React.FC = () => {
 
     if (id >= previousId) {
       setShowHint(true);
+      // Specific failure message handled by the effect above.
       return;
     }
 
@@ -124,6 +253,13 @@ export const BrownStair: React.FC = () => {
 
     setPlaced(nextPlaced);
     setShowHint(false);
+
+    if (soundEnabled) playSoundFeedback('move');
+
+    const piece = PRISMS.find((p) => p.id === id);
+    if (piece) {
+      speak(piece.label);
+    }
 
     if (nextPlaced.length === PRISMS.length) {
       setStage('check');
@@ -144,6 +280,7 @@ export const BrownStair: React.FC = () => {
   };
 
   const reset = () => {
+    stopSpeaking();
     setPlaced([]);
     setStage('observe');
     setAttempts(0);
@@ -154,6 +291,10 @@ export const BrownStair: React.FC = () => {
   const selectedPieces = selectedForComparison
     .map((id) => PRISMS.find((piece) => piece.id === id))
     .filter(Boolean) as StairPiece[];
+
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
     <div className="max-w-3xl mx-auto bg-app-card p-5 md:p-7 rounded-3xl border border-app-border shadow-xl">
@@ -175,13 +316,26 @@ export const BrownStair: React.FC = () => {
           </div>
         </div>
 
-        <button
-          onClick={reset}
-          aria-label="Reset activity"
-          className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
+          </button>
+
+          <button
+            onClick={reset}
+            aria-label="Reset activity"
+            className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Learning sequence */}
@@ -269,7 +423,7 @@ export const BrownStair: React.FC = () => {
             onClick={handleStart}
             className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-colors"
           >
-            I’m Ready to Compare
+            I'm Ready to Compare
             <ArrowRight className="w-4 h-4 inline ml-2" />
           </button>
         </motion.div>
@@ -595,10 +749,3 @@ export const BrownStair: React.FC = () => {
     </div>
   );
 };
-
-/**
- * Small helper used only for displaying the stage labels.
- * Keeping this separate makes the JSX easier to read.
- */
-const STAGE_ORDER_INDEX = (stage: ActivityStage): number =>
-  STAGES.indexOf(stage);

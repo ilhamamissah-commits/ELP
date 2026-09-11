@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -12,9 +12,14 @@ import {
   Store,
   Target,
   Trophy,
+  Volume2,
   Wallet,
   XCircle,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type LevelId =
   | 'money'
@@ -103,7 +108,8 @@ const MONEY_QUESTIONS: Question[] = [
     emoji: '🪙',
   },
   {
-    question: 'You have GH₵10 and receive another GH₵5. How much do you have now?',
+    question:
+      'You have GH₵10 and receive another GH₵5. How much do you have now?',
     options: ['GH₵15', 'GH₵10', 'GH₵5'],
     answer: 0,
     explanation: '10 + 5 = GH₵15.',
@@ -134,7 +140,8 @@ const SHOPPING_QUESTIONS: Question[] = [
     emoji: '🍎',
   },
   {
-    question: 'You have GH₵20. A book costs GH₵15. What should you check before buying it?',
+    question:
+      'You have GH₵20. A book costs GH₵15. What should you check before buying it?',
     options: [
       'Whether you have enough money',
       'Whether your friend likes it',
@@ -145,25 +152,29 @@ const SHOPPING_QUESTIONS: Question[] = [
     emoji: '📚',
   },
   {
-    question: 'You want two toys, but you only have enough money for one. What is a smart choice?',
+    question:
+      'You want two toys, but you only have enough money for one. What is a smart choice?',
     options: [
       'Buy both anyway',
       'Choose one and save the rest',
       'Take them without paying',
     ],
     answer: 1,
-    explanation: 'A smart shopper makes choices based on what they can afford.',
+    explanation:
+      'A smart shopper makes choices based on what they can afford.',
     emoji: '🛒',
   },
   {
-    question: 'Which question can help you decide if something is a WANT?',
+    question:
+      'Which question can help you decide if something is a WANT?',
     options: [
       'Do I need this to stay healthy and safe?',
       'Is it my favourite colour?',
       'Is it expensive?',
     ],
     answer: 0,
-    explanation: 'Needs help us live safely and healthily. Wants are things we would like to have.',
+    explanation:
+      'Needs help us live safely and healthily. Wants are things we would like to have.',
     emoji: '🤔',
   },
 ];
@@ -177,11 +188,13 @@ const SAVING_QUESTIONS: Question[] = [
       'Because spending is always bad',
     ],
     answer: 0,
-    explanation: 'Saving helps us prepare for something we want or need in the future.',
+    explanation:
+      'Saving helps us prepare for something we want or need in the future.',
     emoji: '🎯',
   },
   {
-    question: 'You save GH₵5 each week. How much will you have after 3 weeks?',
+    question:
+      'You save GH₵5 each week. How much will you have after 3 weeks?',
     options: ['GH₵10', 'GH₵15', 'GH₵20'],
     answer: 1,
     explanation: '5 + 5 + 5 = GH₵15.',
@@ -199,7 +212,8 @@ const SAVING_QUESTIONS: Question[] = [
     emoji: '🎒',
   },
   {
-    question: 'You receive GH₵10. You decide to save GH₵3. How much can you spend?',
+    question:
+      'You receive GH₵10. You decide to save GH₵3. How much can you spend?',
     options: ['GH₵3', 'GH₵7', 'GH₵10'],
     answer: 1,
     explanation: '10 − 3 = GH₵7 available to spend.',
@@ -209,7 +223,8 @@ const SAVING_QUESTIONS: Question[] = [
 
 const BUDGET_QUESTIONS: Question[] = [
   {
-    question: 'You have GH₵50. You spend GH₵20 on food. How much remains?',
+    question:
+      'You have GH₵50. You spend GH₵20 on food. How much remains?',
     options: ['GH₵20', 'GH₵30', 'GH₵70'],
     answer: 1,
     explanation: '50 − 20 = GH₵30.',
@@ -227,7 +242,8 @@ const BUDGET_QUESTIONS: Question[] = [
     emoji: '📝',
   },
   {
-    question: 'You have GH₵40. You want a book for GH₵15 and a snack for GH₵5. How much remains?',
+    question:
+      'You have GH₵40. You want a book for GH₵15 and a snack for GH₵5. How much remains?',
     options: ['GH₵10', 'GH₵20', 'GH₵30'],
     answer: 1,
     explanation: '15 + 5 = 20. Then 40 − 20 = GH₵20.',
@@ -241,7 +257,8 @@ const BUDGET_QUESTIONS: Question[] = [
       'Buy everything you want',
     ],
     answer: 1,
-    explanation: 'A budget is a plan that helps you make thoughtful money decisions.',
+    explanation:
+      'A budget is a plan that helps you make thoughtful money decisions.',
     emoji: '🧠',
   },
 ];
@@ -255,18 +272,22 @@ const BUSINESS_QUESTIONS: Question[] = [
       'A customer who has already paid',
     ],
     answer: 0,
-    explanation: 'You need supplies before you can make and sell your product.',
+    explanation:
+      'You need supplies before you can make and sell your product.',
     emoji: '🧃',
   },
   {
-    question: 'You spend GH₵20 making products and sell them for GH₵35. What is your profit?',
+    question:
+      'You spend GH₵20 making products and sell them for GH₵35. What is your profit?',
     options: ['GH₵15', 'GH₵20', 'GH₵55'],
     answer: 0,
-    explanation: 'Profit = money earned − money spent. GH₵35 − GH₵20 = GH₵15.',
+    explanation:
+      'Profit = money earned − money spent. GH₵35 − GH₵20 = GH₵15.',
     emoji: '📈',
   },
   {
-    question: 'A customer pays GH₵20 for something that costs GH₵12. What change should they receive?',
+    question:
+      'A customer pays GH₵20 for something that costs GH₵12. What change should they receive?',
     options: ['GH₵6', 'GH₵8', 'GH₵10'],
     answer: 1,
     explanation: '20 − 12 = GH₵8 change.',
@@ -280,14 +301,16 @@ const BUSINESS_QUESTIONS: Question[] = [
       'Spending all the money immediately',
     ],
     answer: 0,
-    explanation: 'Understanding costs and sales helps a business make better decisions.',
+    explanation:
+      'Understanding costs and sales helps a business make better decisions.',
     emoji: '🏪',
   },
 ];
 
 const CHALLENGE_QUESTIONS: Question[] = [
   {
-    question: 'You have GH₵50. You save GH₵10 and spend GH₵25. How much remains?',
+    question:
+      'You have GH₵50. You save GH₵10 and spend GH₵25. How much remains?',
     options: ['GH₵10', 'GH₵15', 'GH₵25'],
     answer: 1,
     explanation: '50 − 10 − 25 = GH₵15.',
@@ -301,11 +324,13 @@ const CHALLENGE_QUESTIONS: Question[] = [
       'Borrow money for every want',
     ],
     answer: 1,
-    explanation: 'Planning, saving and thoughtful spending are important money habits.',
+    explanation:
+      'Planning, saving and thoughtful spending are important money habits.',
     emoji: '🧠',
   },
   {
-    question: 'A business earns GH₵60 and spends GH₵40. What is its profit?',
+    question:
+      'A business earns GH₵60 and spends GH₵40. What is its profit?',
     options: ['GH₵20', 'GH₵40', 'GH₵100'],
     answer: 0,
     explanation: 'GH₵60 − GH₵40 = GH₵20 profit.',
@@ -319,7 +344,8 @@ const CHALLENGE_QUESTIONS: Question[] = [
       'Because saving means never buying anything',
     ],
     answer: 0,
-    explanation: 'Savings can help us prepare for future goals and unexpected needs.',
+    explanation:
+      'Savings can help us prepare for future goals and unexpected needs.',
     emoji: '🌱',
   },
 ];
@@ -333,18 +359,10 @@ const QUESTIONS_BY_LEVEL: Record<LevelId, Question[]> = {
   challenge: CHALLENGE_QUESTIONS,
 };
 
-const getLevelIndex = (id: LevelId) =>
-  LEVELS.findIndex((level) => level.id === id);
-
 const getColorClasses = (color: string) => {
   const colors: Record<
     string,
-    {
-      bg: string;
-      border: string;
-      text: string;
-      soft: string;
-    }
+    { bg: string; border: string; text: string; soft: string }
   > = {
     amber: {
       bg: 'bg-amber-500',
@@ -387,10 +405,20 @@ const getColorClasses = (color: string) => {
   return colors[color] ?? colors.amber;
 };
 
+/* ============================================================
+   HUB COMPONENT
+   ============================================================ */
+
 export const FinanceAcademy: React.FC = () => {
   const [selectedLevel, setSelectedLevel] = useState<LevelId | null>(null);
   const [completedLevels, setCompletedLevels] = useState<LevelId[]>([]);
   const [xp, setXp] = useState(0);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
 
   const totalLevels = LEVELS.length;
 
@@ -401,6 +429,19 @@ export const FinanceAcademy: React.FC = () => {
     }).map((level) => level.id);
   }, [completedLevels]);
 
+  /* Auto-read the academy intro on the hub view */
+  useEffect(() => {
+    if (!autoReadEnabled || selectedLevel !== null) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        'Finance Academy. Learn how money works through play and discovery.',
+      );
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [selectedLevel, speak, autoReadEnabled]);
+
   const handleLevelComplete = (levelId: LevelId, earnedXp: number) => {
     setXp((current) => current + earnedXp);
 
@@ -409,6 +450,10 @@ export const FinanceAcademy: React.FC = () => {
     );
 
     setSelectedLevel(null);
+
+    speak(
+      `Level complete! You earned ${earnedXp} XP. Well done!`,
+    );
   };
 
   if (selectedLevel) {
@@ -419,9 +464,7 @@ export const FinanceAcademy: React.FC = () => {
         <FinanceLevel
           level={level}
           onBack={() => setSelectedLevel(null)}
-          onComplete={(earnedXp) =>
-            handleLevelComplete(level.id, earnedXp)
-          }
+          onComplete={(earnedXp) => handleLevelComplete(level.id, earnedXp)}
         />
       );
     }
@@ -479,6 +522,19 @@ export const FinanceAcademy: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="px-4 py-3 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                className={`w-5 h-5 ${
+                  soundEnabled ? 'text-amber-300' : 'text-gray-500'
+                }`}
+              />
+            </button>
           </div>
         </div>
 
@@ -515,7 +571,10 @@ export const FinanceAcademy: React.FC = () => {
               whileHover={isUnlocked ? { y: -2 } : undefined}
               whileTap={isUnlocked ? { scale: 0.99 } : undefined}
               disabled={!isUnlocked}
-              onClick={() => setSelectedLevel(level.id)}
+              onClick={() => {
+                if (soundEnabled) playSoundFeedback('move');
+                setSelectedLevel(level.id);
+              }}
               className={`w-full text-left rounded-3xl border p-5 md:p-6 transition-all ${
                 isUnlocked
                   ? `${colors.border} ${colors.soft} hover:bg-white/[0.04]`
@@ -588,6 +647,10 @@ export const FinanceAcademy: React.FC = () => {
   );
 };
 
+/* ============================================================
+   LEVEL SUB-COMPONENT
+   ============================================================ */
+
 interface FinanceLevelProps {
   level: Level;
   onBack: () => void;
@@ -607,9 +670,25 @@ const FinanceLevel: React.FC<FinanceLevelProps> = ({
     useState<ActivityState>('playing');
   const [correctAnswers, setCorrectAnswers] = useState(0);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+
+  const { speak } = useReadAloud();
+
   const currentQuestion = questions[questionIndex];
 
   const colors = getColorClasses(level.color);
+
+  /* Auto-read the question when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled || !currentQuestion) return;
+
+    const timer = window.setTimeout(() => {
+      speak(currentQuestion.question);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [questionIndex, currentQuestion, speak, autoReadEnabled]);
 
   const handleAnswer = (index: number) => {
     if (selected !== null || activityState !== 'playing') return;
@@ -617,10 +696,14 @@ const FinanceLevel: React.FC<FinanceLevelProps> = ({
     setSelected(index);
 
     if (index === currentQuestion.answer) {
+      if (soundEnabled) playSoundFeedback('correct');
       setActivityState('correct');
       setCorrectAnswers((current) => current + 1);
+      speak(`Great thinking! ${currentQuestion.explanation}`);
     } else {
+      if (soundEnabled) playSoundFeedback('try-again');
       setActivityState('incorrect');
+      speak(`Let's learn from this one. ${currentQuestion.explanation}`);
     }
   };
 
@@ -631,7 +714,6 @@ const FinanceLevel: React.FC<FinanceLevelProps> = ({
 
     if (isLastQuestion) {
       const earnedXp = correctAnswers * 10;
-
       onComplete(earnedXp);
       return;
     }
@@ -646,6 +728,8 @@ const FinanceLevel: React.FC<FinanceLevelProps> = ({
     setSelected(null);
     setActivityState('playing');
     setCorrectAnswers(0);
+
+    speak('Level restarted.');
   };
 
   const progress =
@@ -681,9 +765,7 @@ const FinanceLevel: React.FC<FinanceLevelProps> = ({
           Learning objective
         </p>
 
-        <p className="text-white text-sm md:text-base">
-          {level.objective}
-        </p>
+        <p className="text-white text-sm md:text-base">{level.objective}</p>
       </motion.div>
 
       {/* Progress */}
@@ -746,14 +828,10 @@ const FinanceLevel: React.FC<FinanceLevelProps> = ({
                 isSelected &&
                 !isCorrect
               ) {
-                optionClass =
-                  'bg-red-500/10 border-red-500 text-red-400';
+                optionClass = 'bg-red-500/10 border-red-500 text-red-400';
               }
 
-              if (
-                activityState === 'incorrect' &&
-                isCorrect
-              ) {
+              if (activityState === 'incorrect' && isCorrect) {
                 optionClass =
                   'bg-green-500/10 border-green-500 text-green-400';
               }
@@ -761,12 +839,8 @@ const FinanceLevel: React.FC<FinanceLevelProps> = ({
               return (
                 <motion.button
                   key={option}
-                  whileHover={
-                    selected === null ? { scale: 1.01 } : undefined
-                  }
-                  whileTap={
-                    selected === null ? { scale: 0.99 } : undefined
-                  }
+                  whileHover={selected === null ? { scale: 1.01 } : undefined}
+                  whileTap={selected === null ? { scale: 0.99 } : undefined}
                   onClick={() => handleAnswer(index)}
                   disabled={selected !== null}
                   className={`w-full p-4 rounded-2xl border-2 text-left font-semibold transition-all ${optionClass}`}
@@ -778,16 +852,13 @@ const FinanceLevel: React.FC<FinanceLevelProps> = ({
 
                     <span>{option}</span>
 
-                    {activityState !== 'playing' &&
-                      isCorrect && (
-                        <CheckCircle2 className="w-5 h-5 ml-auto" />
-                      )}
+                    {activityState !== 'playing' && isCorrect && (
+                      <CheckCircle2 className="w-5 h-5 ml-auto" />
+                    )}
 
                     {activityState === 'incorrect' &&
                       isSelected &&
-                      !isCorrect && (
-                        <XCircle className="w-5 h-5 ml-auto" />
-                      )}
+                      !isCorrect && <XCircle className="w-5 h-5 ml-auto" />}
                   </div>
                 </motion.button>
               );

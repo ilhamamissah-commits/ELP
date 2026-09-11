@@ -19,7 +19,7 @@ import {
   STORY_CURRICULUM,
   StoryData,
 } from '../../../data/storyCurriculum';
-import { speakWord } from '../../../services/audioEngine';
+import { useReadAloud } from '../../../hooks/useReadAloud';
 import { useProgressStore } from '../../../store/useProgressStore';
 
 type ReaderMode = 'reading' | 'quiz';
@@ -63,32 +63,28 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
 
   const timerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
+  // ✅ NEW: Universal read aloud hook
+  const { speak } = useReadAloud();
+
   const completeActivity = useProgressStore(
     (state) => state.completeActivity,
   );
 
-  const currentStory: StoryData =
-    STORY_CURRICULUM[currentStoryIndex];
-
+  const currentStory: StoryData = STORY_CURRICULUM[currentStoryIndex];
   const totalPages = currentStory.pages.length;
-
   const isLastPage = currentPage === totalPages - 1;
-
-  const currentQuestion =
-    currentStory.questions[quizIndex];
+  const currentQuestion = currentStory.questions[quizIndex];
 
   const clearTimers = useCallback(() => {
     timerIdsRef.current.forEach((timerId) => {
       clearTimeout(timerId);
     });
-
     timerIdsRef.current = [];
   }, []);
 
   useEffect(() => {
     return () => {
       clearTimers();
-
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -96,40 +92,53 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
   }, [clearTimers]);
 
   /*
-   * Speak a story page whenever the learner moves to a new page.
+   * AUTO-READ: Speak a story page whenever the learner moves to a new page.
    */
   useEffect(() => {
-    if (mode !== 'reading') {
-      return;
-    }
+    if (mode !== 'reading') return;
 
     clearTimers();
-
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
 
-    speakWord(currentStory.pages[currentPage].text, {
-      rate: 0.8,
-    });
+    const timer = window.setTimeout(() => {
+      speak(currentStory.pages[currentPage].text, { rate: 0.8 });
+    }, 400);
+
+    timerIdsRef.current.push(timer);
+
+    return () => window.clearTimeout(timer);
   }, [
     clearTimers,
     currentPage,
     currentStory.pages,
     mode,
+    speak,
   ]);
 
+  /*
+   * AUTO-READ: Speak the question when quiz starts.
+   */
+  useEffect(() => {
+    if (mode !== 'quiz' || !currentQuestion) return;
+
+    clearTimers();
+
+    const timer = window.setTimeout(() => {
+      speak(currentQuestion.question, { rate: 0.85 });
+    }, 400);
+
+    timerIdsRef.current.push(timer);
+
+    return () => window.clearTimeout(timer);
+  }, [clearTimers, mode, quizIndex, currentQuestion, speak]);
+
   const handleReadCurrentPage = useCallback(() => {
-  const page = currentStory.pages[currentPage];
-
-  if (!page) {
-    return;
-  }
-
-  speakWord(page.text, {
-    rate: 0.8,
-  });
-}, [currentPage, currentStory.pages]);
+    const page = currentStory.pages[currentPage];
+    if (!page) return;
+    speak(page.text, { rate: 0.8 });
+  }, [currentPage, currentStory.pages, speak]);
 
   const handleNextPage = useCallback(() => {
     if (!isLastPage) {
@@ -138,7 +147,6 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
     }
 
     clearTimers();
-
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -147,7 +155,9 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
     setQuizIndex(0);
     setSelectedAnswer(null);
     setShowFeedback(false);
-  }, [clearTimers, isLastPage]);
+
+    speak("Let's answer some questions about the story.");
+  }, [clearTimers, isLastPage, speak]);
 
   const handlePreviousPage = useCallback(() => {
     if (mode === 'quiz') {
@@ -164,35 +174,31 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
 
   const handleAnswer = useCallback(
     (answer: string) => {
-      if (showFeedback || !currentQuestion) {
-        return;
-      }
+      if (showFeedback || !currentQuestion) return;
 
       setSelectedAnswer(answer);
       setShowFeedback(true);
 
-      const isCorrect =
-        answer === currentQuestion.answer;
+      const isCorrect = answer === currentQuestion.answer;
 
       if (isCorrect) {
         setStoryScore((previousScore) => previousScore + 10);
         setSessionScore((previousScore) => previousScore + 10);
+        speak('Correct! Well done!');
+      } else {
+        speak(`Not quite. The correct answer is ${currentQuestion.answer}.`);
       }
     },
-    [currentQuestion, showFeedback],
+    [currentQuestion, showFeedback, speak],
   );
 
   const finishCurrentStory = useCallback(() => {
-    const storyId =
-      `${STORY_ACTIVITY_PREFIX}${currentStory.id}`;
-
+    const storyId = `${STORY_ACTIVITY_PREFIX}${currentStory.id}`;
     const questionCount = currentStory.questions.length;
 
     const normalizedStoryScore =
       questionCount > 0
-        ? Math.round(
-            (storyScore / (questionCount * 10)) * 100,
-          )
+        ? Math.round((storyScore / (questionCount * 10)) * 100)
         : 100;
 
     completeActivity({
@@ -204,10 +210,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
     });
 
     setCompletedStories((previous) => {
-      if (previous.includes(currentStory.id)) {
-        return previous;
-      }
-
+      if (previous.includes(currentStory.id)) return previous;
       return [...previous, currentStory.id];
     });
   }, [
@@ -218,49 +221,33 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
   ]);
 
   const handleNextQuestion = useCallback(() => {
-    if (!showFeedback) {
-      return;
-    }
+    if (!showFeedback) return;
 
-    if (
-      quizIndex <
-      currentStory.questions.length - 1
-    ) {
+    if (quizIndex < currentStory.questions.length - 1) {
       setQuizIndex((previousIndex) => previousIndex + 1);
       setSelectedAnswer(null);
       setShowFeedback(false);
       return;
     }
 
-    /*
-     * The final question has been answered.
-     * Record this story as completed before moving on.
-     */
     finishCurrentStory();
 
     const isFinalStory =
-      currentStoryIndex ===
-      STORY_CURRICULUM.length - 1;
+      currentStoryIndex === STORY_CURRICULUM.length - 1;
 
     if (isFinalStory) {
       setLessonComplete(true);
 
-      /*
-       * sessionScore does not yet include the final answer
-       * because React state updates are asynchronous.
-       */
       const finalSessionScore =
         sessionScore +
         (selectedAnswer === currentQuestion.answer ? 10 : 0);
 
+      speak('Congratulations! You finished all the stories!');
       onComplete?.(finalSessionScore);
       return;
     }
 
-    setCurrentStoryIndex(
-      (previousIndex) => previousIndex + 1,
-    );
-
+    setCurrentStoryIndex((previousIndex) => previousIndex + 1);
     setCurrentPage(0);
     setMode('reading');
     setQuizIndex(0);
@@ -277,11 +264,11 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
     selectedAnswer,
     sessionScore,
     showFeedback,
+    speak,
   ]);
 
   const handleRestart = useCallback(() => {
     clearTimers();
-
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -298,23 +285,15 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
     setLessonComplete(false);
   }, [clearTimers]);
 
-  /*
-   * Keep the question options simple while the curriculum
-   * currently provides only the correct answer.
-   */
   const questionOptions = useMemo(
-    () => [
-      currentQuestion.answer,
-      'Something else',
-    ],
+    () => [currentQuestion.answer, 'Something else'],
     [currentQuestion.answer],
   );
 
   const storyProgress =
     STORY_CURRICULUM.length > 0
       ? Math.round(
-          ((currentStoryIndex +
-            (mode === 'quiz' ? 1 : 0)) /
+          ((currentStoryIndex + (mode === 'quiz' ? 1 : 0)) /
             STORY_CURRICULUM.length) *
             100,
         )
@@ -322,9 +301,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
 
   const pageProgress =
     totalPages > 0
-      ? Math.round(
-          ((currentPage + 1) / totalPages) * 100,
-        )
+      ? Math.round(((currentPage + 1) / totalPages) * 100)
       : 0;
 
   if (lessonComplete) {
@@ -340,11 +317,9 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
 
         <div className="mb-2 flex items-center justify-center gap-2 text-emerald-300">
           <Sparkles className="h-5 w-5" />
-
           <span className="text-sm font-semibold uppercase tracking-wider">
             Reading Practice Complete
           </span>
-
           <Sparkles className="h-5 w-5" />
         </div>
 
@@ -353,9 +328,9 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
         </h3>
 
         <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-gray-400">
-          You read through the story collection and
-          practised understanding what you read by
-          answering comprehension questions.
+          You read through the story collection and practised
+          understanding what you read by answering comprehension
+          questions.
         </p>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
@@ -363,7 +338,6 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             <div className="text-2xl font-bold text-white">
               {completedStories.length}
             </div>
-
             <div className="mt-1 text-xs text-gray-500">
               Stories completed
             </div>
@@ -373,7 +347,6 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             <div className="text-2xl font-bold text-white">
               {sessionScore}
             </div>
-
             <div className="mt-1 text-xs text-gray-500">
               Session points
             </div>
@@ -401,25 +374,33 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             <p className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
               Reading • Stories
             </p>
-
             <h3 className="mt-1 flex items-center gap-2 text-xl font-bold text-white">
               <BookOpen className="h-5 w-5 text-indigo-400" />
               Story Reader
             </h3>
           </div>
 
-          <span className="shrink-0 rounded-full bg-indigo-500/15 px-3 py-1.5 text-xs font-semibold text-indigo-300">
-            Level {currentStory.level}
-          </span>
+          <div className="flex items-center gap-2">
+            {/* ✅ Read Aloud current page */}
+            <button
+              type="button"
+              onClick={handleReadCurrentPage}
+              aria-label="Read this page aloud"
+              className="p-2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white transition"
+            >
+              <Volume2 className="w-4 h-4" />
+            </button>
+
+            <span className="shrink-0 rounded-full bg-indigo-500/15 px-3 py-1.5 text-xs font-semibold text-indigo-300">
+              Level {currentStory.level}
+            </span>
+          </div>
         </div>
 
         {/* Overall Progress */}
         <div className="mt-5">
           <div className="mb-2 flex items-center justify-between text-xs">
-            <span className="text-gray-400">
-              Story progression
-            </span>
-
+            <span className="text-gray-400">Story progression</span>
             <span className="font-semibold text-gray-300">
               {storyProgress}%
             </span>
@@ -436,9 +417,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             <motion.div
               className="h-full rounded-full bg-indigo-500"
               initial={{ width: 0 }}
-              animate={{
-                width: `${storyProgress}%`,
-              }}
+              animate={{ width: `${storyProgress}%` }}
               transition={{ duration: 0.4 }}
             />
           </div>
@@ -447,10 +426,8 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
         {/* Story Counter */}
         <div className="mt-3 flex items-center justify-between text-xs">
           <span className="text-gray-500">
-            Story {currentStoryIndex + 1} of{' '}
-            {STORY_CURRICULUM.length}
+            Story {currentStoryIndex + 1} of {STORY_CURRICULUM.length}
           </span>
-
           <span className="font-semibold text-yellow-400">
             ⭐ {sessionScore}
           </span>
@@ -484,18 +461,9 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           <AnimatePresence mode="wait">
             <motion.div
               key={`${currentStoryIndex}-${currentPage}`}
-              initial={{
-                opacity: 0,
-                y: 18,
-              }}
-              animate={{
-                opacity: 1,
-                y: 0,
-              }}
-              exit={{
-                opacity: 0,
-                y: -18,
-              }}
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -18 }}
               transition={{ duration: 0.25 }}
               className="min-h-[170px] text-center"
             >
@@ -511,10 +479,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
               <span className="text-gray-500">
                 Page {currentPage + 1} of {totalPages}
               </span>
-
-              <span className="text-gray-500">
-                {pageProgress}%
-              </span>
+              <span className="text-gray-500">{pageProgress}%</span>
             </div>
 
             <div
@@ -528,9 +493,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
               <motion.div
                 className="h-full rounded-full bg-emerald-500"
                 initial={{ width: 0 }}
-                animate={{
-                  width: `${pageProgress}%`,
-                }}
+                animate={{ width: `${pageProgress}%` }}
               />
             </div>
           </div>
@@ -548,7 +511,6 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             <span className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
               Reading Comprehension
             </span>
-
             <h3 className="mt-2 text-xl font-bold text-white">
               Question {quizIndex + 1} of{' '}
               {currentStory.questions.length}
@@ -565,23 +527,19 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
             {questionOptions.map((answer) => {
               const isCorrectAnswer =
                 answer === currentQuestion.answer;
-
-              const isSelected =
-                selectedAnswer === answer;
+              const isSelected = selectedAnswer === answer;
 
               let answerClass =
                 'border-gray-700 bg-gray-800 text-gray-300 hover:border-gray-500';
 
               if (showFeedback && isCorrectAnswer) {
-                answerClass =
-                  'border-green-400 bg-green-600 text-white';
+                answerClass = 'border-green-400 bg-green-600 text-white';
               } else if (
                 showFeedback &&
                 isSelected &&
                 !isCorrectAnswer
               ) {
-                answerClass =
-                  'border-red-400 bg-red-600 text-white';
+                answerClass = 'border-red-400 bg-red-600 text-white';
               }
 
               return (
@@ -602,34 +560,23 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
           <AnimatePresence>
             {showFeedback && (
               <motion.div
-                initial={{
-                  opacity: 0,
-                  y: 8,
-                }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                }}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
                 className="mt-5 text-center"
               >
-                {selectedAnswer ===
-                currentQuestion.answer ? (
+                {selectedAnswer === currentQuestion.answer ? (
                   <div className="flex flex-col items-center">
                     <div className="flex items-center gap-2 font-bold text-green-400">
                       <CheckCircle2 className="h-5 w-5" />
                       Correct! +10 points
                     </div>
-
                     <p className="mt-1 text-xs text-gray-500">
                       Great reading comprehension.
                     </p>
                   </div>
                 ) : (
                   <div>
-                    <p className="font-bold text-red-400">
-                      Not quite.
-                    </p>
-
+                    <p className="font-bold text-red-400">Not quite.</p>
                     <p className="mt-1 text-sm text-gray-400">
                       Correct answer:{' '}
                       <span className="font-semibold text-white">
@@ -644,11 +591,9 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
                   onClick={handleNextQuestion}
                   className="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-2.5 font-bold text-white transition hover:bg-indigo-500"
                 >
-                  {quizIndex <
-                  currentStory.questions.length - 1
+                  {quizIndex < currentStory.questions.length - 1
                     ? 'Next Question'
-                    : currentStoryIndex <
-                        STORY_CURRICULUM.length - 1
+                    : currentStoryIndex < STORY_CURRICULUM.length - 1
                       ? 'Next Story'
                       : 'Finish Reading'}
                   <ArrowRight className="h-4 w-4" />
@@ -664,9 +609,7 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
         <button
           type="button"
           onClick={handlePreviousPage}
-          disabled={
-            mode === 'reading' && currentPage === 0
-          }
+          disabled={mode === 'reading' && currentPage === 0}
           className="inline-flex items-center gap-2 rounded-xl bg-gray-800 px-4 py-2.5 font-bold text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -700,13 +643,9 @@ export const StoryReader: React.FC<StoryReaderProps> = ({
       <div className="mt-6 flex justify-center gap-1.5">
         {STORY_CURRICULUM.slice(
           Math.max(0, currentStoryIndex - 4),
-          Math.min(
-            STORY_CURRICULUM.length,
-            currentStoryIndex + 5,
-          ),
+          Math.min(STORY_CURRICULUM.length, currentStoryIndex + 5),
         ).map((story, index) => {
-          const actualIndex =
-            Math.max(0, currentStoryIndex - 4) + index;
+          const actualIndex = Math.max(0, currentStoryIndex - 4) + index;
 
           return (
             <div

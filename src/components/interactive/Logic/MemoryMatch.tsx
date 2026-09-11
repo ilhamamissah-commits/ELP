@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   ArrowRight,
@@ -8,16 +8,21 @@ import {
   RotateCcw,
   Star,
   Target,
-} from "lucide-react";
+  Volume2,
+} from 'lucide-react';
 
-type LearningMode = "guided" | "practice" | "mastery";
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
+
+type LearningMode = 'guided' | 'practice' | 'mastery';
 
 type MemoryLevel = {
   id: number;
   name: string;
   pairs: number;
   gridCols: number;
-  difficulty: "Easy" | "Medium" | "Hard";
+  difficulty: 'Easy' | 'Medium' | 'Hard';
   skill: string;
   objective: string;
   strategy: string;
@@ -39,155 +44,68 @@ type Card = {
 };
 
 const EMOJI_BANK = [
-  "🍎",
-  "🍌",
-  "🐶",
-  "🐱",
-  "🚗",
-  "🎈",
-  "⭐",
-  "🌙",
-  "🐟",
-  "🌸",
-  "🍓",
-  "🍊",
-  "🐸",
-  "🦋",
-  "🚀",
-  "🎁",
-  "⚽",
-  "🎨",
-  "🍕",
-  "🧸",
-  "🍔",
-  "🍟",
-  "🐷",
-  "🐰",
-  "🚲",
-  "✈️",
-  "🎵",
-  "🌈",
-  "🍦",
-  "🐧",
-  "🥕",
-  "🌽",
-  "🐢",
-  "🦁",
-  "🚢",
-  "🪁",
-  "🎮",
-  "📚",
-  "🍪",
-  "🐝",
-  "🍇",
-  "🍒",
-  "🦄",
-  "🐬",
-  "🚜",
-  "🛸",
-  "🎪",
-  "🎸",
-  "🍬",
-  "🦉",
-  "🥦",
-  "🍄",
-  "🦚",
-  "🐊",
-  "🚁",
-  "🛴",
-  "🎺",
-  "🍩",
-  "🐙",
-  "🍍",
-  "🥝",
-  "🦩",
-  "🐋",
-  "🚃",
-  "🛶",
-  "🎤",
-  "🎬",
-  "🍫",
-  "🐜",
-  "🍉",
-  "🫐",
-  "🦒",
-  "🐘",
-  "🚔",
-  "🛵",
-  "🎧",
-  "🎯",
-  "🍰",
-  "🐚",
-  "🍑",
-  "🍋",
-  "🦘",
-  "🦥",
-  "🚚",
-  "🏎️",
-  "🎼",
-  "🎭",
-  "🍭",
-  "🦔",
-  "🍐",
-  "🥥",
-  "🦜",
-  "🐆",
-  "🚕",
-  "🎲",
-  "🍮",
-  "🐌",
+  '🍎', '🍌', '🐶', '🐱', '🚗', '🎈', '⭐', '🌙', '🐟', '🌸',
+  '🍓', '🍊', '🐸', '🦋', '🚀', '🎁', '⚽', '🎨', '🍕', '🧸',
+  '🍔', '🍟', '🐷', '🐰', '🚲', '✈️', '🎵', '🌈', '🍦', '🐧',
+  '🥕', '🌽', '🐢', '🦁', '🚢', '🪁', '🎮', '📚', '🍪', '🐝',
+  '🍇', '🍒', '🦄', '🐬', '🚜', '🛸', '🎪', '🎸', '🍬', '🦉',
+  '🥦', '🍄', '🦚', '🐊', '🚁', '🛴', '🎺', '🍩', '🐙', '🍍',
+  '🥝', '🦩', '🐋', '🚃', '🛶', '🎤', '🎬', '🍫', '🐜', '🍉',
+  '🫐', '🦒', '🐘', '🚔', '🛵', '🎧', '🎯', '🍰', '🐚', '🍑',
+  '🍋', '🦘', '🦥', '🚚', '🏎️', '🎼', '🎭', '🍭', '🦔', '🍐',
+  '🥥', '🦜', '🐆', '🚕', '🎲', '🍮', '🐌',
 ];
 
 const LEVELS: MemoryLevel[] = [
   {
     id: 1,
-    name: "Beginner",
+    name: 'Beginner',
     pairs: 3,
     gridCols: 3,
-    difficulty: "Easy",
-    skill: "Visual Memory",
-    objective: "Remember where matching pictures are located.",
-    strategy: "Look carefully and remember the position of each picture.",
+    difficulty: 'Easy',
+    skill: 'Visual Memory',
+    objective: 'Remember where matching pictures are located.',
+    strategy: 'Look carefully and remember the position of each picture.',
   },
   {
     id: 2,
-    name: "Easy",
+    name: 'Easy',
     pairs: 6,
     gridCols: 4,
-    difficulty: "Easy",
-    skill: "Concentration",
-    objective: "Find more matching pairs while remembering card locations.",
-    strategy: "Use the position of each picture as a memory clue.",
+    difficulty: 'Easy',
+    skill: 'Concentration',
+    objective: 'Find more matching pairs while remembering card locations.',
+    strategy: 'Use the position of each picture as a memory clue.',
   },
   {
     id: 3,
-    name: "Medium",
+    name: 'Medium',
     pairs: 8,
     gridCols: 4,
-    difficulty: "Medium",
-    skill: "Working Memory",
-    objective: "Hold several visual details in your memory at once.",
-    strategy: "Group pictures mentally and remember where they appear.",
+    difficulty: 'Medium',
+    skill: 'Working Memory',
+    objective: 'Hold several visual details in your memory at once.',
+    strategy: 'Group pictures mentally and remember where they appear.',
   },
   {
     id: 4,
-    name: "Hard",
+    name: 'Hard',
     pairs: 10,
     gridCols: 5,
-    difficulty: "Hard",
-    skill: "Attention & Recall",
-    objective: "Use focused attention to remember a larger set of cards.",
-    strategy: "Stay focused and avoid rushing your choices.",
+    difficulty: 'Hard',
+    skill: 'Attention & Recall',
+    objective: 'Use focused attention to remember a larger set of cards.',
+    strategy: 'Stay focused and avoid rushing your choices.',
   },
   {
     id: 5,
-    name: "Master",
+    name: 'Master',
     pairs: 12,
     gridCols: 6,
-    difficulty: "Hard",
-    skill: "Memory Strategy",
-    objective: "Apply memory strategies to solve a large matching challenge.",
-    strategy: "Build a mental map of the board and update it as you learn.",
+    difficulty: 'Hard',
+    skill: 'Memory Strategy',
+    objective: 'Apply memory strategies to solve a large matching challenge.',
+    strategy: 'Build a mental map of the board and update it as you learn.',
   },
 ];
 
@@ -202,11 +120,9 @@ const shuffle = <T,>(items: T[]): T[] => {
   return result;
 };
 
-export const MemoryMatch: React.FC<MemoryMatchProps> = ({
-  onComplete,
-}) => {
+export const MemoryMatch: React.FC<MemoryMatchProps> = ({ onComplete }) => {
   const [currentLevel, setCurrentLevel] = useState(0);
-  const [mode, setMode] = useState<LearningMode>("guided");
+  const [mode, setMode] = useState<LearningMode>('guided');
 
   const [cards, setCards] = useState<Card[]>([]);
   const [flipped, setFlipped] = useState<number[]>([]);
@@ -217,41 +133,36 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
 
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState('');
   const [showStrategy, setShowStrategy] = useState(false);
 
   const [isChecking, setIsChecking] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [hasFinished, setHasFinished] = useState(false);
 
-  const [progress, setProgress] = useState<
-    Record<number, MemoryProgress>
-  >({});
+  const [progress, setProgress] = useState<Record<number, MemoryProgress>>({});
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
 
   const level = LEVELS[currentLevel];
 
   const masteryPercentage = useMemo(() => {
     if (level.pairs === 0) return 0;
-
-    return Math.min(
-      100,
-      Math.round((matches / level.pairs) * 100),
-    );
+    return Math.min(100, Math.round((matches / level.pairs) * 100));
   }, [matches, level.pairs]);
 
   const generateCards = () => {
-    const selectedSymbols = shuffle(EMOJI_BANK).slice(
-      0,
-      level.pairs,
-    );
+    const selectedSymbols = shuffle(EMOJI_BANK).slice(0, level.pairs);
 
     const newCards = shuffle(
-      [...selectedSymbols, ...selectedSymbols].map(
-        (symbol, index) => ({
-          id: index,
-          symbol,
-        }),
-      ),
+      [...selectedSymbols, ...selectedSymbols].map((symbol, index) => ({
+        id: index,
+        symbol,
+      }))
     );
 
     setCards(newCards);
@@ -260,7 +171,7 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
     setMoves(0);
     setMatches(0);
     setStreak(0);
-    setFeedback("");
+    setFeedback('');
     setShowStrategy(false);
     setIsChecking(false);
     setIsComplete(false);
@@ -271,10 +182,45 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
     generateCards();
   }, [currentLevel, mode]);
 
-  const updateProgress = (
-    wasCorrect: boolean,
-    matchedPairCount: number,
-  ) => {
+  /* Auto-read the level objective when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled || !level || isComplete || hasFinished) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        `Memory Match. Level ${level.id}: ${level.name}. ${level.objective}`,
+      );
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [currentLevel, level, isComplete, hasFinished, speak, autoReadEnabled]);
+
+  /* Read the strategy when it opens */
+  useEffect(() => {
+    if (showStrategy && level) {
+      speak(level.strategy);
+    }
+  }, [showStrategy, level, speak]);
+
+  /* Announce level completion */
+  useEffect(() => {
+    if (!isComplete) return;
+
+    speak(
+      `Level complete! You found all ${level.pairs} pairs in ${moves} moves. Well done!`,
+    );
+  }, [isComplete, level.pairs, moves, speak]);
+
+  /* Announce full journey completion */
+  useEffect(() => {
+    if (!hasFinished) return;
+
+    speak(
+      `Memory Master! You completed the Memory Match journey with ${score} points.`,
+    );
+  }, [hasFinished, score, speak]);
+
+  const updateProgress = (wasCorrect: boolean, matchedPairCount: number) => {
     setProgress((previous) => {
       const existing = previous[level.id] ?? {
         attempts: 0,
@@ -287,9 +233,7 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
         [level.id]: {
           attempts: existing.attempts + 1,
           matches: existing.matches + matchedPairCount,
-          mastered:
-            existing.mastered ||
-            matchedPairCount >= level.pairs,
+          mastered: existing.mastered || matchedPairCount >= level.pairs,
         },
       };
     });
@@ -314,6 +258,8 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
 
     setFlipped(nextFlipped);
 
+    if (soundEnabled) playSoundFeedback('move');
+
     if (nextFlipped.length !== 2) {
       return;
     }
@@ -325,36 +271,31 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
     const firstCard = cards[firstIndex];
     const secondCard = cards[secondIndex];
 
-    const isMatch =
-      firstCard?.symbol === secondCard?.symbol;
+    const isMatch = firstCard?.symbol === secondCard?.symbol;
 
     window.setTimeout(() => {
       if (isMatch) {
+        if (soundEnabled) playSoundFeedback('correct');
+
         const nextMatches = matches + 1;
         const nextStreak = streak + 1;
 
-        setMatched((previous) => [
-          ...previous,
-          firstIndex,
-          secondIndex,
-        ]);
-
+        setMatched((previous) => [...previous, firstIndex, secondIndex]);
         setMatches(nextMatches);
         setStreak(nextStreak);
 
         const basePoints = 10;
-        const streakBonus =
-          nextStreak >= 3 ? 5 : 0;
+        const streakBonus = nextStreak >= 3 ? 5 : 0;
 
-        setScore((previous) =>
-          previous + basePoints + streakBonus,
-        );
+        setScore((previous) => previous + basePoints + streakBonus);
 
-        setFeedback(
+        const message =
           nextMatches === level.pairs
-            ? "Excellent memory! You found every pair."
-            : "Great memory! You found a match.",
-        );
+            ? 'Excellent memory! You found every pair.'
+            : 'Great memory! You found a match.';
+
+        setFeedback(message);
+        speak(message);
 
         updateProgress(true, 1);
 
@@ -365,15 +306,18 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
           setIsComplete(true);
         }
       } else {
-        setFeedback(
-          "Not a match this time. Remember where you saw those pictures.",
-        );
+        if (soundEnabled) playSoundFeedback('try-again');
+
+        const message =
+          'Not a match this time. Remember where you saw those pictures.';
+
+        setFeedback(message);
+        speak(message);
 
         setStreak(0);
         updateProgress(false, 0);
 
         setFlipped([]);
-
         setIsChecking(false);
       }
     }, isMatch ? 500 : 900);
@@ -387,6 +331,8 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
   };
 
   const nextLevel = () => {
+    if (soundEnabled) playSoundFeedback('move');
+
     if (currentLevel < LEVELS.length - 1) {
       setCurrentLevel((previous) => previous + 1);
     } else {
@@ -396,11 +342,13 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
 
   const previousLevel = () => {
     if (currentLevel > 0) {
+      if (soundEnabled) playSoundFeedback('move');
       setCurrentLevel((previous) => previous - 1);
     }
   };
 
   const resetGame = () => {
+    speak('Board reshuffled. Good luck!');
     generateCards();
   };
 
@@ -409,6 +357,8 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
     setCurrentLevel(0);
     setScore(0);
     setProgress({});
+
+    speak("Let's play Memory Match again!");
   };
 
   if (hasFinished) {
@@ -432,21 +382,15 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
 
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="bg-gray-800/60 rounded-xl p-4">
-            <div className="text-2xl font-bold text-white">
-              {score}
-            </div>
-            <div className="text-xs text-gray-400">
-              Total Score
-            </div>
+            <div className="text-2xl font-bold text-white">{score}</div>
+            <div className="text-xs text-gray-400">Total Score</div>
           </div>
 
           <div className="bg-gray-800/60 rounded-xl p-4">
             <div className="text-2xl font-bold text-white">
               {LEVELS.length}
             </div>
-            <div className="text-xs text-gray-400">
-              Levels Completed
-            </div>
+            <div className="text-xs text-gray-400">Levels Completed</div>
           </div>
         </div>
 
@@ -466,40 +410,56 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
       {/* Header */}
       <div className="flex justify-between items-start gap-4 mb-4">
         <div>
-          <h3 className="text-2xl font-bold text-white">
-            🧠 Memory Match
-          </h3>
+          <h3 className="text-2xl font-bold text-white">🧠 Memory Match</h3>
 
           <p className="text-sm text-gray-400 mt-1">
             Train your memory, attention and concentration.
           </p>
         </div>
 
-        <button
-          onClick={resetGame}
-          className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300"
-          aria-label="Restart game"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+
+          <button
+            onClick={resetGame}
+            className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300"
+            aria-label="Restart game"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Learning Modes */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         {(
           [
-            ["guided", "Guided"],
-            ["practice", "Practice"],
-            ["mastery", "Mastery"],
+            ['guided', 'Guided'],
+            ['practice', 'Practice'],
+            ['mastery', 'Mastery'],
           ] as const
         ).map(([value, label]) => (
           <button
             key={value}
-            onClick={() => setMode(value)}
+            onClick={() => {
+              setMode(value);
+              if (soundEnabled) playSoundFeedback('move');
+            }}
             className={`py-2 px-3 rounded-lg text-xs font-semibold transition ${
               mode === value
-                ? "bg-indigo-600 text-white"
-                : "bg-gray-800 text-gray-400 hover:text-white"
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:text-white'
             }`}
           >
             {label}
@@ -536,30 +496,24 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
           <Target className="w-5 h-5 text-indigo-400 mt-0.5 shrink-0" />
 
           <div>
-            <div className="text-sm font-semibold text-white">
-              Challenge
-            </div>
+            <div className="text-sm font-semibold text-white">Challenge</div>
 
-            <p className="text-sm text-gray-400 mt-1">
-              {level.objective}
-            </p>
+            <p className="text-sm text-gray-400 mt-1">{level.objective}</p>
           </div>
         </div>
       </div>
 
       {/* Strategy */}
-      {mode === "guided" && (
+      {mode === 'guided' && (
         <div className="mb-4">
           <button
-            onClick={() =>
-              setShowStrategy((previous) => !previous)
-            }
+            onClick={() => setShowStrategy((previous) => !previous)}
             className="flex items-center gap-2 text-sm text-yellow-400 hover:text-yellow-300"
           >
             <Lightbulb className="w-4 h-4" />
             {showStrategy
-              ? "Hide memory strategy"
-              : "Show memory strategy"}
+              ? 'Hide memory strategy'
+              : 'Show memory strategy'}
           </button>
 
           {showStrategy && (
@@ -573,9 +527,7 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
       {/* Progress */}
       <div className="mb-4">
         <div className="flex justify-between text-xs mb-1">
-          <span className="text-gray-400">
-            Pairs found
-          </span>
+          <span className="text-gray-400">Pairs found</span>
 
           <span className="text-gray-300">
             {matches} / {level.pairs}
@@ -600,8 +552,7 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
       >
         {cards.map((card, index) => {
           const isFlipped =
-            flipped.includes(index) ||
-            matched.includes(index);
+            flipped.includes(index) || matched.includes(index);
 
           const isMatched = matched.includes(index);
 
@@ -609,35 +560,27 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
             <motion.button
               key={card.id}
               whileHover={
-                !isFlipped && !isChecking
-                  ? { scale: 1.04 }
-                  : undefined
+                !isFlipped && !isChecking ? { scale: 1.04 } : undefined
               }
               whileTap={
-                !isFlipped && !isChecking
-                  ? { scale: 0.95 }
-                  : undefined
+                !isFlipped && !isChecking ? { scale: 0.95 } : undefined
               }
               onClick={() => handleFlip(index)}
-              disabled={
-                isChecking ||
-                isFlipped ||
-                isComplete
-              }
+              disabled={isChecking || isFlipped || isComplete}
               aria-label={
                 isFlipped
                   ? `Memory card showing ${card.symbol}`
-                  : "Hidden memory card"
+                  : 'Hidden memory card'
               }
               className={`aspect-square rounded-xl border-2 flex items-center justify-center text-2xl sm:text-3xl transition-all ${
                 isMatched
-                  ? "bg-green-500/20 border-green-400"
+                  ? 'bg-green-500/20 border-green-400'
                   : isFlipped
-                    ? "bg-indigo-500/20 border-indigo-400"
-                    : "bg-gray-800 border-gray-700 hover:border-indigo-400"
+                    ? 'bg-indigo-500/20 border-indigo-400'
+                    : 'bg-gray-800 border-gray-700 hover:border-indigo-400'
               }`}
             >
-              {isFlipped ? card.symbol : "❓"}
+              {isFlipped ? card.symbol : '❓'}
             </motion.button>
           );
         })}
@@ -668,18 +611,13 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
           </h4>
 
           <p className="text-sm text-gray-400 mt-1">
-            You found all {level.pairs} pairs in{" "}
-            {moves} moves.
+            You found all {level.pairs} pairs in {moves} moves.
           </p>
 
           <div className="flex justify-center gap-3 mt-4">
-            <span className="text-yellow-400 font-bold">
-              ⭐ {score}
-            </span>
+            <span className="text-yellow-400 font-bold">⭐ {score}</span>
 
-            <span className="text-gray-400">
-              {masteryPercentage}% mastery
-            </span>
+            <span className="text-gray-400">{masteryPercentage}% mastery</span>
           </div>
 
           <button
@@ -687,8 +625,8 @@ export const MemoryMatch: React.FC<MemoryMatchProps> = ({
             className="mt-4 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white font-bold flex items-center justify-center gap-2 mx-auto"
           >
             {currentLevel < LEVELS.length - 1
-              ? "Next Level"
-              : "Finish & Move Up"}
+              ? 'Next Level'
+              : 'Finish & Move Up'}
 
             <ArrowRight className="w-4 h-4" />
           </button>

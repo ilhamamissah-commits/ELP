@@ -9,8 +9,8 @@ import {
   Volume2,
 } from 'lucide-react';
 import { PHONICS_CURRICULUM } from '../../../data/phonicsCurriculum';
+import { useReadAloud } from '../../../hooks/useReadAloud';
 import { useProgressStore } from '../../../store/useProgressStore';
-
 
 const PHONICS_ACTIVITY_ID = 'reading-phonics-blending-001';
 
@@ -33,14 +33,15 @@ export const PhonicsBlender: React.FC = () => {
 
   const timeoutIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
+  // ✅ NEW: Universal read aloud hook
+  const { speak } = useReadAloud();
+
   const completeActivity = useProgressStore(
     (state) => state.completeActivity,
   );
 
   const level = PHONICS_CURRICULUM[currentLevel];
-
   const currentWord = level?.words[currentWordIndex];
-
   const totalLevels = PHONICS_CURRICULUM.length;
 
   const totalWords = useMemo(
@@ -79,61 +80,52 @@ export const PhonicsBlender: React.FC = () => {
     timeoutIdsRef.current.forEach((timeoutId) => {
       clearTimeout(timeoutId);
     });
-
     timeoutIdsRef.current = [];
   }, []);
 
   useEffect(() => {
     return () => {
       clearSpeechTimers();
-
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
     };
   }, [clearSpeechTimers]);
 
-  const speak = useCallback((text: string, rate = 0.7): void => {
-    if (!('speechSynthesis' in window)) {
-      return;
-    }
+  // ✅ AUTO-READ: Speak the blend instruction when a new word loads
+  useEffect(() => {
+    if (!currentWord) return;
 
-    window.speechSynthesis.cancel();
+    const timer = window.setTimeout(() => {
+      speak(
+        `Blend the sounds: ${currentWord.sounds.join(', ')}.`,
+        { rate: 0.7 }
+      );
+    }, 600);
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = rate;
-    utterance.pitch = 1.15;
-
-    window.speechSynthesis.speak(utterance);
-  }, []);
+    return () => window.clearTimeout(timer);
+  }, [currentWordIndex, currentLevel, currentWord, speak]);
 
   const speakSounds = useCallback((): void => {
-    if (!currentWord) {
-      return;
-    }
+    if (!currentWord) return;
 
     clearSpeechTimers();
-
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
 
     currentWord.sounds.forEach((sound, index) => {
       const timeoutId = setTimeout(() => {
-        speak(sound, 0.65);
+        speak(sound, { rate: 0.65 });
       }, index * 700);
-
       timeoutIdsRef.current.push(timeoutId);
     });
   }, [clearSpeechTimers, currentWord, speak]);
 
   const handleBlend = useCallback((): void => {
-    if (!currentWord || isBlending || blended) {
-      return;
-    }
+    if (!currentWord || isBlending || blended) return;
 
     setIsBlending(true);
-
     clearSpeechTimers();
 
     if ('speechSynthesis' in window) {
@@ -142,17 +134,15 @@ export const PhonicsBlender: React.FC = () => {
 
     currentWord.sounds.forEach((sound, index) => {
       const timeoutId = setTimeout(() => {
-        speak(sound, 0.65);
+        speak(sound, { rate: 0.65 });
       }, index * 700);
-
       timeoutIdsRef.current.push(timeoutId);
     });
 
     const blendDelay = currentWord.sounds.length * 700 + 300;
 
     const completionTimeout = setTimeout(() => {
-      speak(currentWord.word, 0.55);
-
+      speak(currentWord.word, { rate: 0.55 });
       setBlended(true);
       setIsBlending(false);
       setScore((previousScore) => previousScore + 1);
@@ -177,12 +167,9 @@ export const PhonicsBlender: React.FC = () => {
   ]);
 
   const handleNextWord = useCallback((): void => {
-    if (!level) {
-      return;
-    }
+    if (!level) return;
 
     clearSpeechTimers();
-
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -205,38 +192,37 @@ export const PhonicsBlender: React.FC = () => {
     setCurriculumComplete(true);
     setBlended(false);
     setIsBlending(false);
+    speak('Congratulations! You finished the phonics practice!');
   }, [
     clearSpeechTimers,
     currentLevel,
     currentWordIndex,
     level,
     totalLevels,
+    speak,
   ]);
 
   const handleRestart = useCallback((): void => {
     clearSpeechTimers();
-
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
-
     setCurrentLevel(0);
     setCurrentWordIndex(0);
     setBlended(false);
     setIsBlending(false);
     setCurriculumComplete(false);
     setScore(0);
-  }, [clearSpeechTimers]);
+    speak('Restarting phonics practice.');
+  }, [clearSpeechTimers, speak]);
 
   if (!level || !currentWord) {
     return (
       <div className="max-w-lg mx-auto rounded-2xl border border-app-border bg-app-card p-8 text-center shadow-xl">
         <div className="mb-4 text-5xl">📚</div>
-
         <h3 className="text-xl font-bold text-white">
           Phonics Practice Unavailable
         </h3>
-
         <p className="mt-2 text-sm text-gray-400">
           No phonics learning content is currently available.
         </p>
@@ -300,15 +286,30 @@ export const PhonicsBlender: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
               Reading • Phonics
             </p>
-
             <h3 className="mt-1 text-xl font-bold text-white">
               {level.title}
             </h3>
           </div>
 
-          <span className="shrink-0 rounded-full bg-indigo-500/15 px-3 py-1.5 text-xs font-semibold text-indigo-300">
-            {level.patternFocus}
-          </span>
+          <div className="flex items-center gap-2">
+            {/* ✅ Read instruction button */}
+            <button
+              type="button"
+              onClick={() =>
+                speak(
+                  `Blend the sounds: ${currentWord.sounds.join(', ')}.`
+                )
+              }
+              aria-label="Read blending instruction"
+              className="p-2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white transition"
+            >
+              <Volume2 className="w-4 h-4" />
+            </button>
+
+            <span className="shrink-0 rounded-full bg-indigo-500/15 px-3 py-1.5 text-xs font-semibold text-indigo-300">
+              {level.patternFocus}
+            </span>
+          </div>
         </div>
 
         {/* Overall Progress */}
@@ -317,7 +318,6 @@ export const PhonicsBlender: React.FC = () => {
             <span className="text-gray-400">
               Phonics progression
             </span>
-
             <span className="font-semibold text-gray-300">
               {wordProgressPercent}%
             </span>
@@ -347,7 +347,6 @@ export const PhonicsBlender: React.FC = () => {
           <span className="text-xs font-medium text-gray-500">
             Level {currentLevel + 1} of {totalLevels}
           </span>
-
           <span className="text-xs font-medium text-gray-500">
             Word {currentWordIndex + 1} of {level.words.length}
           </span>
@@ -363,16 +362,13 @@ export const PhonicsBlender: React.FC = () => {
               key={`${sound}-${index}`}
               type="button"
               initial={{ scale: 0, opacity: 0 }}
-              animate={{
-                scale: 1,
-                opacity: 1,
-              }}
+              animate={{ scale: 1, opacity: 1 }}
               transition={{
                 delay: index * 0.08,
                 type: 'spring',
                 stiffness: 300,
               }}
-              onClick={() => speak(sound, 0.65)}
+              onClick={() => speak(sound, { rate: 0.65 })}
               disabled={isBlending}
               aria-label={`Hear sound ${sound}`}
               className="flex h-16 w-16 items-center justify-center rounded-xl bg-indigo-600 text-2xl font-bold text-white shadow-lg transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
@@ -394,7 +390,6 @@ export const PhonicsBlender: React.FC = () => {
               Tap each sound. Listen carefully, then blend the sounds into
               one word.
             </p>
-
             <p className="mt-1 text-xs text-gray-500">
               Say the sounds smoothly from left to right.
             </p>
@@ -419,14 +414,13 @@ export const PhonicsBlender: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => speak(currentWord.word, 0.55)}
+              onClick={() => speak(currentWord.word, { rate: 0.55 })}
               className="group"
               aria-label={`Hear the word ${currentWord.word}`}
             >
               <span className="block text-5xl font-black tracking-wide text-white transition group-hover:text-indigo-300">
                 {currentWord.word}
               </span>
-
               <span className="mt-3 block text-4xl">
                 {currentWord.emoji}
               </span>
@@ -525,7 +519,7 @@ export const PhonicsBlender: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => speak(currentWord.word, 0.55)}
+              onClick={() => speak(currentWord.word, { rate: 0.55 })}
               aria-label={`Hear ${currentWord.word}`}
               className="rounded-xl bg-gray-700 px-4 py-3 font-bold text-white transition hover:bg-gray-600"
             >

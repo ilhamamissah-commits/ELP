@@ -16,15 +16,14 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
 
 type WritingStage = 'guide' | 'trace' | 'write';
 
-type Point = {
-  x: number;
-  y: number;
-};
+type Point = { x: number; y: number };
 
 const CANVAS_SIZE = 320;
 const SESSION_LENGTH = 5;
@@ -39,25 +38,27 @@ const LEVEL_NUMBERS: Record<number, number[]> = {
 
 const shuffle = <T,>(items: T[]): T[] => {
   const copy = [...items];
-
   for (let i = copy.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-
   return copy;
 };
 
 export const TracingNumbers: React.FC = () => {
   const profile = useProfileStore(
-    (state) => state.profiles[state.currentProfileId],
+    (state) => state.profiles[state.currentProfileId]
   );
 
   const currentLevel = profile?.currentLevel ?? 1;
 
-  const completeActivity = useProgressStore(
-    (state) => state.completeActivity,
-  );
+  const completeActivity = useProgressStore((state) => state.completeActivity);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -68,21 +69,18 @@ export const TracingNumbers: React.FC = () => {
 
   const [currentNumber, setCurrentNumber] = useState(0);
   const [stage, setStage] = useState<WritingStage>('guide');
-
   const [questionNumber, setQuestionNumber] = useState(1);
   const [completedNumbers, setCompletedNumbers] = useState(0);
   const [completed, setCompleted] = useState(false);
-
   const [coverage, setCoverage] = useState(0);
   const [feedback, setFeedback] = useState('');
   const [showHint, setShowHint] = useState(false);
 
-  const availableNumbers =
-    LEVEL_NUMBERS[currentLevel] ?? LEVEL_NUMBERS[1];
+  const availableNumbers = LEVEL_NUMBERS[currentLevel] ?? LEVEL_NUMBERS[1];
 
   const sessionNumbers = useMemo(
     () => shuffle(availableNumbers).slice(0, SESSION_LENGTH),
-    [currentLevel, availableNumbers],
+    [currentLevel, availableNumbers]
   );
 
   const [sessionSequence, setSessionSequence] =
@@ -90,19 +88,18 @@ export const TracingNumbers: React.FC = () => {
 
   const numberPosition = Math.min(
     questionNumber - 1,
-    sessionSequence.length - 1,
+    sessionSequence.length - 1
   );
 
-  const numberToTrace =
-    sessionSequence[numberPosition] ?? currentNumber;
+  const numberToTrace = sessionSequence[numberPosition] ?? currentNumber;
 
   useEffect(() => {
     setSessionSequence(
-      shuffle(
-        LEVEL_NUMBERS[currentLevel] ?? LEVEL_NUMBERS[1],
-      ).slice(0, SESSION_LENGTH),
+      shuffle(LEVEL_NUMBERS[currentLevel] ?? LEVEL_NUMBERS[1]).slice(
+        0,
+        SESSION_LENGTH
+      )
     );
-
     setQuestionNumber(1);
     setCompletedNumbers(0);
     setCompleted(false);
@@ -112,25 +109,48 @@ export const TracingNumbers: React.FC = () => {
     setShowHint(false);
   }, [currentLevel]);
 
-  const drawTemplate = useCallback(
-    (
-      ctx: CanvasRenderingContext2D,
-      num: number,
-      currentStage: WritingStage,
-    ) => {
-      const canvas = ctx.canvas;
+  // Auto-read the number and stage prompt on change
+  useEffect(() => {
+    if (autoReadEnabled) {
+      const readOut =
+        stage === 'guide'
+          ? `Number ${numberToTrace}. Look at its shape.`
+          : stage === 'trace'
+            ? `Trace number ${numberToTrace}.`
+            : `Write number ${numberToTrace} by yourself.`;
+      const timer = window.setTimeout(() => speak(readOut), 350);
+      return () => window.clearTimeout(timer);
+    }
+  }, [numberToTrace, stage, speak, autoReadEnabled]);
 
+  // Read hint when it opens
+  useEffect(() => {
+    if (showHint) {
+      speak(
+        'Start at the correct starting point and move slowly. Try to keep your strokes inside the number shape.'
+      );
+    }
+  }, [showHint, speak]);
+
+  // Announce completion
+  useEffect(() => {
+    if (!completed) return;
+
+    speak(
+      `Great job! You practised writing ${completedNumbers} ${
+        completedNumbers === 1 ? 'number' : 'numbers'
+      }.`
+    );
+  }, [completed, completedNumbers, speak]);
+
+  const drawTemplate = useCallback(
+    (ctx: CanvasRenderingContext2D, num: number, currentStage: WritingStage) => {
+      const canvas = ctx.canvas;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      /*
-       * Background.
-       */
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      /*
-       * Baseline.
-       */
       ctx.beginPath();
       ctx.strokeStyle = '#cbd5e1';
       ctx.lineWidth = 2;
@@ -140,9 +160,6 @@ export const TracingNumbers: React.FC = () => {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      /*
-       * Midline.
-       */
       ctx.beginPath();
       ctx.strokeStyle = '#e2e8f0';
       ctx.lineWidth = 1;
@@ -152,9 +169,6 @@ export const TracingNumbers: React.FC = () => {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      /*
-       * Number guide.
-       */
       ctx.font = 'bold 220px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -178,31 +192,23 @@ export const TracingNumbers: React.FC = () => {
         ctx.setLineDash([]);
       }
 
-      /*
-       * In independent writing mode the guide disappears.
-       */
       if (currentStage === 'write') {
         ctx.fillStyle = 'rgba(148, 163, 184, 0.08)';
         ctx.fillText(String(num), canvas.width / 2, 155);
       }
     },
-    [],
+    []
   );
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
-
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-
     if (!ctx) return;
 
     drawTemplate(ctx, numberToTrace, stage);
 
-    /*
-     * Redraw learner strokes.
-     */
     if (pointsRef.current.length > 1) {
       ctx.beginPath();
       ctx.strokeStyle = '#0f172a';
@@ -211,7 +217,6 @@ export const TracingNumbers: React.FC = () => {
       ctx.lineJoin = 'round';
 
       const first = pointsRef.current[0];
-
       ctx.moveTo(first.x, first.y);
 
       pointsRef.current.slice(1).forEach((point) => {
@@ -222,37 +227,25 @@ export const TracingNumbers: React.FC = () => {
     }
   }, [drawTemplate, numberToTrace, stage]);
 
-  /*
-   * High-DPI responsive canvas setup.
-   */
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
-
     if (!canvas || !container) return;
 
     const resizeCanvas = () => {
       const rect = container.getBoundingClientRect();
-
-      const size = Math.min(
-        CANVAS_SIZE,
-        Math.max(260, rect.width),
-      );
-
+      const size = Math.min(CANVAS_SIZE, Math.max(260, rect.width));
       const ratio = window.devicePixelRatio || 1;
 
       canvas.width = size * ratio;
       canvas.height = size * ratio;
-
       canvas.style.width = `${size}px`;
       canvas.style.height = `${size}px`;
 
       const ctx = canvas.getContext('2d');
-
       if (!ctx) return;
 
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-
       drawTemplate(ctx, numberToTrace, stage);
     };
 
@@ -264,24 +257,17 @@ export const TracingNumbers: React.FC = () => {
     return () => observer.disconnect();
   }, [drawTemplate, numberToTrace, stage]);
 
-  /*
-   * Redraw after stage changes.
-   */
   useEffect(() => {
     redraw();
   }, [redraw]);
 
   const getCanvasPoint = (
-    event: React.PointerEvent<HTMLCanvasElement>,
+    event: React.PointerEvent<HTMLCanvasElement>
   ): Point => {
     const canvas = canvasRef.current;
-
-    if (!canvas) {
-      return { x: 0, y: 0 };
-    }
+    if (!canvas) return { x: 0, y: 0 };
 
     const rect = canvas.getBoundingClientRect();
-
     const scaleX = CANVAS_SIZE / rect.width;
     const scaleY = CANVAS_SIZE / rect.height;
 
@@ -291,41 +277,30 @@ export const TracingNumbers: React.FC = () => {
     };
   };
 
-  const startDrawing = (
-    event: React.PointerEvent<HTMLCanvasElement>,
-  ) => {
+  const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (completed) return;
-
     event.preventDefault();
 
     const canvas = canvasRef.current;
-
     if (!canvas) return;
 
     canvas.setPointerCapture(event.pointerId);
 
     const point = getCanvasPoint(event);
-
     drawingRef.current = true;
     hasDrawingRef.current = true;
-
     pointsRef.current = [point];
 
     setCoverage(0);
     setFeedback('');
   };
 
-  const draw = (
-    event: React.PointerEvent<HTMLCanvasElement>,
-  ) => {
+  const draw = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawingRef.current || completed) return;
-
     event.preventDefault();
 
     const point = getCanvasPoint(event);
-
-    const previous =
-      pointsRef.current[pointsRef.current.length - 1];
+    const previous = pointsRef.current[pointsRef.current.length - 1];
 
     if (!previous) {
       pointsRef.current.push(point);
@@ -333,8 +308,7 @@ export const TracingNumbers: React.FC = () => {
     }
 
     const distance = Math.sqrt(
-      Math.pow(point.x - previous.x, 2) +
-        Math.pow(point.y - previous.y, 2),
+      Math.pow(point.x - previous.x, 2) + Math.pow(point.y - previous.y, 2)
     );
 
     if (distance < 2) return;
@@ -342,7 +316,6 @@ export const TracingNumbers: React.FC = () => {
     pointsRef.current.push(point);
 
     const ctx = canvasRef.current?.getContext('2d');
-
     if (!ctx) return;
 
     ctx.strokeStyle = '#0f172a';
@@ -355,30 +328,19 @@ export const TracingNumbers: React.FC = () => {
     ctx.lineTo(point.x, point.y);
     ctx.stroke();
 
-    /*
-     * Simple activity signal.
-     *
-     * This is not presented as handwriting AI.
-     * It measures meaningful drawing activity.
-     */
     const estimatedCoverage = Math.min(
       100,
-      Math.round(pointsRef.current.length / 8),
+      Math.round(pointsRef.current.length / 8)
     );
-
     setCoverage(estimatedCoverage);
   };
 
-  const stopDrawing = (
-    event?: React.PointerEvent<HTMLCanvasElement>,
-  ) => {
+  const stopDrawing = (event?: React.PointerEvent<HTMLCanvasElement>) => {
     drawingRef.current = false;
 
     if (event) {
       try {
-        event.currentTarget.releasePointerCapture(
-          event.pointerId,
-        );
+        event.currentTarget.releasePointerCapture(event.pointerId);
       } catch {
         // Pointer capture may already have been released.
       }
@@ -394,35 +356,17 @@ export const TracingNumbers: React.FC = () => {
     setShowHint(false);
 
     const canvas = canvasRef.current;
-
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-
     if (!ctx) return;
 
     drawTemplate(ctx, numberToTrace, stage);
   }, [drawTemplate, numberToTrace, stage]);
 
   const speakNumber = useCallback(() => {
-    if (
-      typeof window === 'undefined' ||
-      !('speechSynthesis' in window)
-    ) {
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(
-      String(numberToTrace),
-    );
-
-    utterance.rate = 0.7;
-    utterance.pitch = 1;
-
-    window.speechSynthesis.speak(utterance);
-  }, [numberToTrace]);
+    speak(String(numberToTrace));
+  }, [numberToTrace, speak]);
 
   const beginTracing = () => {
     clearCanvas();
@@ -441,9 +385,7 @@ export const TracingNumbers: React.FC = () => {
     }
 
     if (coverage < 8) {
-      setFeedback(
-        'Add a little more writing so we can record your practice.',
-      );
+      setFeedback('Add a little more writing so we can record your practice.');
       return;
     }
 
@@ -451,15 +393,12 @@ export const TracingNumbers: React.FC = () => {
 
     window.setTimeout(() => {
       const nextCompleted = completedNumbers + 1;
-
       setCompletedNumbers(nextCompleted);
 
       if (questionNumber >= SESSION_LENGTH) {
         const score = Math.min(
           100,
-          Math.round(
-            (nextCompleted / SESSION_LENGTH) * 100,
-          ),
+          Math.round((nextCompleted / SESSION_LENGTH) * 100)
         );
 
         completeActivity({
@@ -492,9 +431,10 @@ export const TracingNumbers: React.FC = () => {
 
   const restart = () => {
     setSessionSequence(
-      shuffle(
-        LEVEL_NUMBERS[currentLevel] ?? LEVEL_NUMBERS[1],
-      ).slice(0, SESSION_LENGTH),
+      shuffle(LEVEL_NUMBERS[currentLevel] ?? LEVEL_NUMBERS[1]).slice(
+        0,
+        SESSION_LENGTH
+      )
     );
 
     setQuestionNumber(1);
@@ -507,10 +447,11 @@ export const TracingNumbers: React.FC = () => {
 
     pointsRef.current = [];
     hasDrawingRef.current = false;
+
+    speak("Let's practise writing numbers again!");
   };
 
-  const progress =
-    ((questionNumber - 1) / SESSION_LENGTH) * 100;
+  const progress = ((questionNumber - 1) / SESSION_LENGTH) * 100;
 
   if (completed) {
     return (
@@ -536,33 +477,7 @@ export const TracingNumbers: React.FC = () => {
           <div className="text-4xl font-black text-white">
             {completedNumbers}/{SESSION_LENGTH}
           </div>
-
-          <div className="text-sm text-gray-400 mt-1">
-            Numbers practised
-          </div>
-        </div>
-
-        <div className="text-left rounded-xl bg-gray-900/40 border border-app-border p-4 mb-6">
-          <div className="text-sm font-semibold text-white mb-3">
-            Skills practised
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {[
-              'Number recognition',
-              'Number writing',
-              'Numeral formation',
-              'Fine-motor control',
-              'Number sense',
-            ].map((skill) => (
-              <span
-                key={skill}
-                className="text-xs px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300"
-              >
-                {skill}
-              </span>
-            ))}
-          </div>
+          <div className="text-sm text-gray-400 mt-1">Numbers practised</div>
         </div>
 
         <button
@@ -584,26 +499,33 @@ export const TracingNumbers: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <PenLine className="w-6 h-6 text-indigo-400" />
-
             <h3 className="text-2xl font-bold text-white">
               Number Writing Lab
             </h3>
           </div>
-
           <p className="text-gray-400 text-sm mt-1">
-            Learn the formation, trace carefully, then write
-            independently.
+            Learn the formation, trace carefully, then write independently.
           </p>
         </div>
 
-        <div className="shrink-0 text-right">
-          <div className="text-xs uppercase tracking-wider text-gray-500">
-            Level
+        <div className="flex items-center gap-2">
+          <div className="shrink-0 text-right">
+            <div className="text-xs uppercase tracking-wider text-gray-500">
+              Level
+            </div>
+            <div className="text-xl font-bold text-white">{currentLevel}</div>
           </div>
 
-          <div className="text-xl font-bold text-white">
-            {currentLevel}
-          </div>
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-5 h-5 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
+          </button>
         </div>
       </div>
 
@@ -613,7 +535,6 @@ export const TracingNumbers: React.FC = () => {
           <span>
             Number {questionNumber} of {SESSION_LENGTH}
           </span>
-
           <span>{completedNumbers} completed</span>
         </div>
 
@@ -637,9 +558,7 @@ export const TracingNumbers: React.FC = () => {
         >
           1. Look
         </span>
-
         <ArrowRight className="w-3 h-3 text-gray-600" />
-
         <span
           className={`px-3 py-1.5 rounded-full ${
             stage === 'trace'
@@ -649,9 +568,7 @@ export const TracingNumbers: React.FC = () => {
         >
           2. Trace
         </span>
-
         <ArrowRight className="w-3 h-3 text-gray-600" />
-
         <span
           className={`px-3 py-1.5 rounded-full ${
             stage === 'write'
@@ -676,14 +593,9 @@ export const TracingNumbers: React.FC = () => {
             </div>
 
             <p className="text-gray-400 text-sm mt-2">
-              {stage === 'guide' &&
-                'Look at the number and notice its shape.'}
-
-              {stage === 'trace' &&
-                'Follow the dotted path carefully.'}
-
-              {stage === 'write' &&
-                'Now write the number by yourself.'}
+              {stage === 'guide' && 'Look at the number and notice its shape.'}
+              {stage === 'trace' && 'Follow the dotted path carefully.'}
+              {stage === 'write' && 'Now write the number by yourself.'}
             </p>
 
             <button
@@ -697,10 +609,7 @@ export const TracingNumbers: React.FC = () => {
           </div>
 
           {/* Canvas */}
-          <div
-            ref={containerRef}
-            className="w-full flex justify-center"
-          >
+          <div ref={containerRef} className="w-full flex justify-center">
             <div className="bg-white p-2 rounded-2xl border-2 border-gray-700 shadow-inner">
               <canvas
                 ref={canvasRef}
@@ -726,9 +635,7 @@ export const TracingNumbers: React.FC = () => {
               <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
                 <motion.div
                   className="h-full bg-indigo-500 rounded-full"
-                  animate={{
-                    width: `${Math.min(coverage, 100)}%`,
-                  }}
+                  animate={{ width: `${Math.min(coverage, 100)}%` }}
                 />
               </div>
             </div>
@@ -796,9 +703,7 @@ export const TracingNumbers: React.FC = () => {
             <div className="mt-5 text-center">
               <button
                 type="button"
-                onClick={() =>
-                  setShowHint((previous) => !previous)
-                }
+                onClick={() => setShowHint((previous) => !previous)}
                 className="inline-flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300"
               >
                 <Lightbulb className="w-4 h-4" />
@@ -811,9 +716,8 @@ export const TracingNumbers: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   className="mt-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 text-sm text-amber-200"
                 >
-                  Start at the correct starting point and move
-                  slowly. Try to keep your strokes inside the number
-                  shape.
+                  Start at the correct starting point and move slowly. Try to
+                  keep your strokes inside the number shape.
                 </motion.div>
               )}
             </div>
@@ -825,9 +729,7 @@ export const TracingNumbers: React.FC = () => {
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
               className={`mt-4 text-center text-sm font-semibold ${
-                feedback === 'Great work!'
-                  ? 'text-green-400'
-                  : 'text-amber-400'
+                feedback === 'Great work!' ? 'text-green-400' : 'text-amber-400'
               }`}
             >
               {feedback}

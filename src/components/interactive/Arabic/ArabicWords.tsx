@@ -13,6 +13,9 @@ import {
 
 import { ARABIC_WORDS } from '../../../data/arabicVocabulary';
 import { speakArabic } from '../../../services/arabicSpeech';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 interface ArabicWordsProps {
   onComplete?: (score: number) => void;
@@ -26,9 +29,7 @@ interface WordProgress {
   mastered: boolean;
 }
 
-export const ArabicWords: React.FC<ArabicWordsProps> = ({
-  onComplete,
-}) => {
+export const ArabicWords: React.FC<ArabicWordsProps> = ({ onComplete }) => {
   const [index, setIndex] = useState(0);
   const [mode, setMode] = useState<LearningMode>('guided');
 
@@ -38,104 +39,78 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
   const [progress, setProgress] = useState<WordProgress[]>([]);
 
   const [revealed, setRevealed] = useState(false);
-  const [feedback, setFeedback] = useState<
-    'mastered' | 'practice' | null
-  >(null);
+  const [feedback, setFeedback] = useState<'mastered' | 'practice' | null>(
+    null
+  );
 
   const [isComplete, setIsComplete] = useState(false);
   const [hasFinished, setHasFinished] = useState(false);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const current = ARABIC_WORDS[index];
 
-  /*
-   * ---------------------------------------------------------
-   * Derived progress
-   * ---------------------------------------------------------
-   */
-
+  /* Derived progress */
   const masteredCount = useMemo(
-    () => progress.filter(item => item.mastered).length,
+    () => progress.filter((item) => item.mastered).length,
     [progress]
   );
 
   const masteryPercentage = useMemo(() => {
     if (!ARABIC_WORDS.length) return 0;
-
-    return Math.round(
-      (masteredCount / ARABIC_WORDS.length) * 100
-    );
+    return Math.round((masteredCount / ARABIC_WORDS.length) * 100);
   }, [masteredCount]);
 
-  /*
-   * ---------------------------------------------------------
-   * Auto pronunciation
-   * ---------------------------------------------------------
-   *
-   * Guided mode automatically introduces the word.
-   * Practice mode also gives pronunciation support.
-   * Mastery mode intentionally does not auto-play so the
-   * learner must attempt recognition independently.
-   */
+  /* Arabic voice gated on soundEnabled */
+  const speakArabicGated = (text: string) => {
+    if (!soundEnabled) return;
+    speakArabic(text);
+  };
 
+  /*
+   * Auto pronunciation — guided + practice only.
+   * Mastery intentionally does not auto-play.
+   * Now also gated on autoReadEnabled.
+   */
   useEffect(() => {
-    if (!current || isComplete || mode === 'mastery') {
-      return;
-    }
+    if (!current || isComplete || mode === 'mastery') return;
+    if (!autoReadEnabled) return;
 
     const timer = window.setTimeout(() => {
-      speakArabic(current.arabic);
+      speakArabicGated(current.arabic);
     }, 500);
 
     return () => window.clearTimeout(timer);
-  }, [index, mode, current, isComplete]);
+  }, [index, mode, current, isComplete, autoReadEnabled, soundEnabled]);
 
-  /*
-   * ---------------------------------------------------------
-   * Reset current interaction
-   * ---------------------------------------------------------
-   */
-
+  /* Reset per-word UI state */
   useEffect(() => {
     setRevealed(false);
     setFeedback(null);
   }, [index, mode]);
 
-  /*
-   * ---------------------------------------------------------
-   * Speak
-   * ---------------------------------------------------------
-   */
+  /* Announce completion once */
+  useEffect(() => {
+    if (!isComplete || hasFinished) return;
 
-  const speak = () => {
+    speak(
+      masteryPercentage >= 80
+        ? `Masha'Allah! You mastered ${masteredCount} words.`
+        : `Well done! You mastered ${masteredCount} words. Let's practise again.`,
+    );
+  }, [isComplete, hasFinished, masteredCount, masteryPercentage, speak]);
+
+  const speakCurrentWord = () => {
     if (!current) return;
-
-    speakArabic(current.arabic);
+    speakArabicGated(current.arabic);
   };
 
-  /*
-   * ---------------------------------------------------------
-   * Find existing progress
-   * ---------------------------------------------------------
-   */
-
-  const getWordProgress = (id: string) => {
-    return progress.find(item => item.id === id);
-  };
-
-  /*
-   * ---------------------------------------------------------
-   * Mark word as mastered
-   * ---------------------------------------------------------
-   *
-   * First mastery:
-   * +10 points
-   *
-   * Consecutive mastery:
-   * +5 streak bonus
-   *
-   * Repeated mastery:
-   * no duplicate points
-   */
+  const getWordProgress = (id: string) =>
+    progress.find((item) => item.id === id);
 
   const markAsMastered = () => {
     if (!current) return;
@@ -145,124 +120,89 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
     if (existing?.mastered) {
       setFeedback('mastered');
       setRevealed(true);
+      speak('You have already mastered this word.');
       return;
     }
 
+    if (soundEnabled) playSoundFeedback('correct');
+
     const newStreak = streak + 1;
 
-    setProgress(previous => {
-      const exists = previous.some(
-        item => item.id === current.id
-      );
+    setProgress((previous) => {
+      const exists = previous.some((item) => item.id === current.id);
 
       if (exists) {
-        return previous.map(item =>
+        return previous.map((item) =>
           item.id === current.id
-            ? {
-                ...item,
-                attempts: item.attempts + 1,
-                mastered: true,
-              }
+            ? { ...item, attempts: item.attempts + 1, mastered: true }
             : item
         );
       }
 
       return [
         ...previous,
-        {
-          id: current.id,
-          attempts: 1,
-          mastered: true,
-        },
+        { id: current.id, attempts: 1, mastered: true },
       ];
     });
 
-    setScore(previous => previous + 10 + (newStreak >= 2 ? 5 : 0));
+    setScore((previous) => previous + 10 + (newStreak >= 2 ? 5 : 0));
     setStreak(newStreak);
 
     setFeedback('mastered');
     setRevealed(true);
-  };
 
-  /*
-   * ---------------------------------------------------------
-   * Mark for practice
-   * ---------------------------------------------------------
-   *
-   * No punishment for not mastering a word.
-   * The learner simply gets another opportunity.
-   */
+    speak(
+      `Excellent! This word has been added to your mastered vocabulary. It means: ${current.meaning}.`,
+    );
+  };
 
   const markForPractice = () => {
     if (!current) return;
 
-    setProgress(previous => {
-      const exists = previous.some(
-        item => item.id === current.id
-      );
+    if (soundEnabled) playSoundFeedback('try-again');
+
+    setProgress((previous) => {
+      const exists = previous.some((item) => item.id === current.id);
 
       if (exists) {
-        return previous.map(item =>
+        return previous.map((item) =>
           item.id === current.id
-            ? {
-                ...item,
-                attempts: item.attempts + 1,
-              }
+            ? { ...item, attempts: item.attempts + 1 }
             : item
         );
       }
 
       return [
         ...previous,
-        {
-          id: current.id,
-          attempts: 1,
-          mastered: false,
-        },
+        { id: current.id, attempts: 1, mastered: false },
       ];
     });
 
     setStreak(0);
     setFeedback('practice');
     setRevealed(true);
-  };
 
-  /*
-   * ---------------------------------------------------------
-   * Next word
-   * ---------------------------------------------------------
-   */
+    speak(
+      'Good effort! Keep practising this word. You can master it later.',
+    );
+  };
 
   const handleNext = () => {
     if (!current) return;
 
     if (index < ARABIC_WORDS.length - 1) {
-      setIndex(previous => previous + 1);
+      setIndex((previous) => previous + 1);
       return;
     }
 
     setIsComplete(true);
   };
 
-  /*
-   * ---------------------------------------------------------
-   * Previous word
-   * ---------------------------------------------------------
-   */
-
   const handlePrevious = () => {
     if (index > 0) {
-      setIndex(previous => previous - 1);
+      setIndex((previous) => previous - 1);
     }
   };
-
-  /*
-   * ---------------------------------------------------------
-   * Finish and move up
-   * ---------------------------------------------------------
-   *
-   * Protected so onComplete can never fire twice.
-   */
 
   const finishAndMoveUp = () => {
     if (hasFinished) return;
@@ -272,36 +212,27 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
     if (onComplete) {
       onComplete(score);
     }
-  };
 
-  /*
-   * ---------------------------------------------------------
-   * Reset
-   * ---------------------------------------------------------
-   */
+    speak(
+      `Masha'Allah! You completed the Arabic vocabulary lesson with ${score} points.`,
+    );
+  };
 
   const handleReset = () => {
     setIndex(0);
     setMode('guided');
-
     setScore(0);
     setStreak(0);
-
     setProgress([]);
-
     setRevealed(false);
     setFeedback(null);
-
     setIsComplete(false);
     setHasFinished(false);
+
+    speak("Let's practise Arabic vocabulary again!");
   };
 
-  /*
-   * ---------------------------------------------------------
-   * Empty dataset protection
-   * ---------------------------------------------------------
-   */
-
+  /* Empty dataset protection */
   if (!ARABIC_WORDS.length) {
     return (
       <div className="max-w-md mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl text-center">
@@ -318,12 +249,7 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
     );
   }
 
-  /*
-   * ---------------------------------------------------------
-   * Completion screen
-   * ---------------------------------------------------------
-   */
-
+  /* Completion screen */
   if (isComplete) {
     return (
       <div className="max-w-md mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl text-center">
@@ -336,7 +262,7 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
         </motion.div>
 
         <p className="text-2xl font-bold text-emerald-400 mb-2">
-          Masha'Allah!
+          Masha&apos;Allah!
         </p>
 
         <p className="text-gray-300 mb-6">
@@ -346,26 +272,16 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="bg-gray-900 rounded-xl p-4">
             <Target className="w-5 h-5 mx-auto mb-2 text-yellow-400" />
-
             <div className="text-2xl font-bold text-white">
               {masteredCount}
             </div>
-
-            <div className="text-xs text-gray-500">
-              Words Mastered
-            </div>
+            <div className="text-xs text-gray-500">Words Mastered</div>
           </div>
 
           <div className="bg-gray-900 rounded-xl p-4">
             <Star className="w-5 h-5 mx-auto mb-2 text-yellow-400" />
-
-            <div className="text-2xl font-bold text-white">
-              {score}
-            </div>
-
-            <div className="text-xs text-gray-500">
-              Score
-            </div>
+            <div className="text-2xl font-bold text-white">{score}</div>
+            <div className="text-xs text-gray-500">Score</div>
           </div>
         </div>
 
@@ -417,18 +333,11 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
     );
   }
 
-  /*
-   * ---------------------------------------------------------
-   * Main learning interface
-   * ---------------------------------------------------------
-   */
-
   const currentProgress = getWordProgress(current.id);
 
   return (
     <div className="max-w-md mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl text-center">
       {/* Header */}
-
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-emerald-400" />
@@ -438,13 +347,28 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
           </h3>
         </div>
 
-        <button
-          onClick={handleReset}
-          aria-label="Reset lesson"
-          className="p-2 bg-gray-800 rounded-lg text-gray-300 hover:text-white"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+
+          <button
+            onClick={handleReset}
+            aria-label="Reset lesson"
+            className="p-2 bg-gray-800 rounded-lg text-gray-300 hover:text-white"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <p className="text-gray-400 text-sm mb-4">
@@ -452,10 +376,14 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
       </p>
 
       {/* Mode selector */}
-
       <div className="grid grid-cols-3 gap-2 mb-5">
         <button
-          onClick={() => setMode('guided')}
+          onClick={() => {
+            setMode('guided');
+            speak(
+              'Guided mode. Listen to the word, look at its meaning, and then decide whether you know it.',
+            );
+          }}
           className={`px-2 py-2 rounded-lg text-xs font-semibold transition ${
             mode === 'guided'
               ? 'bg-emerald-600 text-white'
@@ -466,7 +394,12 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
         </button>
 
         <button
-          onClick={() => setMode('practice')}
+          onClick={() => {
+            setMode('practice');
+            speak(
+              'Practice mode. Listen again, repeat the word aloud, and check that you understand its meaning.',
+            );
+          }}
           className={`px-2 py-2 rounded-lg text-xs font-semibold transition ${
             mode === 'practice'
               ? 'bg-emerald-600 text-white'
@@ -477,7 +410,12 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
         </button>
 
         <button
-          onClick={() => setMode('mastery')}
+          onClick={() => {
+            setMode('mastery');
+            speak(
+              'Mastery mode. Try to recognize and pronounce the word before listening to the audio.',
+            );
+          }}
           className={`px-2 py-2 rounded-lg text-xs font-semibold transition ${
             mode === 'mastery'
               ? 'bg-emerald-600 text-white'
@@ -489,7 +427,6 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
       </div>
 
       {/* Progress */}
-
       <div className="mb-5">
         <div className="flex justify-between text-xs text-gray-500 mb-2">
           <span>
@@ -498,9 +435,7 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
 
           <span>
             Score:{' '}
-            <span className="text-yellow-400 font-bold">
-              {score}
-            </span>
+            <span className="text-yellow-400 font-bold">{score}</span>
           </span>
         </div>
 
@@ -515,16 +450,13 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
       </div>
 
       {/* Word card */}
-
       <motion.div
         key={`${index}-${mode}`}
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         className="bg-[#1a1a1a] p-8 rounded-xl border border-gray-800 mb-5"
       >
-        <div className="text-6xl mb-4">
-          {current.emoji}
-        </div>
+        <div className="text-6xl mb-4">{current.emoji}</div>
 
         <div
           dir="rtl"
@@ -551,9 +483,8 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
       </motion.div>
 
       {/* Audio */}
-
       <button
-        onClick={speak}
+        onClick={speakCurrentWord}
         className="w-full px-4 py-3 bg-emerald-600 rounded-lg text-white font-bold flex items-center justify-center gap-2 mb-4 hover:bg-emerald-500"
       >
         <Volume2 className="w-5 h-5" />
@@ -561,7 +492,6 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
       </button>
 
       {/* Learning prompt */}
-
       <div className="bg-gray-900 rounded-xl p-4 mb-4 text-left">
         <p className="text-xs text-gray-500 mb-1">
           {mode === 'guided'
@@ -581,7 +511,6 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
       </div>
 
       {/* Reveal */}
-
       {!revealed && (
         <button
           onClick={() => setRevealed(true)}
@@ -592,7 +521,6 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
       )}
 
       {/* Self assessment */}
-
       {revealed && !feedback && (
         <div className="mb-5">
           <p className="text-sm text-gray-300 font-semibold mb-3">
@@ -619,7 +547,6 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
       )}
 
       {/* Feedback */}
-
       {feedback === 'mastered' && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -628,9 +555,7 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
         >
           <CheckCircle className="w-6 h-6 mx-auto mb-2 text-emerald-400" />
 
-          <p className="text-emerald-400 font-bold">
-            Excellent!
-          </p>
+          <p className="text-emerald-400 font-bold">Excellent!</p>
 
           <p className="text-xs text-gray-400 mt-1">
             {currentProgress?.mastered
@@ -646,9 +571,7 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
           animate={{ opacity: 1, y: 0 }}
           className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mb-5"
         >
-          <p className="text-amber-400 font-bold">
-            Good effort!
-          </p>
+          <p className="text-amber-400 font-bold">Good effort!</p>
 
           <p className="text-xs text-gray-400 mt-1">
             Keep practicing this word. You can master it later.
@@ -657,7 +580,6 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
       )}
 
       {/* Navigation */}
-
       <div className="flex gap-3">
         <button
           onClick={handlePrevious}
@@ -671,10 +593,7 @@ export const ArabicWords: React.FC<ArabicWordsProps> = ({
           onClick={handleNext}
           className="flex-1 px-4 py-3 bg-indigo-600 rounded-xl text-white font-bold hover:bg-indigo-500 flex items-center justify-center gap-2"
         >
-          {index < ARABIC_WORDS.length - 1
-            ? 'Next Word'
-            : 'Complete Lesson'}
-
+          {index < ARABIC_WORDS.length - 1 ? 'Next Word' : 'Complete Lesson'}
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>

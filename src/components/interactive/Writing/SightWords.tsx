@@ -12,6 +12,9 @@ import {
   MessageCircle,
 } from 'lucide-react';
 
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
+
 type SightWordStage =
   | 'observe'
   | 'listen'
@@ -137,6 +140,12 @@ const STAGE_LABELS: Record<SightWordStage, string> = {
 };
 
 export const SightWords: React.FC = () => {
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [currentWord, setCurrentWord] = useState(0);
   const [stage, setStage] = useState<SightWordStage>('observe');
   const [built, setBuilt] = useState<string[]>([]);
@@ -158,7 +167,6 @@ export const SightWords: React.FC = () => {
   const shuffleLetters = useCallback((letters: string[]) => {
     const shuffled = [...letters];
 
-    // Fisher-Yates shuffle.
     for (let i = shuffled.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -181,18 +189,86 @@ export const SightWords: React.FC = () => {
     resetWord();
   }, [currentWord, resetWord]);
 
-  const speak = useCallback((text: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      return;
-    }
+  /* =======================================================
+     AUTO-READ — stage prompts
+     Each stage reads its own instruction.
+     'recognize' does NOT read the target word.
+     'build' does NOT read the target word.
+     'use' reads the sentence (the pedagogy of the stage).
+  ======================================================= */
 
-    window.speechSynthesis.cancel();
+  useEffect(() => {
+    if (!autoReadEnabled) return;
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.75;
-    utterance.pitch = 1;
-    window.speechSynthesis.speak(utterance);
-  }, []);
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          `Look carefully at this word. ${wordData.meaning}`
+        );
+      } else if (stage === 'listen') {
+        speak(
+          `Listen to the word. ${word}. Say it aloud after you hear it.`
+        );
+      } else if (stage === 'recognize') {
+        // Deliberately does not name the target word.
+        speak(
+          'Which word did you just learn? Find the word you saw and heard.'
+        );
+      } else if (stage === 'build') {
+        // Deliberately does not name the target word.
+        speak(
+          'Build the word. Put the letters in the correct order.'
+        );
+      } else if (stage === 'use') {
+        speak(
+          `Find the word in a sentence. ${wordData.sentence}`
+        );
+      } else if (stage === 'check') {
+        speak(
+          `Look at the word once more and say it aloud. ${word}.`
+        );
+      } else if (stage === 'master') {
+        speak(
+          `You learned the word ${word}. ${wordData.meaning} For example: ${wordData.sentence}`
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    stage,
+    word,
+    wordData.meaning,
+    wordData.sentence,
+    autoReadEnabled,
+    speak,
+  ]);
+
+  /* =======================================================
+     FEEDBACK NARRATION
+     Fires when feedback changes. Every string is a specific
+     success or specific direction — never a generic retry.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!feedback) return;
+
+    speak(feedback);
+  }, [feedback, speak]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
 
   const goToStage = (nextStage: SightWordStage) => {
     setFeedback(null);
@@ -207,6 +283,8 @@ export const SightWords: React.FC = () => {
     );
 
     setFeedback(null);
+    // Deliberately does not speak the letter — the child is
+    // producing the word from sight memory, not from dictation.
   };
 
   const removeLetter = (index: number) => {
@@ -253,11 +331,14 @@ export const SightWords: React.FC = () => {
       setFeedback('Excellent! You found the sight word in a sentence.');
       goToStage('check');
     } else {
-      setFeedback('Read the sentence again and look for the word you learned.');
+      setFeedback(
+        'Read the sentence again and look for the word you learned.'
+      );
     }
   };
 
   const nextWord = () => {
+    stopSpeaking();
     setCurrentWord((previous) => (previous + 1) % SIGHT_WORDS.length);
     setAttempts(0);
   };
@@ -292,6 +373,19 @@ export const SightWords: React.FC = () => {
           Learn to recognize common words quickly, understand them in context,
           and use them in meaningful sentences.
         </p>
+
+        <div className="flex justify-center mt-3">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Progress */}

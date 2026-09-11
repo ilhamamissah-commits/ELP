@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle,
@@ -10,7 +10,12 @@ import {
   Layers,
   Search,
   ListOrdered,
+  Volume2,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type ThinkingSkill =
   | 'patterns'
@@ -36,9 +41,6 @@ interface Challenge {
 }
 
 const CHALLENGES: Challenge[] = [
-  // =========================================================
-  // 1. PATTERNS
-  // =========================================================
   {
     id: 1,
     skill: 'patterns',
@@ -52,7 +54,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'Look at what repeats.',
     difficulty: 1,
   },
-
   {
     id: 2,
     skill: 'patterns',
@@ -66,7 +67,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'Star and Moon take turns.',
     difficulty: 1,
   },
-
   {
     id: 3,
     skill: 'patterns',
@@ -75,15 +75,10 @@ const CHALLENGES: Challenge[] = [
     visual: '2 → 4 → 6 → 8 → ❓',
     answer: '10',
     options: ['9', '10', '12'],
-    explanation:
-      'Each number increases by 2: 2, 4, 6, 8, 10.',
+    explanation: 'Each number increases by 2: 2, 4, 6, 8, 10.',
     hint: 'Count by twos.',
     difficulty: 2,
   },
-
-  // =========================================================
-  // 2. SEQUENCING
-  // =========================================================
   {
     id: 4,
     skill: 'sequencing',
@@ -97,7 +92,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'Think about how a plant grows.',
     difficulty: 1,
   },
-
   {
     id: 5,
     skill: 'sequencing',
@@ -111,10 +105,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'You wake up before brushing your teeth.',
     difficulty: 1,
   },
-
-  // =========================================================
-  // 3. DECOMPOSITION
-  // =========================================================
   {
     id: 6,
     skill: 'decomposition',
@@ -128,7 +118,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'What do we cut a pizza into?',
     difficulty: 1,
   },
-
   {
     id: 7,
     skill: 'decomposition',
@@ -142,10 +131,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'Choose something that can be one step of breakfast.',
     difficulty: 2,
   },
-
-  // =========================================================
-  // 4. CLASSIFICATION
-  // =========================================================
   {
     id: 8,
     skill: 'classification',
@@ -159,7 +144,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'Which object is alive?',
     difficulty: 1,
   },
-
   {
     id: 9,
     skill: 'classification',
@@ -173,10 +157,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'Three things are food.',
     difficulty: 1,
   },
-
-  // =========================================================
-  // 5. ABSTRACTION
-  // =========================================================
   {
     id: 10,
     skill: 'abstraction',
@@ -190,10 +170,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'How do these objects help people?',
     difficulty: 2,
   },
-
-  // =========================================================
-  // 6. LOGIC
-  // =========================================================
   {
     id: 11,
     skill: 'logic',
@@ -207,7 +183,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'What protects you from rain?',
     difficulty: 1,
   },
-
   {
     id: 12,
     skill: 'logic',
@@ -221,10 +196,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'Count the numbers.',
     difficulty: 1,
   },
-
-  // =========================================================
-  // 7. DEBUGGING
-  // =========================================================
   {
     id: 13,
     skill: 'debugging',
@@ -238,12 +209,12 @@ const CHALLENGES: Challenge[] = [
     hint: 'Count from 1 to 5.',
     difficulty: 1,
   },
-
   {
     id: 14,
     skill: 'debugging',
     title: 'Fix the Robot',
-    question: 'The robot should move to the star. Which instruction is wrong?',
+    question:
+      'The robot should move to the star. Which instruction is wrong?',
     visual: '🤖 → Right → Right → Left → ⭐',
     answer: 'Left',
     options: ['Right', 'Left', 'Right'],
@@ -252,10 +223,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'The robot needs to keep moving toward the star.',
     difficulty: 2,
   },
-
-  // =========================================================
-  // 8. ALGORITHMS
-  // =========================================================
   {
     id: 15,
     skill: 'algorithms',
@@ -269,7 +236,6 @@ const CHALLENGES: Challenge[] = [
     hint: 'Think about a safe preparation step.',
     difficulty: 1,
   },
-
   {
     id: 16,
     skill: 'algorithms',
@@ -287,54 +253,43 @@ const CHALLENGES: Challenge[] = [
 
 const SKILL_INFO: Record<
   ThinkingSkill,
-  {
-    name: string;
-    description: string;
-    icon: React.ReactNode;
-  }
+  { name: string; description: string; icon: React.ReactNode }
 > = {
   patterns: {
     name: 'Pattern Recognition',
     description: 'Find what repeats and predict what comes next.',
     icon: <Search className="w-5 h-5" />,
   },
-
   sequencing: {
     name: 'Sequencing',
     description: 'Put events and instructions in the correct order.',
     icon: <ListOrdered className="w-5 h-5" />,
   },
-
   decomposition: {
     name: 'Decomposition',
     description: 'Break a large problem into smaller parts.',
     icon: <Layers className="w-5 h-5" />,
   },
-
   classification: {
     name: 'Classification',
     description: 'Group things according to their properties.',
     icon: <Layers className="w-5 h-5" />,
   },
-
   abstraction: {
     name: 'Abstraction',
     description: 'Focus on important ideas and ignore unnecessary details.',
     icon: <Brain className="w-5 h-5" />,
   },
-
   logic: {
     name: 'Logical Reasoning',
     description: 'Use information to make sensible decisions.',
     icon: <Brain className="w-5 h-5" />,
   },
-
   debugging: {
     name: 'Debugging',
     description: 'Find mistakes and work out how to fix them.',
     icon: <Bug className="w-5 h-5" />,
   },
-
   algorithms: {
     name: 'Algorithms',
     description: 'Create clear step-by-step instructions.',
@@ -350,12 +305,38 @@ export const ComputationalThinking: React.FC = () => {
   const [showHint, setShowHint] = useState(false);
   const [answered, setAnswered] = useState(0);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const current = CHALLENGES[index];
 
   const skill = useMemo(
     () => SKILL_INFO[current.skill],
     [current.skill]
   );
+
+  /* Auto-read the challenge + skill when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        `${skill.name}. ${skill.description}. ${current.title}. ${current.question}`,
+      );
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [index, current, skill, speak, autoReadEnabled]);
+
+  /* Read the hint when it opens */
+  useEffect(() => {
+    if (showHint && !completed) {
+      speak(current.hint);
+    }
+  }, [showHint, completed, current, speak]);
 
   const handleSelect = (answer: string) => {
     if (completed) return;
@@ -364,8 +345,18 @@ export const ComputationalThinking: React.FC = () => {
     setAnswered((previous) => previous + 1);
 
     if (answer === current.answer) {
+      if (soundEnabled) playSoundFeedback('correct');
+
       setCompleted(true);
       setScore((previous) => previous + 10);
+
+      speak(`Excellent! ${current.explanation}`);
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+
+      speak(
+        'Not quite. Look carefully at the problem and think about the pattern or rule.',
+      );
     }
   };
 
@@ -380,18 +371,17 @@ export const ComputationalThinking: React.FC = () => {
     setSelected(null);
     setCompleted(false);
     setShowHint(false);
+
+    speak('Challenge reset.');
   };
 
   const progress = ((index + (completed ? 1 : 0)) / CHALLENGES.length) * 100;
 
   return (
     <div className="max-w-2xl mx-auto bg-app-card p-6 rounded-3xl border border-app-border shadow-xl">
-
       {/* HEADER */}
       <div className="flex items-center justify-between mb-5">
-
         <div className="flex items-center gap-3">
-
           <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-300">
             <Brain className="w-7 h-7" />
           </div>
@@ -405,44 +395,47 @@ export const ComputationalThinking: React.FC = () => {
               Learn how to think, solve problems and find patterns.
             </p>
           </div>
-
         </div>
 
-        <div className="text-right">
-          <div className="text-xs text-gray-500">
-            SCORE
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <div className="text-xs text-gray-500">SCORE</div>
+
+            <div className="text-xl font-bold text-white">{score}</div>
           </div>
 
-          <div className="text-xl font-bold text-white">
-            {score}
-          </div>
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
         </div>
-
       </div>
 
       {/* PROGRESS */}
       <div className="mb-5">
-
         <div className="flex justify-between text-xs text-gray-500 mb-2">
           <span>
             Challenge {index + 1} of {CHALLENGES.length}
           </span>
 
-          <span>
-            {Math.round(progress)}%
-          </span>
+          <span>{Math.round(progress)}%</span>
         </div>
 
         <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-
           <motion.div
             className="h-full bg-indigo-500"
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.3 }}
           />
-
         </div>
-
       </div>
 
       {/* CURRENT SKILL */}
@@ -452,9 +445,7 @@ export const ComputationalThinking: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         className="mb-5 p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20"
       >
-
         <div className="flex items-center gap-3">
-
           <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300">
             {skill.icon}
           </div>
@@ -464,17 +455,11 @@ export const ComputationalThinking: React.FC = () => {
               Thinking Skill
             </div>
 
-            <div className="text-lg font-bold text-white">
-              {skill.name}
-            </div>
+            <div className="text-lg font-bold text-white">{skill.name}</div>
 
-            <div className="text-sm text-gray-400">
-              {skill.description}
-            </div>
+            <div className="text-sm text-gray-400">{skill.description}</div>
           </div>
-
         </div>
-
       </motion.div>
 
       {/* CHALLENGE */}
@@ -484,7 +469,6 @@ export const ComputationalThinking: React.FC = () => {
         animate={{ opacity: 1, scale: 1 }}
         className="bg-[#171717] rounded-2xl border border-gray-800 p-6 text-center mb-5"
       >
-
         <div className="inline-flex px-3 py-1 rounded-full bg-gray-800 text-gray-400 text-xs mb-4">
           Difficulty {current.difficulty}/3
         </div>
@@ -493,21 +477,16 @@ export const ComputationalThinking: React.FC = () => {
           {current.title}
         </h3>
 
-        <p className="text-gray-300 mb-5">
-          {current.question}
-        </p>
+        <p className="text-gray-300 mb-5">{current.question}</p>
 
         <div className="text-4xl sm:text-5xl font-bold tracking-wider py-5">
           {current.visual}
         </div>
-
       </motion.div>
 
       {/* ANSWERS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-
         {current.options.map((option) => {
-
           const isSelected = selected === option;
           const isAnswer = option === current.answer;
 
@@ -515,11 +494,9 @@ export const ComputationalThinking: React.FC = () => {
             'bg-gray-800 border-gray-700 hover:border-indigo-400';
 
           if (completed && isAnswer) {
-            stateClass =
-              'bg-green-500/20 border-green-500 text-green-300';
+            stateClass = 'bg-green-500/20 border-green-500 text-green-300';
           } else if (isSelected && !isAnswer) {
-            stateClass =
-              'bg-red-500/20 border-red-500 text-red-300';
+            stateClass = 'bg-red-500/20 border-red-500 text-red-300';
           }
 
           return (
@@ -535,7 +512,6 @@ export const ComputationalThinking: React.FC = () => {
             </motion.button>
           );
         })}
-
       </div>
 
       {/* HINT */}
@@ -575,14 +551,11 @@ export const ComputationalThinking: React.FC = () => {
                 : 'bg-red-500/10 border border-red-500/20'
             }`}
           >
-
             {selected === current.answer ? (
               <>
                 <CheckCircle className="w-5 h-5 inline mr-2 text-green-400" />
 
-                <span className="font-bold text-green-400">
-                  Excellent!
-                </span>
+                <span className="font-bold text-green-400">Excellent!</span>
 
                 <p className="text-sm text-gray-300 mt-2">
                   {current.explanation}
@@ -595,18 +568,17 @@ export const ComputationalThinking: React.FC = () => {
                 </p>
 
                 <p className="text-sm text-gray-400 mt-1">
-                  Look carefully at the problem and think about the pattern or rule.
+                  Look carefully at the problem and think about the pattern or
+                  rule.
                 </p>
               </>
             )}
-
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* ACTIONS */}
       <div className="flex gap-3 mt-4">
-
         <button
           onClick={resetChallenge}
           className="flex-1 flex items-center justify-center gap-2 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-white font-bold"
@@ -624,18 +596,15 @@ export const ComputationalThinking: React.FC = () => {
             <ArrowRight className="w-4 h-4" />
           </button>
         )}
-
       </div>
 
       {/* LEARNING NOTE */}
       <div className="mt-5 pt-4 border-t border-gray-800 text-center">
         <p className="text-xs text-gray-500">
-          Computational thinking is about solving problems using
-          patterns, logic, algorithms and clear steps.
+          Computational thinking is about solving problems using patterns,
+          logic, algorithms and clear steps.
         </p>
       </div>
-
     </div>
   );
 };
-

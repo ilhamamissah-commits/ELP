@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -8,8 +8,13 @@ import {
   RotateCcw,
   Star,
   Target,
+  Volume2,
   XCircle,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type LearningMode = 'guided' | 'practice' | 'mastery';
 
@@ -65,12 +70,7 @@ const LESSONS: AqeedahLesson[] = [
       'Think of something beautiful in creation. How does it remind you of the Creator?',
     question: {
       question: 'Who do Muslims worship?',
-      options: [
-        'The sun',
-        'Allah alone',
-        'The stars',
-        'People',
-      ],
+      options: ['The sun', 'Allah alone', 'The stars', 'People'],
       answer: 1,
       explanation:
         'Muslims worship Allah alone because He is the One true God and Creator.',
@@ -82,8 +82,7 @@ const LESSONS: AqeedahLesson[] = [
     arabic: 'الإيمان بالملائكة',
     emoji: '✨',
     pillar: 'Pillar 2 of Iman',
-    introduction:
-      'Muslims believe in the angels created by Allah.',
+    introduction: 'Muslims believe in the angels created by Allah.',
     explanation:
       'Angels are a creation of Allah. They obey Allah and carry out the commands He gives them. We believe in them even though we cannot normally see them.',
     keyPoints: [
@@ -96,12 +95,7 @@ const LESSONS: AqeedahLesson[] = [
       'How can believing that Allah knows what we do encourage us to make good choices?',
     question: {
       question: 'Who created the angels?',
-      options: [
-        'People',
-        'The prophets',
-        'Allah',
-        'Animals',
-      ],
+      options: ['People', 'The prophets', 'Allah', 'Animals'],
       answer: 2,
       explanation:
         'Allah created the angels, and they obey His commands.',
@@ -113,8 +107,7 @@ const LESSONS: AqeedahLesson[] = [
     arabic: 'الإيمان بالكتب',
     emoji: '📖',
     pillar: 'Pillar 3 of Iman',
-    introduction:
-      'Allah sent revelation to guide humanity.',
+    introduction: 'Allah sent revelation to guide humanity.',
     explanation:
       'Muslims believe that Allah revealed guidance to His messengers. The Quran is the final revealed book and was revealed to Prophet Muhammad ﷺ.',
     keyPoints: [
@@ -123,8 +116,7 @@ const LESSONS: AqeedahLesson[] = [
       'The Quran is the final revealed book.',
       'The Quran guides people toward what is right.',
     ],
-    reflection:
-      'What is one way you can show respect for the Quran?',
+    reflection: 'What is one way you can show respect for the Quran?',
     question: {
       question: 'Which is the final revealed book?',
       options: [
@@ -144,8 +136,7 @@ const LESSONS: AqeedahLesson[] = [
     arabic: 'الإيمان بالرسل',
     emoji: '🕌',
     pillar: 'Pillar 4 of Iman',
-    introduction:
-      'Allah sent prophets and messengers to guide people.',
+    introduction: 'Allah sent prophets and messengers to guide people.',
     explanation:
       'Allah chose messengers to teach people His guidance and call them to worship Him. Muslims believe in all the prophets and messengers mentioned in revelation. Muhammad ﷺ is the final prophet.',
     keyPoints: [
@@ -175,8 +166,7 @@ const LESSONS: AqeedahLesson[] = [
     arabic: 'الإيمان باليوم الآخر',
     emoji: '🌅',
     pillar: 'Pillar 5 of Iman',
-    introduction:
-      'Muslims believe that there is life after this world.',
+    introduction: 'Muslims believe that there is life after this world.',
     explanation:
       'Islam teaches that this worldly life is temporary and that there will be a Last Day. Allah will resurrect people and judge them with complete justice.',
     keyPoints: [
@@ -186,8 +176,7 @@ const LESSONS: AqeedahLesson[] = [
       'Allah is perfectly just.',
       'Our actions matter.',
     ],
-    reflection:
-      'What good action would you like to do today?',
+    reflection: 'What good action would you like to do today?',
     question: {
       question: 'What do Muslims believe about life after death?',
       options: [
@@ -207,8 +196,7 @@ const LESSONS: AqeedahLesson[] = [
     arabic: 'الإيمان بالقدر',
     emoji: '⭐',
     pillar: 'Pillar 6 of Iman',
-    introduction:
-      'Muslims believe in Allah’s knowledge and decree.',
+    introduction: 'Muslims believe in Allah’s knowledge and decree.',
     explanation:
       'Allah has complete knowledge of everything. Muslims trust Allah while still making responsible choices, working hard and taking responsibility for their actions.',
     keyPoints: [
@@ -221,8 +209,7 @@ const LESSONS: AqeedahLesson[] = [
     reflection:
       'What can you do when something does not happen the way you hoped?',
     question: {
-      question:
-        'What should a Muslim do when something difficult happens?',
+      question: 'What should a Muslim do when something difficult happens?',
       options: [
         'Give up immediately',
         'Blame everyone',
@@ -236,17 +223,13 @@ const LESSONS: AqeedahLesson[] = [
   },
 ];
 
-export const Aqeedah: React.FC<AqeedahProps> = ({
-  onComplete,
-}) => {
+export const Aqeedah: React.FC<AqeedahProps> = ({ onComplete }) => {
   const [index, setIndex] = useState(0);
   const [mode, setMode] = useState<LearningMode>('guided');
 
   const [progress, setProgress] = useState<AqeedahProgress[]>([]);
 
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(
-    null,
-  );
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
 
   const [answerChecked, setAnswerChecked] = useState(false);
 
@@ -260,33 +243,51 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
 
   const [hasFinished, setHasFinished] = useState(false);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const current = LESSONS[index];
 
-  const masteredCount = progress.filter(
-    item => item.mastered,
-  ).length;
+  const masteredCount = progress.filter((item) => item.mastered).length;
 
   const progressPercentage = useMemo(() => {
     if (LESSONS.length === 0) return 0;
 
-    return Math.round(
-      (masteredCount / LESSONS.length) * 100,
-    );
+    return Math.round((masteredCount / LESSONS.length) * 100);
   }, [masteredCount]);
 
   const lessonProgress = useMemo(() => {
     if (LESSONS.length === 0) return 0;
 
-    return Math.round(
-      ((index + 1) / LESSONS.length) * 100,
-    );
+    return Math.round(((index + 1) / LESSONS.length) * 100);
   }, [index]);
 
-  const currentProgress = progress.find(
-    item => item.id === current.id,
-  );
+  const currentProgress = progress.find((item) => item.id === current.id);
 
   const isMastered = currentProgress?.mastered ?? false;
+
+  // Auto-read the lesson introduction and explanation when the lesson or mode changes
+  useEffect(() => {
+    if (!autoReadEnabled || !current) return;
+
+    const readOut =
+      mode === 'guided'
+        ? `${current.title}. ${current.introduction}. ${current.explanation}`
+        : `${current.title}. ${current.question.question}`;
+
+    const timer = window.setTimeout(() => speak(readOut), 350);
+    return () => window.clearTimeout(timer);
+  }, [index, mode, current, speak, autoReadEnabled]);
+
+  // Read the reflection when it opens
+  useEffect(() => {
+    if (reflectionShown && current) {
+      speak(current.reflection);
+    }
+  }, [reflectionShown, current, speak]);
 
   const selectAnswer = (answerIndex: number) => {
     if (answerChecked) return;
@@ -299,24 +300,20 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
       return;
     }
 
-    const correct =
-      selectedAnswer === current.question.answer;
+    const correct = selectedAnswer === current.question.answer;
 
     setAnswerChecked(true);
 
-    setProgress(previous => {
-      const existing = previous.find(
-        item => item.id === current.id,
-      );
+    setProgress((previous) => {
+      const existing = previous.find((item) => item.id === current.id);
 
       if (existing) {
-        return previous.map(item =>
+        return previous.map((item) =>
           item.id === current.id
             ? {
                 ...item,
                 attempts: item.attempts + 1,
-                mastered:
-                  item.mastered || correct,
+                mastered: item.mastered || correct,
               }
             : item,
         );
@@ -333,7 +330,9 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
     });
 
     if (correct) {
-      setScore(previous => {
+      if (soundEnabled) playSoundFeedback('correct');
+
+      setScore((previous) => {
         const alreadyMastered = currentProgress?.mastered;
 
         if (alreadyMastered) {
@@ -345,9 +344,17 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
         return previous + 10 + bonus;
       });
 
-      setStreak(previous => previous + 1);
+      setStreak((previous) => previous + 1);
+
+      speak(`Correct! ${current.question.explanation}`);
     } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+
       setStreak(0);
+
+      speak(
+        `Not quite. ${current.question.explanation} Try again when you are ready.`,
+      );
     }
   };
 
@@ -363,7 +370,7 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
 
   const next = () => {
     if (index < LESSONS.length - 1) {
-      setIndex(previous => previous + 1);
+      setIndex((previous) => previous + 1);
       resetQuestion();
       return;
     }
@@ -374,7 +381,7 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
   const previous = () => {
     if (index === 0) return;
 
-    setIndex(previous => previous - 1);
+    setIndex((previous) => previous - 1);
     resetQuestion();
   };
 
@@ -383,6 +390,10 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
 
     setHasFinished(true);
     onComplete?.(score);
+
+    speak(
+      `Masha'Allah! You earned ${score} points and mastered ${masteredCount} of the six pillars.`,
+    );
   };
 
   const reset = () => {
@@ -396,6 +407,8 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
     setStreak(0);
     setIsComplete(false);
     setHasFinished(false);
+
+    speak("Let's learn the foundations of Islamic belief again!");
   };
 
   const getModeDescription = () => {
@@ -414,12 +427,10 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
     return (
       <div className="max-w-md mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl">
         <div className="text-center">
-          <div className="text-7xl mb-4">
-            🌙
-          </div>
+          <div className="text-7xl mb-4">🌙</div>
 
           <h3 className="text-2xl font-bold text-emerald-400">
-            Masha'Allah!
+            Masha&apos;Allah!
           </h3>
 
           <p className="text-gray-300 mt-2 mb-6">
@@ -434,21 +445,15 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
                 {masteredCount}
               </div>
 
-              <div className="text-xs text-gray-500">
-                Mastered
-              </div>
+              <div className="text-xs text-gray-500">Mastered</div>
             </div>
 
             <div className="bg-gray-900 rounded-xl p-4">
               <Star className="w-5 h-5 mx-auto mb-2 text-yellow-400" />
 
-              <div className="text-2xl font-bold text-white">
-                {score}
-              </div>
+              <div className="text-2xl font-bold text-white">{score}</div>
 
-              <div className="text-xs text-gray-500">
-                Score
-              </div>
+              <div className="text-xs text-gray-500">Score</div>
             </div>
           </div>
 
@@ -461,9 +466,7 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
             <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
               <motion.div
                 className="h-full bg-emerald-500"
-                animate={{
-                  width: `${progressPercentage}%`,
-                }}
+                animate={{ width: `${progressPercentage}%` }}
               />
             </div>
           </div>
@@ -494,9 +497,7 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
             disabled={hasFinished}
             className="w-full py-3 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-50"
           >
-            {hasFinished
-              ? 'Completed'
-              : 'Finish & Move Up'}
+            {hasFinished ? 'Completed' : 'Finish & Move Up'}
           </button>
         </div>
       </div>
@@ -506,25 +507,46 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
   return (
     <div className="max-w-md mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl">
       {/* Header */}
-      <div className="text-center mb-5">
-        <h3 className="text-2xl font-bold text-white">
-          Aqeedah
-        </h3>
+      <div className="flex items-start justify-between gap-3 mb-5">
+        <div className="flex-1 text-center">
+          <h3 className="text-2xl font-bold text-white">Aqeedah</h3>
 
-        <p className="text-xs text-gray-500 mt-1">
-          Foundations of Islamic Belief
-        </p>
+          <p className="text-xs text-gray-500 mt-1">
+            Foundations of Islamic Belief
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={toggleSound}
+          aria-label="Toggle sound"
+          className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+        >
+          <Volume2
+            className={`w-5 h-5 ${
+              soundEnabled ? 'text-amber-300' : 'text-gray-500'
+            }`}
+          />
+        </button>
       </div>
 
       {/* Learning Mode */}
       <div className="grid grid-cols-3 gap-2 mb-5">
         {(['guided', 'practice', 'mastery'] as LearningMode[]).map(
-          learningMode => (
+          (learningMode) => (
             <button
               key={learningMode}
               onClick={() => {
                 setMode(learningMode);
                 resetQuestion();
+
+                speak(
+                  learningMode === 'guided'
+                    ? 'Guided mode. Learn the belief, understand the meaning, then reflect.'
+                    : learningMode === 'practice'
+                      ? 'Practice mode. Check what you remember.'
+                      : 'Mastery mode. Show that you can answer independently.',
+                );
               }}
               className={`py-2 rounded-lg text-xs font-semibold transition ${
                 mode === learningMode
@@ -553,17 +575,13 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
             Pillar {index + 1} / {LESSONS.length}
           </span>
 
-          <span>
-            {masteredCount} mastered
-          </span>
+          <span>{masteredCount} mastered</span>
         </div>
 
         <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
           <motion.div
             className="h-full bg-emerald-500"
-            animate={{
-              width: `${lessonProgress}%`,
-            }}
+            animate={{ width: `${lessonProgress}%` }}
           />
         </div>
       </div>
@@ -571,28 +589,18 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
       {/* Lesson */}
       <motion.div
         key={`${current.id}-${mode}`}
-        initial={{
-          opacity: 0,
-          x: 20,
-        }}
-        animate={{
-          opacity: 1,
-          x: 0,
-        }}
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
         className="bg-[#1a1a1a] rounded-xl border border-gray-800 p-6 mb-5"
       >
         <div className="text-center">
-          <div className="text-6xl mb-3">
-            {current.emoji}
-          </div>
+          <div className="text-6xl mb-3">{current.emoji}</div>
 
           <div className="text-xs text-emerald-400 font-semibold mb-2">
             {current.pillar}
           </div>
 
-          <h4 className="text-xl font-bold text-white">
-            {current.title}
-          </h4>
+          <h4 className="text-xl font-bold text-white">{current.title}</h4>
 
           <div
             dir="rtl"
@@ -619,17 +627,12 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
         <div className="flex items-center gap-2 mb-3">
           <BookOpen className="w-4 h-4 text-emerald-400" />
 
-          <p className="text-white text-sm font-semibold">
-            Remember
-          </p>
+          <p className="text-white text-sm font-semibold">Remember</p>
         </div>
 
         <ul className="space-y-2">
-          {current.keyPoints.map(point => (
-            <li
-              key={point}
-              className="flex gap-2 text-xs text-gray-400"
-            >
+          {current.keyPoints.map((point) => (
+            <li key={point} className="flex gap-2 text-xs text-gray-400">
               <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
 
               <span>{point}</span>
@@ -655,65 +658,52 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
             </p>
 
             <div className="space-y-2">
-              {current.question.options.map(
-                (option, optionIndex) => {
-                  const isSelected =
-                    selectedAnswer === optionIndex;
+              {current.question.options.map((option, optionIndex) => {
+                const isSelected = selectedAnswer === optionIndex;
 
-                  const isCorrect =
-                    answerChecked &&
-                    optionIndex ===
-                      current.question.answer;
+                const isCorrect =
+                  answerChecked && optionIndex === current.question.answer;
 
-                  const isWrong =
-                    answerChecked &&
-                    isSelected &&
-                    optionIndex !==
-                      current.question.answer;
+                const isWrong =
+                  answerChecked &&
+                  isSelected &&
+                  optionIndex !== current.question.answer;
 
-                  let buttonClass =
-                    'border-gray-800 bg-gray-800 text-gray-300';
+                let buttonClass =
+                  'border-gray-800 bg-gray-800 text-gray-300';
 
-                  if (isCorrect) {
-                    buttonClass =
-                      'border-emerald-500 bg-emerald-500/10 text-emerald-300';
-                  } else if (isWrong) {
-                    buttonClass =
-                      'border-red-500 bg-red-500/10 text-red-300';
-                  } else if (isSelected) {
-                    buttonClass =
-                      'border-indigo-500 bg-indigo-500/10 text-white';
-                  }
+                if (isCorrect) {
+                  buttonClass =
+                    'border-emerald-500 bg-emerald-500/10 text-emerald-300';
+                } else if (isWrong) {
+                  buttonClass =
+                    'border-red-500 bg-red-500/10 text-red-300';
+                } else if (isSelected) {
+                  buttonClass =
+                    'border-indigo-500 bg-indigo-500/10 text-white';
+                }
 
-                  return (
-                    <button
-                      key={option}
-                      onClick={() =>
-                        selectAnswer(optionIndex)
-                      }
-                      disabled={answerChecked}
-                      className={`w-full text-left p-3 rounded-lg border text-sm transition ${buttonClass}`}
-                    >
-                      <span className="mr-2 font-bold">
-                        {String.fromCharCode(
-                          65 + optionIndex,
-                        )}
-                        .
-                      </span>
+                return (
+                  <button
+                    key={option}
+                    onClick={() => selectAnswer(optionIndex)}
+                    disabled={answerChecked}
+                    className={`w-full text-left p-3 rounded-lg border text-sm transition ${buttonClass}`}
+                  >
+                    <span className="mr-2 font-bold">
+                      {String.fromCharCode(65 + optionIndex)}.
+                    </span>
 
-                      {option}
+                    {option}
 
-                      {isCorrect && (
-                        <CheckCircle className="w-4 h-4 inline ml-2" />
-                      )}
+                    {isCorrect && (
+                      <CheckCircle className="w-4 h-4 inline ml-2" />
+                    )}
 
-                      {isWrong && (
-                        <XCircle className="w-4 h-4 inline ml-2" />
-                      )}
-                    </button>
-                  );
-                },
-              )}
+                    {isWrong && <XCircle className="w-4 h-4 inline ml-2" />}
+                  </button>
+                );
+              })}
             </div>
 
             {!answerChecked && (
@@ -729,15 +719,13 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
             {answerChecked && (
               <div
                 className={`mt-4 p-4 rounded-xl ${
-                  selectedAnswer ===
-                  current.question.answer
+                  selectedAnswer === current.question.answer
                     ? 'bg-emerald-500/10 border border-emerald-500/20'
                     : 'bg-red-500/10 border border-red-500/20'
                 }`}
               >
                 <p className="text-sm font-semibold text-white mb-2">
-                  {selectedAnswer ===
-                  current.question.answer
+                  {selectedAnswer === current.question.answer
                     ? 'Correct! Masha’Allah.'
                     : 'Keep learning and try again.'}
                 </p>
@@ -786,7 +774,7 @@ export const Aqeedah: React.FC<AqeedahProps> = ({
         </button>
       )}
 
-      {reflectionShown && (
+      {reflectionShown && mode !== 'guided' && (
         <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 mb-5">
           <p className="text-xs text-indigo-400 font-semibold mb-2">
             REFLECTION

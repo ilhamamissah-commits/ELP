@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RotateCcw,
@@ -7,7 +7,11 @@ import {
   CheckCircle2,
   Sparkles,
   Shapes,
+  Volume2,
 } from 'lucide-react';
+
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type ShapeType = 'circle' | 'square' | 'triangle' | 'star';
 
@@ -115,6 +119,12 @@ const ShapeVisual: React.FC<{
 };
 
 export const ShapesPainter: React.FC = () => {
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [selectedShape, setSelectedShape] =
     useState<ShapeDefinition>(SHAPES[0]);
 
@@ -126,15 +136,60 @@ export const ShapesPainter: React.FC = () => {
 
   const [completed, setCompleted] = useState(false);
 
-  /**
-   * Place a shape on the canvas.
-   */
+  /* =======================================================
+     AUTO-READ — one-time intro on mount
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        'Shapes painter. Choose a shape and a colour, then tap anywhere on the canvas to place it.'
+      );
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* =======================================================
+     COMPLETION NARRATION — fires once on `completed`
+  ======================================================= */
+
+  useEffect(() => {
+    if (!completed) return;
+
+    speak(
+      `Wonderful artwork! You used ${placedShapes.length} ${
+        placedShapes.length === 1 ? 'shape' : 'shapes'
+      } to create your picture. Great creativity.`
+    );
+  }, [completed, placedShapes.length, speak]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const handleCanvasClick = (
     e: React.MouseEvent<HTMLDivElement>
   ) => {
     if (completed) return;
 
     if (placedShapes.length >= MAX_SHAPES) return;
+
+    // Stop any narration when the child starts placing shapes.
+    stopSpeaking();
 
     const rect = e.currentTarget.getBoundingClientRect();
 
@@ -162,44 +217,45 @@ export const ShapesPainter: React.FC = () => {
     setCompleted(false);
   };
 
-  /**
-   * Remove the last shape.
-   */
   const undo = () => {
+    if (placedShapes.length === 0) return;
+
     setPlacedShapes((previous) =>
       previous.slice(0, -1)
     );
 
     setCompleted(false);
+
+    speak('Undo.');
   };
 
-  /**
-   * Clear the complete canvas.
-   */
   const clear = () => {
+    stopSpeaking();
     setPlacedShapes([]);
     setCompleted(false);
   };
 
-  /**
-   * Select shape and automatically return to drawing mode.
-   */
   const selectShape = (shape: ShapeDefinition) => {
     setSelectedShape(shape);
     setCompleted(false);
+
+    // Speak the shape name — this is what the child is picking,
+    // not an answer to any puzzle.
+    speak(shape.name);
   };
 
-  /**
-   * Select colour.
-   */
-  const selectColor = (color: string) => {
-    setSelectedColor(color);
+  const selectColor = (colorValue: string) => {
+    setSelectedColor(colorValue);
     setCompleted(false);
+
+    const colorData = COLORS.find(
+      (color) => color.value === colorValue
+    );
+    if (colorData) {
+      speak(colorData.name);
+    }
   };
 
-  /**
-   * Count shapes.
-   */
   const shapeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
 
@@ -211,16 +267,11 @@ export const ShapesPainter: React.FC = () => {
     return counts;
   }, [placedShapes]);
 
-  /**
-   * Simple activity completion.
-   *
-   * This can later be replaced by a proper
-   * ELP assessment engine.
-   */
   const checkArtwork = () => {
     if (placedShapes.length < 3) return;
 
     setCompleted(true);
+    // Narration handled by the completion effect above.
   };
 
   return (
@@ -254,14 +305,27 @@ export const ShapesPainter: React.FC = () => {
 
             </div>
 
-            <button
-              onClick={clear}
-              disabled={placedShapes.length === 0}
-              aria-label="Clear canvas"
-              className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center justify-center disabled:opacity-30"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={toggleSound}
+                aria-label="Toggle sound"
+                className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors flex items-center justify-center"
+              >
+                <Volume2
+                  className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+                />
+              </button>
+
+              <button
+                onClick={clear}
+                disabled={placedShapes.length === 0}
+                aria-label="Clear canvas"
+                className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center justify-center disabled:opacity-30"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
 
           </div>
 

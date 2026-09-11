@@ -1,5 +1,6 @@
 import React, {
   useCallback,
+  useEffect,
   useMemo,
   useState,
 } from 'react';
@@ -16,7 +17,6 @@ import {
   Mountain,
   CloudSun,
   ArrowLeft,
-  ArrowRight,
   CheckCircle2,
   XCircle,
   Compass,
@@ -25,6 +25,9 @@ import {
 
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 /* =========================================================
    TYPES
@@ -470,27 +473,6 @@ const shuffle = <T,>(items: T[]): T[] => {
   );
 };
 
-const speakText = (text: string) => {
-  if (
-    typeof window === 'undefined' ||
-    !('speechSynthesis' in window)
-  ) {
-    return;
-  }
-
-  window.speechSynthesis.cancel();
-
-  const utterance =
-    new SpeechSynthesisUtterance(text);
-
-  utterance.rate = 0.8;
-  utterance.pitch = 1;
-
-  window.speechSynthesis.speak(
-    utterance
-  );
-};
-
 /* =========================================================
    MAIN COMPONENT
 ========================================================= */
@@ -507,6 +489,18 @@ export const GlobeExplorer: React.FC = () => {
     useProgressStore(
       (state) => state.completeActivity
     );
+
+  const soundEnabled = useSettingsStore(
+    (s) => s.soundEnabled
+  );
+  const autoReadEnabled = useSettingsStore(
+    (s) => s.autoReadEnabled
+  );
+  const toggleSound = useSettingsStore(
+    (s) => s.toggleSound
+  );
+
+  const { speak } = useReadAloud();
 
   /**
    * IMPORTANT:
@@ -624,7 +618,9 @@ export const GlobeExplorer: React.FC = () => {
         ];
       });
 
-      speakText(
+      if (soundEnabled) playSoundFeedback('move');
+
+      speak(
         country.isContinentOnly
           ? `${country.name}. ${country.funFact}`
           : `${country.name}. Capital: ${
@@ -632,8 +628,129 @@ export const GlobeExplorer: React.FC = () => {
             }. ${country.funFact}`
       );
     },
-    []
+    [speak, soundEnabled]
   );
+
+  /* =======================================================
+     AUTO-READ PROMPT ON LOAD (Explore mode)
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (mode !== 'explore') return;
+    if (selectedCountry) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        learnerStage === 'foundation'
+          ? 'Let\'s explore the world. Choose a place to discover its people, environment and interesting facts.'
+          : learnerStage === 'developing'
+            ? 'Explore countries, continents, regions, capitals and environments. Choose a place to begin.'
+            : 'Compare places, environments and communities around the world. Choose a country or continent to explore.'
+      );
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [mode, selectedCountry, speak, autoReadEnabled, learnerStage]);
+
+  /* =======================================================
+     AUTO-READ PROMPT ON CHALLENGE QUESTION CHANGE
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (mode !== 'challenge') return;
+    if (!challengeQuestions[challengeIndex]) return;
+    if (challengeFinished) return;
+
+    const timer = window.setTimeout(() => {
+      speak('Which country does this flag belong to? Choose the correct answer.');
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    challengeIndex,
+    challengeQuestions,
+    mode,
+    autoReadEnabled,
+    speak,
+    challengeFinished,
+  ]);
+
+  /* =======================================================
+     READ HINT / EXPLANATION ON ANSWER
+  ======================================================= */
+
+  useEffect(() => {
+    if (selectedAnswer === null) return;
+    if (mode !== 'challenge') return;
+    if (!challengeQuestions[challengeIndex]) return;
+
+    const current =
+      challengeQuestions[challengeIndex];
+
+    const correct =
+      selectedAnswer === current.country.id;
+
+    if (correct) {
+      if (soundEnabled) playSoundFeedback('correct');
+      speak(
+        `Correct! ${current.country.name} is in ${current.country.continent}. ${current.country.funFact}`
+      );
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      const chosen =
+        current.options.find(
+          (o) => o.id === selectedAnswer
+        );
+      speak(
+        `Not quite. ${chosen?.name ?? 'That country'} is in ${
+          chosen?.continent ?? 'a different continent'
+        }. The correct answer is ${current.country.name}, in ${current.country.continent}.`
+      );
+    }
+  }, [
+    selectedAnswer,
+    mode,
+    challengeQuestions,
+    challengeIndex,
+    speak,
+    soundEnabled,
+  ]);
+
+  /* =======================================================
+     COMPLETION NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (!challengeFinished) return;
+    if (challengeQuestions.length === 0) return;
+
+    const percentage = Math.round(
+      (challengeScore /
+        challengeQuestions.length) *
+        100
+    );
+
+    if (percentage >= 80) {
+      speak(
+        `Brilliant work! You scored ${percentage} percent. Your world knowledge is excellent.`
+      );
+    } else if (percentage >= 60) {
+      speak(
+        `Well done! You scored ${percentage} percent. Keep exploring the world.`
+      );
+    } else {
+      speak(
+        `You scored ${percentage} percent. Let's explore some more countries and try again.`
+      );
+    }
+  }, [
+    challengeFinished,
+    challengeQuestions.length,
+    challengeScore,
+    speak,
+  ]);
 
   /* =======================================================
      CHALLENGE
@@ -678,7 +795,9 @@ export const GlobeExplorer: React.FC = () => {
     setSelectedAnswer(null);
     setChallengeFinished(false);
     setMode('challenge');
-  }, []);
+
+    if (soundEnabled) playSoundFeedback('move');
+  }, [soundEnabled]);
 
   const currentQuestion =
     challengeQuestions[
@@ -748,7 +867,7 @@ export const GlobeExplorer: React.FC = () => {
       );
 
       setSelectedAnswer(null);
-    }, 900);
+    }, 2200);
   };
 
   const resetExplorer = () => {
@@ -866,10 +985,23 @@ export const GlobeExplorer: React.FC = () => {
             Back
           </button>
 
-          <div className="text-sm text-slate-400">
-            Question{' '}
-            {challengeIndex + 1} of{' '}
-            {challengeQuestions.length}
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-slate-400">
+              Question{' '}
+              {challengeIndex + 1} of{' '}
+              {challengeQuestions.length}
+            </div>
+
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+              />
+            </button>
           </div>
         </div>
 
@@ -1066,6 +1198,17 @@ export const GlobeExplorer: React.FC = () => {
             className="rounded-xl border border-slate-700 bg-slate-900 p-2 text-slate-400 transition hover:text-white"
           >
             <RotateCcw size={18} />
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
           </button>
         </div>
       </div>
@@ -1288,7 +1431,7 @@ export const GlobeExplorer: React.FC = () => {
                 <button
                   type="button"
                   onClick={() =>
-                    speakText(
+                    speak(
                       selectedCountry
                         .funFact
                     )
@@ -1415,7 +1558,7 @@ export const GlobeExplorer: React.FC = () => {
               <button
                 type="button"
                 onClick={() =>
-                  speakText(
+                  speak(
                     `${selectedCountry.name}. ${selectedCountry.funFact}`
                   )
                 }

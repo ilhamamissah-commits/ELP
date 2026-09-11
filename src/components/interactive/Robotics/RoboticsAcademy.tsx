@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -15,6 +15,7 @@ import {
   Sparkles,
   Target,
   Trophy,
+  Volume2,
   Wrench,
   Zap,
 } from 'lucide-react';
@@ -22,9 +23,11 @@ import {
 import { RobotExplorer } from './RobotExplorer';
 import { RobotDesigner } from './RobotDesigner';
 import { Sequencer } from './Sequencer';
-import {
-  ROBOTICS_CHALLENGES
-} from './roboticsChallenges';
+import { ROBOTICS_CHALLENGES } from './roboticsChallenges';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 /* =========================================================
    TYPES
@@ -141,12 +144,6 @@ const MODULES: ModuleDefinition[] = [
   },
 ];
 
-/*
- * These are the long-term academy stages.
- * They are deliberately separate from the current
- * challenge levels so the Academy can grow without
- * breaking challenge data.
- */
 const ACADEMY_LEVELS = [
   {
     level: 1,
@@ -205,12 +202,7 @@ const ACADEMY_LEVELS = [
 const getModuleColor = (colorClass: string) => {
   const colors: Record<
     string,
-    {
-      bg: string;
-      border: string;
-      text: string;
-      icon: string;
-    }
+    { bg: string; border: string; text: string; icon: string }
   > = {
     indigo: {
       bg: 'bg-indigo-500/10',
@@ -269,11 +261,7 @@ interface StatCardProps {
   value: string | number;
 }
 
-const StatCard: React.FC<StatCardProps> = ({
-  icon: Icon,
-  label,
-  value,
-}) => (
+const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value }) => (
   <div className="rounded-2xl border border-app-border bg-app-card p-4">
     <div className="mb-2 flex items-center gap-2 text-gray-400">
       <Icon className="h-4 w-4" />
@@ -316,8 +304,7 @@ const FrameworkStep: React.FC<FrameworkStepProps> = ({
    ========================================================= */
 
 export const RoboticsAcademy: React.FC = () => {
-  const [activeModule, setActiveModule] =
-    useState<RoboticsModule>('home');
+  const [activeModule, setActiveModule] = useState<RoboticsModule>('home');
 
   const [progress, setProgress] = useState<ProgressState>({
     completedChallenges: [],
@@ -326,6 +313,12 @@ export const RoboticsAcademy: React.FC = () => {
   });
 
   const [showRoadmap, setShowRoadmap] = useState(false);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
 
   /* -------------------------------------------------------
      Challenge statistics
@@ -341,8 +334,7 @@ export const RoboticsAcademy: React.FC = () => {
     return {
       total,
       completed,
-      percentage:
-        total === 0 ? 0 : Math.round((completed / total) * 100),
+      percentage: total === 0 ? 0 : Math.round((completed / total) * 100),
     };
   }, [progress.completedChallenges]);
 
@@ -361,23 +353,50 @@ export const RoboticsAcademy: React.FC = () => {
   }, [challengeStats.completed]);
 
   /* -------------------------------------------------------
+     Auto-read on home load + when a module opens
+  ------------------------------------------------------- */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    if (activeModule === 'home') {
+      const timer = window.setTimeout(() => {
+        speak(
+          'Robotics Academy. Learn to explore, build, program, test and improve robots through structured engineering challenges.',
+        );
+      }, 500);
+      return () => window.clearTimeout(timer);
+    }
+
+    const definition = MODULES.find((m) => m.id === activeModule);
+    if (!definition) return;
+
+    const timer = window.setTimeout(() => {
+      speak(`${definition.title}. ${definition.description}`);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [activeModule, speak, autoReadEnabled]);
+
+  /* -------------------------------------------------------
      Module navigation
   ------------------------------------------------------- */
 
   const openModule = (module: RoboticsModule) => {
-    const definition = MODULES.find(
-      (item) => item.id === module
-    );
+    const definition = MODULES.find((item) => item.id === module);
 
     if (!definition || !definition.available) {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(`Level ${definition?.level ?? 0}. This module is not unlocked yet.`);
       return;
     }
 
+    if (soundEnabled) playSoundFeedback('move');
     setActiveModule(module);
   };
 
   const goHome = () => {
     setActiveModule('home');
+    if (soundEnabled) playSoundFeedback('move');
   };
 
   /* -------------------------------------------------------
@@ -392,10 +411,7 @@ export const RoboticsAcademy: React.FC = () => {
 
       return {
         ...current,
-        completedModules: [
-          ...current.completedModules,
-          module,
-        ],
+        completedModules: [...current.completedModules, module],
         xp: current.xp + 50,
       };
     });
@@ -413,6 +429,8 @@ export const RoboticsAcademy: React.FC = () => {
     });
 
     setActiveModule('home');
+
+    speak('Academy progress has been reset.');
   };
 
   /* =======================================================
@@ -420,9 +438,7 @@ export const RoboticsAcademy: React.FC = () => {
   ======================================================= */
 
   if (activeModule !== 'home') {
-    const currentModule = MODULES.find(
-      (module) => module.id === activeModule
-    );
+    const currentModule = MODULES.find((module) => module.id === activeModule);
 
     return (
       <div className="min-h-full bg-app-background p-4 md:p-6">
@@ -438,12 +454,27 @@ export const RoboticsAcademy: React.FC = () => {
               Academy
             </button>
 
-            {currentModule && (
-              <div className="hidden items-center gap-2 text-sm text-gray-400 sm:flex">
-                <Bot className="h-4 w-4 text-cyan-400" />
-                {currentModule.title}
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {currentModule && (
+                <div className="hidden items-center gap-2 text-sm text-gray-400 sm:flex">
+                  <Bot className="h-4 w-4 text-cyan-400" />
+                  {currentModule.title}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={toggleSound}
+                aria-label="Toggle sound"
+                className="rounded-xl border border-app-border bg-app-card p-2 transition hover:bg-white/5"
+              >
+                <Volume2
+                  className={`h-4 w-4 ${
+                    soundEnabled ? 'text-amber-300' : 'text-gray-500'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           <AnimatePresence mode="wait">
@@ -454,25 +485,16 @@ export const RoboticsAcademy: React.FC = () => {
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.2 }}
             >
-              {activeModule === 'explore' && (
-                <RobotExplorer />
-              )}
+              {activeModule === 'explore' && <RobotExplorer />}
 
-              {activeModule === 'build' && (
-                <RobotDesigner />
-              )}
+              {activeModule === 'build' && <RobotDesigner />}
 
-              {activeModule === 'program' && (
-                <Sequencer />
-              )}
+              {activeModule === 'program' && <Sequencer />}
 
               {activeModule !== 'explore' &&
                 activeModule !== 'build' &&
                 activeModule !== 'program' && (
-                  <ComingSoon
-                    module={currentModule}
-                    onBack={goHome}
-                  />
+                  <ComingSoon module={currentModule} onBack={goHome} />
                 )}
             </motion.div>
           </AnimatePresence>
@@ -488,16 +510,12 @@ export const RoboticsAcademy: React.FC = () => {
   return (
     <div className="min-h-full bg-app-background p-4 md:p-6">
       <div className="mx-auto max-w-7xl">
-        {/* =================================================
-            HERO
-        ================================================= */}
-
+        {/* HERO */}
         <motion.section
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           className="relative overflow-hidden rounded-3xl border border-cyan-400/20 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950/30 p-6 shadow-2xl md:p-8"
         >
-          {/* Decorative grid */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 opacity-[0.07]"
@@ -512,7 +530,7 @@ export const RoboticsAcademy: React.FC = () => {
             <div>
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-cyan-300">
                 <Sparkles className="h-3.5 w-3.5" />
-                Early Robotics & Engineering
+                Early Robotics &amp; Engineering
               </div>
 
               <h1 className="max-w-3xl text-3xl font-black tracking-tight text-white md:text-5xl">
@@ -521,12 +539,11 @@ export const RoboticsAcademy: React.FC = () => {
               </h1>
 
               <p className="mt-4 max-w-2xl text-base leading-relaxed text-gray-300 md:text-lg">
-                Learn to explore, build, program, test and
-                improve robots through structured engineering
-                challenges.
+                Learn to explore, build, program, test and improve robots
+                through structured engineering challenges.
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   onClick={() => openModule('explore')}
@@ -543,15 +560,26 @@ export const RoboticsAcademy: React.FC = () => {
                 >
                   View Learning Path
                 </button>
+
+                <button
+                  type="button"
+                  onClick={toggleSound}
+                  aria-label="Toggle sound"
+                  className="rounded-xl border border-white/10 bg-white/5 p-3 transition hover:bg-white/10"
+                >
+                  <Volume2
+                    className={`h-4 w-4 ${
+                      soundEnabled ? 'text-amber-300' : 'text-gray-500'
+                    }`}
+                  />
+                </button>
               </div>
             </div>
 
             {/* Robot visual */}
             <div className="flex justify-center">
               <motion.div
-                animate={{
-                  y: [0, -8, 0],
-                }}
+                animate={{ y: [0, -8, 0] }}
                 transition={{
                   duration: 4,
                   repeat: Infinity,
@@ -569,29 +597,15 @@ export const RoboticsAcademy: React.FC = () => {
           </div>
         </motion.section>
 
-        {/* =================================================
-            STATS
-        ================================================= */}
-
+        {/* STATS */}
         <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard
-            icon={Trophy}
-            label="Academy Level"
-            value={academyLevel}
-          />
-
-          <StatCard
-            icon={Zap}
-            label="XP"
-            value={progress.xp}
-          />
-
+          <StatCard icon={Trophy} label="Academy Level" value={academyLevel} />
+          <StatCard icon={Zap} label="XP" value={progress.xp} />
           <StatCard
             icon={CheckCircle}
             label="Challenges"
             value={`${challengeStats.completed}/${challengeStats.total}`}
           />
-
           <StatCard
             icon={Sparkles}
             label="Progress"
@@ -599,10 +613,7 @@ export const RoboticsAcademy: React.FC = () => {
           />
         </div>
 
-        {/* =================================================
-            LEARNING ENGINE
-        ================================================= */}
-
+        {/* LEARNING ENGINE */}
         <section className="mt-8">
           <div className="mb-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-cyan-400">
@@ -614,8 +625,8 @@ export const RoboticsAcademy: React.FC = () => {
             </h2>
 
             <p className="mt-2 max-w-2xl text-sm text-gray-400">
-              Robotics is not just about building robots. Learners
-              repeatedly observe, reason, create, test and improve.
+              Robotics is not just about building robots. Learners repeatedly
+              observe, reason, create, test and improve.
             </p>
           </div>
 
@@ -644,18 +655,13 @@ export const RoboticsAcademy: React.FC = () => {
                   )}
                 </div>
 
-                <p className="text-sm font-semibold text-white">
-                  {step}
-                </p>
+                <p className="text-sm font-semibold text-white">{step}</p>
               </div>
             ))}
           </div>
         </section>
 
-        {/* =================================================
-            CORE SYSTEM MODEL
-        ================================================= */}
-
+        {/* CORE SYSTEM MODEL */}
         <section className="mt-8 rounded-2xl border border-app-border bg-app-card p-5 md:p-6">
           <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
             <div>
@@ -695,10 +701,7 @@ export const RoboticsAcademy: React.FC = () => {
           </div>
         </section>
 
-        {/* =================================================
-            CONTINUE LEARNING
-        ================================================= */}
-
+        {/* CONTINUE LEARNING */}
         <section className="mt-8">
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
@@ -721,18 +724,13 @@ export const RoboticsAcademy: React.FC = () => {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {MODULES.map((module, index) => {
+            {MODULES.map((module) => {
               const Icon = module.icon;
-              const colors = getModuleColor(
-                module.colorClass
-              );
+              const colors = getModuleColor(module.colorClass);
 
-              const completed =
-                progress.completedModules.includes(module.id);
+              const completed = progress.completedModules.includes(module.id);
 
-              const unlocked =
-                module.available ||
-                module.level <= academyLevel;
+              const unlocked = module.available || module.level <= academyLevel;
 
               return (
                 <motion.button
@@ -740,9 +738,7 @@ export const RoboticsAcademy: React.FC = () => {
                   type="button"
                   whileHover={unlocked ? { y: -3 } : undefined}
                   whileTap={unlocked ? { scale: 0.99 } : undefined}
-                  onClick={() =>
-                    unlocked && openModule(module.id)
-                  }
+                  onClick={() => unlocked && openModule(module.id)}
                   disabled={!unlocked}
                   className={`group relative overflow-hidden rounded-2xl border p-5 text-left transition ${
                     unlocked
@@ -750,7 +746,6 @@ export const RoboticsAcademy: React.FC = () => {
                       : 'cursor-not-allowed border-app-border bg-app-card/60 opacity-60'
                   }`}
                 >
-                  {/* Level */}
                   <div className="absolute right-4 top-4 flex items-center gap-1 text-xs font-semibold text-gray-500">
                     {completed && (
                       <CheckCircle className="h-4 w-4 text-emerald-400" />
@@ -802,10 +797,7 @@ export const RoboticsAcademy: React.FC = () => {
           </div>
         </section>
 
-        {/* =================================================
-            CURRENT SKILL FOCUS
-        ================================================= */}
-
+        {/* CURRENT SKILL FOCUS */}
         <section className="mt-8 grid gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-app-border bg-app-card p-6">
             <div className="mb-5 flex items-center gap-3">
@@ -819,8 +811,7 @@ export const RoboticsAcademy: React.FC = () => {
                 </p>
 
                 <h3 className="font-bold text-white">
-                  {ACADEMY_LEVELS[academyLevel - 1]?.title ??
-                    'Robot Explorer'}
+                  {ACADEMY_LEVELS[academyLevel - 1]?.title ?? 'Robot Explorer'}
                 </h3>
               </div>
             </div>
@@ -832,9 +823,7 @@ export const RoboticsAcademy: React.FC = () => {
 
             <div className="mt-5">
               <div className="mb-2 flex justify-between text-xs">
-                <span className="text-gray-500">
-                  Progress to next stage
-                </span>
+                <span className="text-gray-500">Progress to next stage</span>
 
                 <span className="font-semibold text-cyan-400">
                   {challengeStats.percentage}%
@@ -844,9 +833,7 @@ export const RoboticsAcademy: React.FC = () => {
               <div className="h-2 overflow-hidden rounded-full bg-slate-800">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{
-                    width: `${challengeStats.percentage}%`,
-                  }}
+                  animate={{ width: `${challengeStats.percentage}%` }}
                   className="h-full rounded-full bg-cyan-400"
                 />
               </div>
@@ -890,10 +877,7 @@ export const RoboticsAcademy: React.FC = () => {
           </div>
         </section>
 
-        {/* =================================================
-            RESET
-        ================================================= */}
-
+        {/* RESET */}
         <div className="mt-8 flex justify-end">
           <button
             type="button"
@@ -906,10 +890,7 @@ export const RoboticsAcademy: React.FC = () => {
         </div>
       </div>
 
-      {/* ===================================================
-          ROADMAP MODAL
-      =================================================== */}
-
+      {/* ROADMAP MODAL */}
       <AnimatePresence>
         {showRoadmap && (
           <motion.div
@@ -949,11 +930,9 @@ export const RoboticsAcademy: React.FC = () => {
 
               <div className="space-y-3">
                 {ACADEMY_LEVELS.map((stage) => {
-                  const unlocked =
-                    stage.level <= academyLevel;
+                  const unlocked = stage.level <= academyLevel;
 
-                  const current =
-                    stage.level === academyLevel;
+                  const current = stage.level === academyLevel;
 
                   return (
                     <div
@@ -1042,13 +1021,9 @@ const QuickAction: React.FC<QuickActionProps> = ({
     </div>
 
     <div className="min-w-0 flex-1">
-      <p className="text-sm font-semibold text-white">
-        {title}
-      </p>
+      <p className="text-sm font-semibold text-white">{title}</p>
 
-      <p className="mt-0.5 text-xs text-gray-500">
-        {description}
-      </p>
+      <p className="mt-0.5 text-xs text-gray-500">{description}</p>
     </div>
 
     <ChevronRight className="h-4 w-4 text-gray-600 transition group-hover:translate-x-1 group-hover:text-gray-300" />
@@ -1064,10 +1039,7 @@ interface ComingSoonProps {
   onBack: () => void;
 }
 
-const ComingSoon: React.FC<ComingSoonProps> = ({
-  module,
-  onBack,
-}) => {
+const ComingSoon: React.FC<ComingSoonProps> = ({ module, onBack }) => {
   const Icon = module?.icon ?? Bot;
 
   return (
@@ -1099,9 +1071,9 @@ const ComingSoon: React.FC<ComingSoonProps> = ({
             </h3>
 
             <p className="mt-1 text-sm leading-relaxed text-gray-400">
-              You will use the engineering cycle to observe a
-              problem, form an idea, build a solution, test it,
-              identify weaknesses and improve your design.
+              You will use the engineering cycle to observe a problem, form an
+              idea, build a solution, test it, identify weaknesses and improve
+              your design.
             </p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
@@ -10,7 +10,11 @@ import {
   RotateCcw,
   Sparkles,
   Target,
+  Volume2,
 } from 'lucide-react';
+
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type ColorStage =
   | 'observe'
@@ -119,6 +123,12 @@ const getMixedColor = (first: string, second: string): string => {
 };
 
 export const ColorMixer: React.FC = () => {
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [stage, setStage] = useState<ColorStage>('observe');
 
   const [firstColor, setFirstColor] = useState<string | null>(null);
@@ -155,7 +165,132 @@ export const ColorMixer: React.FC = () => {
     return match?.name ?? 'A new colour';
   }, [firstColor, secondColor]);
 
+  const predictionIsCorrect =
+    prediction?.toLowerCase() === mixedName?.toLowerCase();
+
+  /* =======================================================
+     AUTO-READ — stage prompts
+     Skipped on 'master' (has its own completion effect).
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage === 'master') return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          'Observe the colours. Look carefully at the three primary colours. They are important starting points for exploring many other colours.'
+        );
+      } else if (stage === 'explore') {
+        speak(
+          'Explore each colour. Tap a colour to explore it.'
+        );
+      } else if (stage === 'mix') {
+        speak(
+          'Mix two colours. Choose two different colours and see what happens.'
+        );
+      } else if (stage === 'predict') {
+        speak(
+          'Predict the result. Before looking at the answer, what colour do you think you made?'
+        );
+      } else if (stage === 'compare') {
+        speak(
+          'Compare your colours. Look at the starting colours and the colour they made.'
+        );
+      } else if (stage === 'create') {
+        speak(
+          'Experiment freely. Choose another pair and see what you can discover.'
+        );
+      } else if (stage === 'reflect') {
+        speak(
+          'Think like an artist. Tell us about your colour experiment. Which colour combination did you enjoy?'
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, autoReadEnabled, speak]);
+
+  /* =======================================================
+     MIX RESULT NARRATION
+     When two colours have been selected, speaks the mixed
+     colour name. Never speaks the *name of the mix* before
+     the child reaches the predict stage.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'mix') return;
+    if (!firstColor || !secondColor) return;
+    if (!mixedName) return;
+
+    const timer = window.setTimeout(() => {
+      speak(`Your mixed colour looks like ${mixedName}.`);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, firstColor, secondColor, mixedName, speak]);
+
+  /* =======================================================
+     PREDICTION FEEDBACK NARRATION
+     Fires when the child makes a prediction. Reads the
+     specific verdict (correct / incorrect) with the actual
+     answer, so the child learns the specific colour pairing.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'predict') return;
+    if (!prediction) return;
+    if (!mixedName) return;
+
+    const timer = window.setTimeout(() => {
+      if (predictionIsCorrect) {
+        speak(
+          `Correct! ${mixedName} is the colour you made. Your observation helped you anticipate the result.`
+        );
+      } else {
+        speak(
+          `Good thinking. The colour you made is ${mixedName}. Try noticing which two colours created it.`
+        );
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [prediction, predictionIsCorrect, mixedName, stage, speak]);
+
+  /* =======================================================
+     COMPLETION NARRATION
+     Reflection-aware; never reads back the child's words.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'master') return;
+
+    speak(
+      `Colour exploration complete. You explored colour relationships, made predictions, experimented, and reflected on your creative choices. ${
+        reflection.trim()
+          ? 'Thank you for writing your reflection.'
+          : 'Remember, artists often experiment. There does not have to be only one right colour choice.'
+      }`
+    );
+  }, [stage, speak, reflection]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const reset = () => {
+    stopSpeaking();
     setStage('observe');
     setFirstColor(null);
     setSecondColor(null);
@@ -166,9 +301,15 @@ export const ColorMixer: React.FC = () => {
   };
 
   const chooseFirstColor = (color: string) => {
+    if (soundEnabled) {
+      // No playSoundFeedback in this family, so we do nothing here.
+    }
     setFirstColor(color);
     setSecondColor(null);
     setPrediction(null);
+
+    const colorData = PRIMARY_COLORS.find((c) => c.id === color);
+    if (colorData) speak(colorData.name);
   };
 
   const chooseSecondColor = (color: string) => {
@@ -177,15 +318,15 @@ export const ColorMixer: React.FC = () => {
     setSecondColor(color);
     setPrediction(null);
     setExperimentCount((previous) => previous + 1);
+
+    // Mix result narration is handled by the mix-result effect.
   };
 
   const handlePrediction = (colorName: string) => {
     setPrediction(colorName);
     setAttempts((previous) => previous + 1);
+    // Prediction feedback is handled by the prediction effect.
   };
-
-  const predictionIsCorrect =
-    prediction?.toLowerCase() === mixedName?.toLowerCase();
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -208,14 +349,27 @@ export const ColorMixer: React.FC = () => {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={reset}
-              className="p-2.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition"
-              aria-label="Reset colour mixer"
-            >
-              <RotateCcw className="w-5 h-5" />
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={toggleSound}
+                aria-label="Toggle sound"
+                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+              >
+                <Volume2
+                  className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+                />
+              </button>
+
+              <button
+                type="button"
+                onClick={reset}
+                className="p-2.5 rounded-xl bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition"
+                aria-label="Reset colour mixer"
+              >
+                <RotateCcw className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Progress */}
@@ -706,6 +860,8 @@ export const ColorMixer: React.FC = () => {
                         setFirstColor(example.first);
                         setSecondColor(example.second);
                         setExperimentCount((previous) => previous + 1);
+
+                        speak(`${example.name}`);
                       }}
                       className="p-5 bg-gray-900 border border-gray-800 rounded-2xl hover:border-indigo-500/40 transition"
                     >

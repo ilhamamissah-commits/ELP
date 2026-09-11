@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   CheckCircle,
@@ -8,7 +8,12 @@ import {
   Layers,
   Lightbulb,
   ArrowRight,
+  Volume2,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type ActivityStage =
   | 'observe'
@@ -56,6 +61,12 @@ const STAGE_LABELS: Record<ActivityStage, string> = {
 };
 
 export const PinkTower: React.FC = () => {
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [stage, setStage] = useState<ActivityStage>('observe');
   const [selectedBlocks, setSelectedBlocks] = useState<number[]>([]);
   const [tower, setTower] = useState<number[]>([]);
@@ -70,6 +81,84 @@ export const PinkTower: React.FC = () => {
 
   const currentStageIndex = STAGE_ORDER.indexOf(stage);
 
+  /* =======================================================
+     AUTO-READ — stage prompts
+     Skipped on 'complete' (has its own effect below).
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage === 'complete') return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          'Look carefully. The Pink Tower has ten cubes. They are the same shape and color, but they become different in size. Notice that the cubes change in size.'
+        );
+      } else if (stage === 'compare') {
+        speak(
+          'Compare two cubes. Choose two cubes and look at their size. Which one is larger? Which one is smaller?'
+        );
+      } else if (stage === 'order') {
+        speak(
+          'Think about the order. A stable Pink Tower starts with the largest cube. Each cube above it becomes smaller.'
+        );
+      } else if (stage === 'build') {
+        speak(
+          'Build the Pink Tower. Choose the largest remaining cube and place it below the smaller ones.'
+        );
+      } else if (stage === 'check') {
+        speak(
+          'Check your tower. Look from the bottom to the top. Does every cube become smaller?'
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, autoReadEnabled, speak]);
+
+  /* =======================================================
+     FEEDBACK NARRATION
+     Every time `feedback` changes to a non-empty string,
+     speak it. This covers correct placements, wrong
+     placements, comparison results, and the specific
+     failure reasons that the build stage produces.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!feedback) return;
+
+    speak(feedback);
+  }, [feedback, speak]);
+
+  /* =======================================================
+     COMPLETION NARRATION — fires once on stage === 'complete'
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'complete') return;
+
+    if (soundEnabled) playSoundFeedback('correct');
+
+    speak(
+      'Beautifully ordered. You observed differences in size, compared the cubes, and ordered them from largest to smallest.'
+    );
+  }, [stage, speak, soundEnabled]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const goToNextStage = () => {
     const nextIndex = currentStageIndex + 1;
 
@@ -77,10 +166,12 @@ export const PinkTower: React.FC = () => {
       setStage(STAGE_ORDER[nextIndex]);
       setFeedback('');
       setSelectedBlocks([]);
+      if (soundEnabled) playSoundFeedback('move');
     }
   };
 
   const resetActivity = () => {
+    stopSpeaking();
     setStage('observe');
     setSelectedBlocks([]);
     setTower([]);
@@ -89,6 +180,8 @@ export const PinkTower: React.FC = () => {
   };
 
   const handleCompare = (id: number) => {
+    if (soundEnabled) playSoundFeedback('move');
+
     if (selectedBlocks.includes(id)) {
       setSelectedBlocks(selectedBlocks.filter((blockId) => blockId !== id));
       return;
@@ -109,6 +202,7 @@ export const PinkTower: React.FC = () => {
 
   const handleComparisonCheck = () => {
     if (selectedBlocks.length !== 2) {
+      if (soundEnabled) playSoundFeedback('try-again');
       setFeedback('Choose two blocks so you can compare them.');
       return;
     }
@@ -116,6 +210,7 @@ export const PinkTower: React.FC = () => {
     const [larger, smaller] = getSelectedSizes();
 
     if (larger !== smaller) {
+      if (soundEnabled) playSoundFeedback('correct');
       setFeedback(
         `Good observing! One block is larger and one is smaller.`
       );
@@ -136,9 +231,11 @@ export const PinkTower: React.FC = () => {
 
     if (tower.length === 0) {
       if (id === 10) {
+        if (soundEnabled) playSoundFeedback('move');
         setTower([id]);
         setFeedback('Excellent. The largest block forms the base.');
       } else {
+        if (soundEnabled) playSoundFeedback('try-again');
         setFeedback(
           'Look carefully. Which block is the largest? It belongs at the bottom.'
         );
@@ -150,9 +247,11 @@ export const PinkTower: React.FC = () => {
     const lastPlaced = tower[tower.length - 1];
 
     if (id < lastPlaced) {
+      if (soundEnabled) playSoundFeedback('move');
       setTower([...tower, id]);
       setFeedback('Good comparison. The next block is smaller.');
     } else {
+      if (soundEnabled) playSoundFeedback('try-again');
       setFeedback(
         'Look at the two blocks again. The next block should be smaller than the one underneath it.'
       );
@@ -171,6 +270,7 @@ export const PinkTower: React.FC = () => {
       setFeedback('Your tower follows the size sequence from largest to smallest.');
       setStage('complete');
     } else {
+      if (soundEnabled) playSoundFeedback('try-again');
       setFeedback(
         'Look from the bottom to the top. Each block should become smaller.'
       );
@@ -247,14 +347,27 @@ export const PinkTower: React.FC = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={resetActivity}
-            className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition"
-            aria-label="Reset Pink Tower"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={resetActivity}
+              className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition"
+              aria-label="Reset Pink Tower"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Learning progression */}

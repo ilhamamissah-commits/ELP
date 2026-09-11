@@ -1,7 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle2, RotateCcw, Sparkles } from 'lucide-react';
+import {
+  ArrowRight,
+  CheckCircle2,
+  RotateCcw,
+  Sparkles,
+  Volume2,
+} from 'lucide-react';
+
 import { useProgressStore } from '../../../store/useProgressStore';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 interface BrushingStep {
   readonly id: string;
@@ -15,25 +25,29 @@ const STEPS: readonly BrushingStep[] = [
     id: 'get-toothbrush',
     icon: '🪥',
     title: 'Get Your Toothbrush',
-    description: 'Pick up your toothbrush and get ready to clean your teeth.',
+    description:
+      'Pick up your toothbrush and get ready to clean your teeth.',
   },
   {
     id: 'add-toothpaste',
     icon: '🧴',
     title: 'Add Toothpaste',
-    description: 'Put a small, pea-sized amount of toothpaste on your brush.',
+    description:
+      'Put a small, pea-sized amount of toothpaste on your brush.',
   },
   {
     id: 'brush-front',
     icon: '😁',
     title: 'Brush Your Front Teeth',
-    description: 'Move the toothbrush gently in small circles across your front teeth.',
+    description:
+      'Move the toothbrush gently in small circles across your front teeth.',
   },
   {
     id: 'brush-back',
     icon: '🦷',
     title: 'Brush Your Back Teeth',
-    description: 'Remember to gently brush your back teeth and molars too.',
+    description:
+      'Remember to gently brush your back teeth and molars too.',
   },
   {
     id: 'brush-two-minutes',
@@ -51,7 +65,8 @@ const STEPS: readonly BrushingStep[] = [
     id: 'clean-smile',
     icon: '✨',
     title: 'Clean Smile!',
-    description: 'Wonderful! You have completed your tooth-brushing routine.',
+    description:
+      'Wonderful! You have completed your tooth-brushing routine.',
   },
 ] as const;
 
@@ -70,9 +85,36 @@ export const BrushingTeeth: React.FC = () => {
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const completeActivity = useProgressStore(
-    (state) => state.completeActivity,
-  );
+  const completeActivity = useProgressStore((state) => state.completeActivity);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
+  /* Auto-read the current step when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled || completed) return;
+
+    const currentStep = STEPS[step];
+    if (!currentStep) return;
+
+    const timer = window.setTimeout(() => {
+      speak(`${currentStep.title}. ${currentStep.description}`);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [step, completed, speak, autoReadEnabled]);
+
+  /* Announce completion */
+  useEffect(() => {
+    if (!completed) return;
+
+    speak(
+      'Amazing work! You completed the whole tooth-brushing routine. Your teeth are ready for a healthy smile!',
+    );
+  }, [completed, speak]);
 
   useEffect(() => {
     return () => {
@@ -84,10 +126,12 @@ export const BrushingTeeth: React.FC = () => {
 
   const handleNext = (): void => {
     if (step < STEPS.length - 1) {
+      if (soundEnabled) playSoundFeedback('move');
       setStep((currentStep) => currentStep + 1);
       return;
     }
 
+    if (soundEnabled) playSoundFeedback('correct');
     setCompleted(true);
 
     completeActivity({
@@ -107,6 +151,8 @@ export const BrushingTeeth: React.FC = () => {
 
     setStep(0);
     setCompleted(false);
+
+    speak("Let's practise brushing teeth again!");
   };
 
   const currentStep = STEPS[step];
@@ -119,14 +165,28 @@ export const BrushingTeeth: React.FC = () => {
         <div className="mb-2 flex items-center justify-center gap-2">
           <span className="text-2xl">🦷</span>
 
-          <h3 className="text-2xl font-bold text-white">
-            Brushing Teeth
-          </h3>
+          <h3 className="text-2xl font-bold text-white">Brushing Teeth</h3>
         </div>
 
         <p className="text-sm text-gray-400">
           Learn the steps for a healthy tooth-brushing routine.
         </p>
+      </div>
+
+      {/* Mute toggle */}
+      <div className="flex justify-end px-6 pt-3">
+        <button
+          type="button"
+          onClick={toggleSound}
+          aria-label="Toggle sound"
+          className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+        >
+          <Volume2
+            className={`w-4 h-4 ${
+              soundEnabled ? 'text-amber-300' : 'text-gray-500'
+            }`}
+          />
+        </button>
       </div>
 
       {/* Progress */}
@@ -183,8 +243,8 @@ export const BrushingTeeth: React.FC = () => {
             </div>
 
             <p className="mb-6 text-sm leading-6 text-gray-400">
-              You completed the whole tooth-brushing routine.
-              Your teeth are ready for a healthy smile!
+              You completed the whole tooth-brushing routine. Your teeth are
+              ready for a healthy smile!
             </p>
 
             <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
@@ -197,8 +257,8 @@ export const BrushingTeeth: React.FC = () => {
               </div>
 
               <p className="text-xs leading-5 text-gray-400">
-                Personal hygiene, self-care, sequencing and
-                independence skills have been practiced.
+                Personal hygiene, self-care, sequencing and independence
+                skills have been practiced.
               </p>
             </div>
 
@@ -250,9 +310,7 @@ export const BrushingTeeth: React.FC = () => {
                 <div
                   key={item.id}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
-                    index <= step
-                      ? 'w-7 bg-emerald-500'
-                      : 'w-2 bg-gray-700'
+                    index <= step ? 'w-7 bg-emerald-500' : 'w-2 bg-gray-700'
                   }`}
                   aria-hidden="true"
                 />

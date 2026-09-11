@@ -11,6 +11,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
+
 type NumberStage =
   | 'observe'
   | 'count'
@@ -117,6 +120,12 @@ const CANVAS_SIZE = 500;
 export const NumberTracing: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [numberIndex, setNumberIndex] = useState(0);
   const [stage, setStage] = useState<NumberStage>('observe');
   const [isDrawing, setIsDrawing] = useState(false);
@@ -128,12 +137,10 @@ export const NumberTracing: React.FC = () => {
 
   const stageIndex = STAGES.indexOf(stage);
 
-  /*
-   * Draw the numeral-writing environment.
-   *
-   * The guide provides a visual formation aid.
-   * It does not claim to measure handwriting accuracy.
-   */
+  /* =======================================================
+     CANVAS DRAWING (unchanged from original)
+  ======================================================= */
+
   const drawTemplate = useCallback(
     (
       ctx: CanvasRenderingContext2D,
@@ -142,28 +149,23 @@ export const NumberTracing: React.FC = () => {
     ) => {
       ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-      // Writing surface
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-      // Handwriting lines
       ctx.strokeStyle = '#dbe4ee';
       ctx.lineWidth = 2;
 
-      // Top line
       ctx.beginPath();
       ctx.moveTo(45, 100);
       ctx.lineTo(455, 100);
       ctx.stroke();
 
-      // Middle guide
       ctx.setLineDash([8, 8]);
       ctx.beginPath();
       ctx.moveTo(45, 250);
       ctx.lineTo(455, 250);
       ctx.stroke();
 
-      // Baseline
       ctx.setLineDash([]);
       ctx.beginPath();
       ctx.moveTo(45, 380);
@@ -225,9 +227,6 @@ export const NumberTracing: React.FC = () => {
     redrawCanvas(stage === 'observe' || stage === 'trace');
   }, [redrawCanvas, stage]);
 
-  /*
-   * Pointer events support mouse, touch and stylus input.
-   */
   const getPosition = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
@@ -270,6 +269,9 @@ export const NumberTracing: React.FC = () => {
 
       canvas.setPointerCapture(event.pointerId);
 
+      // Yield narration to the child's strokes.
+      stopSpeaking();
+
       const { x, y } = getPosition(event);
 
       ctx.beginPath();
@@ -283,7 +285,7 @@ export const NumberTracing: React.FC = () => {
       setIsDrawing(true);
       setHasWritten(true);
     },
-    [getPosition, stage]
+    [getPosition, stage, stopSpeaking]
   );
 
   const draw = useCallback(
@@ -323,37 +325,92 @@ export const NumberTracing: React.FC = () => {
   );
 
   const clearCanvas = useCallback(() => {
+    stopSpeaking();
     redrawCanvas(stage === 'trace');
 
     setHasWritten(false);
     setFeedback(null);
-  }, [redrawCanvas, stage]);
+  }, [redrawCanvas, stage, stopSpeaking]);
 
-  /*
-   * Auditory reinforcement.
-   */
-  const speakNumber = useCallback(() => {
-    if (!('speechSynthesis' in window)) return;
+  /* =======================================================
+     AUTO-READ — stage prompts
+     The 'listen' stage reads the numeral + word.
+     The 'count' and 'apply' stages do NOT read the emoji
+     sequence (they'd say "star star star…").
+     The 'form', 'trace' stages do NOT read the numeral.
+  ======================================================= */
 
-    window.speechSynthesis.cancel();
+  useEffect(() => {
+    if (!autoReadEnabled) return;
 
-    const utterance = new SpeechSynthesisUtterance(
-      `${currentNumber.value}. ${currentNumber.word}.`
-    );
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          `Look at the numeral ${currentNumber.value}. Notice its shape and how it sits between the writing lines.`
+        );
+      } else if (stage === 'count') {
+        speak(
+          `Count the objects. How many are there?`
+        );
+      } else if (stage === 'listen') {
+        speak(
+          `${currentNumber.value}. ${currentNumber.word}.`
+        );
+      } else if (stage === 'trace') {
+        speak(
+          'Trace the numeral. Follow the dotted shape with your finger, mouse, or stylus.'
+        );
+      } else if (stage === 'form') {
+        speak(
+          'Your turn. Write the numeral yourself without tracing over the guide.'
+        );
+      } else if (stage === 'check') {
+        speak(
+          'Good effort. Compare your numeral with the example. Think about its shape, size, and position.'
+        );
+      } else if (stage === 'apply') {
+        speak(
+          `The numeral ${currentNumber.value} represents a quantity. Count the objects shown and connect them to the number.`
+        );
+      } else if (stage === 'master') {
+        speak(
+          `Number practised. You practised recognising the number ${currentNumber.value}, connecting it to quantity, hearing its name, and forming the numeral.`
+        );
+      }
+    }, 450);
 
-    utterance.rate = 0.75;
-    utterance.pitch = 1;
+    return () => window.clearTimeout(timer);
+  }, [
+    stage,
+    currentNumber.value,
+    currentNumber.word,
+    autoReadEnabled,
+    speak,
+  ]);
 
-    window.speechSynthesis.speak(utterance);
-  }, [currentNumber]);
+  /* =======================================================
+     FEEDBACK NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (!feedback) return;
+
+    speak(feedback);
+  }, [feedback, speak]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
 
   useEffect(() => {
     return () => {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopSpeaking();
     };
-  }, []);
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
 
   const handleCheck = useCallback(() => {
     if (!hasWritten) {
@@ -384,14 +441,18 @@ export const NumberTracing: React.FC = () => {
     const nextIndex =
       (numberIndex + 1) % NUMBERS.length;
 
+    stopSpeaking();
+
     setNumberIndex(nextIndex);
     setStage('observe');
     setHasWritten(false);
     setFeedback(null);
     setAttempts(0);
-  }, [numberIndex]);
+  }, [numberIndex, stopSpeaking]);
 
   const handleReset = useCallback(() => {
+    stopSpeaking();
+
     setStage('observe');
     setHasWritten(false);
     setFeedback(null);
@@ -400,7 +461,16 @@ export const NumberTracing: React.FC = () => {
     setTimeout(() => {
       redrawCanvas(true);
     }, 0);
-  }, [redrawCanvas]);
+  }, [redrawCanvas, stopSpeaking]);
+
+  /* =======================================================
+     SPEAK NUMBER — now delegates to shared useReadAloud.
+     Replaces the local SpeechSynthesisUtterance wrapper.
+  ======================================================= */
+
+  const speakNumber = useCallback(() => {
+    speak(`${currentNumber.value}. ${currentNumber.word}.`);
+  }, [currentNumber.value, currentNumber.word, speak]);
 
   const renderStage = () => {
     switch (stage) {
@@ -798,14 +868,27 @@ export const NumberTracing: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleReset}
-          aria-label="Reset number tracing"
-          className="rounded-lg bg-gray-800 p-2 text-gray-300 transition hover:bg-gray-700"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="rounded-lg bg-gray-800 p-2 transition-colors hover:bg-gray-700"
+          >
+            <Volume2
+              className={`h-4 w-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleReset}
+            aria-label="Reset number tracing"
+            className="rounded-lg bg-gray-800 p-2 text-gray-300 transition hover:bg-gray-700"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Progress */}

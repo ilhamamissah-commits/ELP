@@ -9,6 +9,9 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
 
@@ -252,16 +255,7 @@ const shuffle = <T,>(items: T[]): T[] => {
 const buildOptions = (answer: number): number[] => {
   const candidates = new Set<number>([answer]);
 
-  const offsets = [
-    -2,
-    2,
-    -3,
-    3,
-    -5,
-    5,
-    -10,
-    10,
-  ];
+  const offsets = [-2, 2, -3, 3, -5, 5, -10, 10];
 
   for (const offset of offsets) {
     const value = answer + offset;
@@ -280,23 +274,6 @@ const buildOptions = (answer: number): number[] => {
   return shuffle(Array.from(candidates));
 };
 
-const speak = (text: string) => {
-  if (
-    typeof window === 'undefined' ||
-    !('speechSynthesis' in window)
-  ) {
-    return;
-  }
-
-  window.speechSynthesis.cancel();
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.8;
-  utterance.pitch = 1.05;
-
-  window.speechSynthesis.speak(utterance);
-};
-
 export const MultiplicationGame: React.FC = () => {
   const profile = useProfileStore(
     (state) => state.profiles[state.currentProfileId]
@@ -306,14 +283,20 @@ export const MultiplicationGame: React.FC = () => {
     (state) => state.completeActivity
   );
 
+  // Global sound / auto-read settings
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  // useReadAloud already respects soundEnabled + voiceAccent internally
+  const { speak } = useReadAloud();
+
   const currentLevel = profile?.currentLevel ?? 1;
 
   const problems = useMemo(() => {
     const level = Math.min(Math.max(currentLevel, 1), 5);
 
-    return shuffle(
-      PROBLEMS_BY_LEVEL[level] ?? PROBLEMS_BY_LEVEL[1]
-    );
+    return shuffle(PROBLEMS_BY_LEVEL[level] ?? PROBLEMS_BY_LEVEL[1]);
   }, [currentLevel]);
 
   const [problemIndex, setProblemIndex] = useState(0);
@@ -322,8 +305,7 @@ export const MultiplicationGame: React.FC = () => {
   const [attempts, setAttempts] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
-  const [showRepeatedAddition, setShowRepeatedAddition] =
-    useState(false);
+  const [showRepeatedAddition, setShowRepeatedAddition] = useState(false);
   const [completed, setCompleted] = useState(false);
 
   const SESSION_SIZE = 5;
@@ -338,14 +320,39 @@ export const MultiplicationGame: React.FC = () => {
   );
 
   const accuracy =
-    attempts > 0
-      ? Math.round((correctAnswers / attempts) * 100)
-      : 0;
+    attempts > 0 ? Math.round((correctAnswers / attempts) * 100) : 0;
 
-  const progress = Math.min(
-    (attempts / SESSION_SIZE) * 100,
-    100
-  );
+  const progress = Math.min((attempts / SESSION_SIZE) * 100, 100);
+
+  // Reset per-question state + auto-read the question (if enabled)
+  useEffect(() => {
+    if (autoReadEnabled) {
+      const readOut = `Look at the equal groups. Work out how many objects there are altogether.`;
+      const timer = window.setTimeout(() => speak(readOut), 350);
+      return () => window.clearTimeout(timer);
+    }
+  }, [problemIndex, speak, autoReadEnabled]);
+
+  // Read hint aloud when it opens
+  useEffect(() => {
+    if (showHint && current) {
+      speak(current.hint);
+    }
+  }, [showHint, current, speak]);
+
+  // Announce completion
+  useEffect(() => {
+    if (!completed) return;
+
+    const finalAccuracy =
+      attempts > 0 ? Math.round((correctAnswers / attempts) * 100) : 0;
+
+    speak(
+      finalAccuracy >= 80
+        ? `Brilliant work! You scored ${finalAccuracy} percent. You are a multiplication star!`
+        : `Well done! You scored ${finalAccuracy} percent. Let's practise times tables again.`,
+    );
+  }, [completed, attempts, correctAnswers, speak]);
 
   const finishSession = useCallback(
     (finalCorrect: number, finalAttempts: number) => {
@@ -386,16 +393,20 @@ export const MultiplicationGame: React.FC = () => {
     if (answer === correctAnswer) {
       const nextCorrect = correctAnswers + 1;
 
+      if (soundEnabled) {
+        playSoundFeedback('correct');
+      }
+
       setCorrectAnswers(nextCorrect);
 
       speak(
-        `Correct! ${current.a} groups of ${current.b} equals ${correctAnswer}.`
+        `Correct! ${current.a} groups of ${current.b} equals ${correctAnswer}. ${current.explanation}`
       );
 
       if (nextAttempts >= SESSION_SIZE) {
         setTimeout(() => {
           finishSession(nextCorrect, nextAttempts);
-        }, 1200);
+        }, 2000);
 
         return;
       }
@@ -406,8 +417,12 @@ export const MultiplicationGame: React.FC = () => {
         setShowHint(false);
         setShowExplanation(false);
         setShowRepeatedAddition(false);
-      }, 1200);
+      }, 2000);
     } else {
+      if (soundEnabled) {
+        playSoundFeedback('try-again');
+      }
+
       speak(
         `Not quite. ${current.a} groups of ${current.b}. Try again.`
       );
@@ -425,24 +440,13 @@ export const MultiplicationGame: React.FC = () => {
     setShowExplanation(false);
     setShowRepeatedAddition(false);
     setCompleted(false);
-  };
 
-  useEffect(() => {
-    return () => {
-      if (
-        typeof window !== 'undefined' &&
-        'speechSynthesis' in window
-      ) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
+    speak("Let's practise multiplication again!");
+  };
 
   if (completed) {
     const finalAccuracy =
-      attempts > 0
-        ? Math.round((correctAnswers / attempts) * 100)
-        : 0;
+      attempts > 0 ? Math.round((correctAnswers / attempts) * 100) : 0;
 
     const stars =
       finalAccuracy >= 90
@@ -476,11 +480,7 @@ export const MultiplicationGame: React.FC = () => {
             {Array.from({ length: 3 }).map((_, i) => (
               <span
                 key={i}
-                className={
-                  i < stars
-                    ? 'text-yellow-400'
-                    : 'text-gray-700'
-                }
+                className={i < stars ? 'text-yellow-400' : 'text-gray-700'}
               >
                 ★
               </span>
@@ -530,26 +530,40 @@ export const MultiplicationGame: React.FC = () => {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() =>
-            speak(
-              `Look at the equal groups. Work out how many objects there are altogether.`
-            )
-          }
-          aria-label="Read instructions"
-          className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300"
-        >
-          <Volume2 className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              speak(
+                `Look at the equal groups. Work out how many objects there are altogether.`
+              )
+            }
+            aria-label="Read instructions"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300"
+          >
+            <Volume2 className="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-5 h-5 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Progress */}
       <div className="mb-6">
         <div className="flex justify-between text-xs text-gray-500 mb-2">
           <span>
-            Question {Math.min(attempts + 1, SESSION_SIZE)} of{' '}
-            {SESSION_SIZE}
+            Question {Math.min(attempts + 1, SESSION_SIZE)} of {SESSION_SIZE}
           </span>
 
           <span>{accuracy}% accuracy</span>
@@ -582,57 +596,43 @@ export const MultiplicationGame: React.FC = () => {
             key={groupIndex}
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{
-              delay: groupIndex * 0.08,
-            }}
+            transition={{ delay: groupIndex * 0.08 }}
             className="min-w-[92px] min-h-[92px] p-3 rounded-2xl bg-gray-950/70 border border-gray-800 flex flex-wrap justify-center items-center gap-1"
           >
-            {Array.from({ length: current.b }).map(
-              (_, itemIndex) => (
-                <motion.span
-                  key={itemIndex}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    delay:
-                      groupIndex * 0.08 +
-                      itemIndex * 0.04,
-                  }}
-                  className="text-2xl"
-                >
-                  {current.emoji}
-                </motion.span>
-              )
-            )}
+            {Array.from({ length: current.b }).map((_, itemIndex) => (
+              <motion.span
+                key={itemIndex}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  delay: groupIndex * 0.08 + itemIndex * 0.04,
+                }}
+                className="text-2xl"
+              >
+                {current.emoji}
+              </motion.span>
+            ))}
           </motion.div>
         ))}
       </div>
 
       {/* Multiplication sentence */}
       <div className="flex items-center justify-center gap-3 mb-5">
-        <span className="text-3xl font-black text-white">
-          {current.a}
-        </span>
+        <span className="text-3xl font-black text-white">{current.a}</span>
 
         <span className="text-2xl text-gray-500">×</span>
 
-        <span className="text-3xl font-black text-white">
-          {current.b}
-        </span>
+        <span className="text-3xl font-black text-white">{current.b}</span>
 
         <span className="text-2xl text-gray-500">=</span>
 
-        <span className="text-3xl font-black text-emerald-400">
-          ?
-        </span>
+        <span className="text-3xl font-black text-emerald-400">?</span>
       </div>
 
       {/* Repeated addition */}
       <button
         type="button"
-        onClick={() =>
-          setShowRepeatedAddition((value) => !value)
-        }
+        onClick={() => setShowRepeatedAddition((value) => !value)}
         className="w-full mb-5 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-semibold"
       >
         <ArrowRight className="w-4 h-4" />
@@ -674,11 +674,9 @@ export const MultiplicationGame: React.FC = () => {
             'bg-gray-800 border-gray-700 text-white hover:bg-gray-700';
 
           if (isSelected && isCorrect) {
-            className =
-              'bg-emerald-500/20 border-emerald-400 text-emerald-300';
+            className = 'bg-emerald-500/20 border-emerald-400 text-emerald-300';
           } else if (isSelected && !isCorrect) {
-            className =
-              'bg-red-500/20 border-red-400 text-red-300';
+            className = 'bg-red-500/20 border-red-400 text-red-300';
           }
 
           return (
@@ -686,12 +684,8 @@ export const MultiplicationGame: React.FC = () => {
               key={option}
               type="button"
               disabled={selected !== null}
-              whileHover={
-                selected === null ? { scale: 1.04 } : undefined
-              }
-              whileTap={
-                selected === null ? { scale: 0.97 } : undefined
-              }
+              whileHover={selected === null ? { scale: 1.04 } : undefined}
+              whileTap={selected === null ? { scale: 0.97 } : undefined}
               onClick={() => handleAnswer(option)}
               className={`h-16 rounded-xl border-2 text-2xl font-black transition-colors ${className}`}
             >
@@ -720,33 +714,29 @@ export const MultiplicationGame: React.FC = () => {
           </motion.div>
         )}
 
-        {selected !== null &&
-          selected !== correctAnswer && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-5 p-4 rounded-xl bg-red-500/10 border border-red-500/20"
-            >
-              <p className="text-red-300 font-bold">
-                Let's think about the groups again.
-              </p>
+        {selected !== null && selected !== correctAnswer && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-5 p-4 rounded-xl bg-red-500/10 border border-red-500/20"
+          >
+            <p className="text-red-300 font-bold">
+              Let's think about the groups again.
+            </p>
 
-              <p className="text-sm text-gray-400 mt-1">
-                {current.a} groups of {current.b} means adding{' '}
-                {current.b} {current.a} times.
-              </p>
-            </motion.div>
-          )}
+            <p className="text-sm text-gray-400 mt-1">
+              {current.a} groups of {current.b} means adding {current.b}{' '}
+              {current.a} times.
+            </p>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Learning controls */}
       <div className="mt-5 flex gap-2">
         <button
           type="button"
-          onClick={() => {
-            setShowHint((value) => !value);
-            speak(current.hint);
-          }}
+          onClick={() => setShowHint((value) => !value)}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-semibold"
         >
           <Lightbulb className="w-4 h-4" />
@@ -773,9 +763,7 @@ export const MultiplicationGame: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mt-3 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20"
         >
-          <p className="text-yellow-300 text-sm">
-            💡 {current.hint}
-          </p>
+          <p className="text-yellow-300 text-sm">💡 {current.hint}</p>
         </motion.div>
       )}
 
@@ -786,8 +774,8 @@ export const MultiplicationGame: React.FC = () => {
         </p>
 
         <p className="text-xs text-gray-500">
-          Equal groups → repeated addition → multiplication sentence
-          → mental strategy → reasoning
+          Equal groups → repeated addition → multiplication sentence → mental
+          strategy → reasoning
         </p>
       </div>
     </div>

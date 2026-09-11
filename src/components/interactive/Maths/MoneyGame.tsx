@@ -10,6 +10,9 @@ import {
   Trophy,
 } from 'lucide-react';
 
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
 
@@ -257,20 +260,6 @@ const buildOptions = (answer: number): number[] => {
   return shuffle(Array.from(candidates).slice(0, 3));
 };
 
-const speak = (text: string) => {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    return;
-  }
-
-  window.speechSynthesis.cancel();
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.82;
-  utterance.pitch = 1.05;
-
-  window.speechSynthesis.speak(utterance);
-};
-
 export const MoneyGame: React.FC = () => {
   const profile = useProfileStore(
     (state) => state.profiles[state.currentProfileId]
@@ -279,6 +268,14 @@ export const MoneyGame: React.FC = () => {
   const completeActivity = useProgressStore(
     (state) => state.completeActivity
   );
+
+  // Global sound / auto-read settings
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  // useReadAloud already respects soundEnabled + voiceAccent internally
+  const { speak } = useReadAloud();
 
   const currentLevel = profile?.currentLevel ?? 1;
 
@@ -315,6 +312,36 @@ export const MoneyGame: React.FC = () => {
   const accuracy =
     attempts > 0 ? Math.round((correctAnswers / attempts) * 100) : 0;
 
+  // Reset per-question state + auto-read the question (if enabled)
+  useEffect(() => {
+    if (autoReadEnabled) {
+      const readOut = 'Count the coins and choose the total amount of money.';
+      const timer = window.setTimeout(() => speak(readOut), 350);
+      return () => window.clearTimeout(timer);
+    }
+  }, [problemIndex, speak, autoReadEnabled]);
+
+  // Read hint aloud when it opens
+  useEffect(() => {
+    if (showHint && current) {
+      speak(current.hint);
+    }
+  }, [showHint, current, speak]);
+
+  // Announce completion
+  useEffect(() => {
+    if (!roundComplete) return;
+
+    const finalAccuracy =
+      attempts > 0 ? Math.round((correctAnswers / attempts) * 100) : 0;
+
+    speak(
+      finalAccuracy >= 80
+        ? `Brilliant work! You scored ${finalAccuracy} percent. You are a money expert!`
+        : `Well done! You scored ${finalAccuracy} percent. Let's count coins again.`,
+    );
+  }, [roundComplete, attempts, correctAnswers, speak]);
+
   const finishSession = useCallback(() => {
     const finalAccuracy =
       attempts > 0 ? Math.round((correctAnswers / attempts) * 100) : 0;
@@ -344,7 +371,12 @@ export const MoneyGame: React.FC = () => {
     setAttempts((value) => value + 1);
 
     if (answer === current.answer) {
+      if (soundEnabled) {
+        playSoundFeedback('correct');
+      }
+
       setCorrectAnswers((value) => value + 1);
+
       speak(`Correct! ${current.explanation}`);
 
       setTimeout(() => {
@@ -359,9 +391,13 @@ export const MoneyGame: React.FC = () => {
         setSelected(null);
         setShowHint(false);
         setShowExplanation(false);
-      }, 1300);
+      }, 2000);
     } else {
-      speak('Not quite. Try again.');
+      if (soundEnabled) {
+        playSoundFeedback('try-again');
+      }
+
+      speak('Not quite. Try counting the coins from the largest value.');
       setShowExplanation(true);
     }
   };
@@ -374,18 +410,9 @@ export const MoneyGame: React.FC = () => {
     setCorrectAnswers(0);
     setAttempts(0);
     setRoundComplete(false);
-  };
 
-  useEffect(() => {
-    return () => {
-      if (
-        typeof window !== 'undefined' &&
-        'speechSynthesis' in window
-      ) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
+    speak("Let's count coins again!");
+  };
 
   if (roundComplete) {
     const finalAccuracy =
@@ -410,9 +437,7 @@ export const MoneyGame: React.FC = () => {
           <Trophy className="w-8 h-8 text-emerald-400" />
         </div>
 
-        <h3 className="text-2xl font-bold text-white">
-          Money Lab Complete
-        </h3>
+        <h3 className="text-2xl font-bold text-white">Money Lab Complete</h3>
 
         <p className="text-gray-400 mt-2">
           You practised counting and combining coins.
@@ -423,20 +448,14 @@ export const MoneyGame: React.FC = () => {
             {Array.from({ length: 3 }).map((_, index) => (
               <span
                 key={index}
-                className={
-                  index < stars
-                    ? 'text-yellow-400'
-                    : 'text-gray-700'
-                }
+                className={index < stars ? 'text-yellow-400' : 'text-gray-700'}
               >
                 ★
               </span>
             ))}
           </div>
 
-          <div className="text-4xl font-black text-white">
-            {finalAccuracy}%
-          </div>
+          <div className="text-4xl font-black text-white">{finalAccuracy}%</div>
 
           <p className="text-gray-500 text-sm mt-1">
             {correctAnswers} correct out of {attempts}
@@ -466,9 +485,7 @@ export const MoneyGame: React.FC = () => {
             </div>
 
             <div>
-              <h3 className="text-2xl font-bold text-white">
-                Money Lab
-              </h3>
+              <h3 className="text-2xl font-bold text-white">Money Lab</h3>
 
               <p className="text-gray-500 text-xs">
                 Mathematics Academy · Level {currentLevel}
@@ -477,26 +494,40 @@ export const MoneyGame: React.FC = () => {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() =>
-            speak(
-              `Count the coins and choose the total amount of money. ${current.hint}`
-            )
-          }
-          aria-label="Read activity instructions"
-          className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300"
-        >
-          <Volume2 className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              speak(
+                `Count the coins and choose the total amount of money. ${current.hint}`
+              )
+            }
+            aria-label="Read activity instructions"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300"
+          >
+            <Volume2 className="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-5 h-5 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Progress */}
       <div className="mb-6">
         <div className="flex justify-between text-xs text-gray-500 mb-2">
           <span>
-            Question {Math.min(attempts + 1, SESSION_SIZE)} of{' '}
-            {SESSION_SIZE}
+            Question {Math.min(attempts + 1, SESSION_SIZE)} of {SESSION_SIZE}
           </span>
 
           <span>{accuracy}% accuracy</span>
@@ -513,13 +544,9 @@ export const MoneyGame: React.FC = () => {
 
       {/* Objective */}
       <div className="mb-5">
-        <p className="text-gray-400 text-sm">
-          Count the coins carefully.
-        </p>
+        <p className="text-gray-400 text-sm">Count the coins carefully.</p>
 
-        <p className="text-white font-semibold">
-          How much money is this?
-        </p>
+        <p className="text-white font-semibold">How much money is this?</p>
       </div>
 
       {/* Coins */}
@@ -538,13 +565,9 @@ export const MoneyGame: React.FC = () => {
               transition={{ delay: index * 0.06 }}
               className={`w-16 h-16 rounded-full border-4 ${coin.className} shadow-lg flex flex-col items-center justify-center`}
             >
-              <span className="text-lg font-black">
-                {coin.symbol}
-              </span>
+              <span className="text-lg font-black">{coin.symbol}</span>
 
-              <span className="text-[10px] font-bold">
-                CENTS
-              </span>
+              <span className="text-[10px] font-bold">CENTS</span>
             </motion.div>
           );
         })}
@@ -559,9 +582,7 @@ export const MoneyGame: React.FC = () => {
             </span>
 
             {index < current.coins.length - 1 && (
-              <span className="text-gray-600 text-xs flex items-center">
-                +
-              </span>
+              <span className="text-gray-600 text-xs flex items-center">+</span>
             )}
           </React.Fragment>
         ))}
@@ -577,11 +598,9 @@ export const MoneyGame: React.FC = () => {
             'bg-gray-800 border-gray-700 hover:bg-gray-700 text-white';
 
           if (isSelected && isCorrect) {
-            buttonClass =
-              'bg-emerald-500/20 border-emerald-400 text-emerald-300';
+            buttonClass = 'bg-emerald-500/20 border-emerald-400 text-emerald-300';
           } else if (isSelected && !isCorrect) {
-            buttonClass =
-              'bg-red-500/20 border-red-400 text-red-300';
+            buttonClass = 'bg-red-500/20 border-red-400 text-red-300';
           }
 
           return (
@@ -619,32 +638,28 @@ export const MoneyGame: React.FC = () => {
           </motion.div>
         )}
 
-        {selected !== null &&
-          selected !== current.answer && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-5 p-4 rounded-xl bg-red-500/10 border border-red-500/20"
-            >
-              <p className="text-red-300 font-bold">
-                Not quite. Have another look.
-              </p>
+        {selected !== null && selected !== current.answer && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-5 p-4 rounded-xl bg-red-500/10 border border-red-500/20"
+          >
+            <p className="text-red-300 font-bold">
+              Not quite. Have another look.
+            </p>
 
-              <p className="text-gray-400 text-sm mt-1">
-                Try counting the coins from the largest value.
-              </p>
-            </motion.div>
-          )}
+            <p className="text-gray-400 text-sm mt-1">
+              Try counting the coins from the largest value.
+            </p>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Hint / Explanation */}
       <div className="mt-5 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => {
-            setShowHint((value) => !value);
-            speak(current.hint);
-          }}
+          onClick={() => setShowHint((value) => !value)}
           className="flex-1 min-w-[130px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-semibold"
         >
           <Lightbulb className="w-4 h-4" />
@@ -654,9 +669,7 @@ export const MoneyGame: React.FC = () => {
         {selected !== null && (
           <button
             type="button"
-            onClick={() =>
-              setShowExplanation((value) => !value)
-            }
+            onClick={() => setShowExplanation((value) => !value)}
             className="flex-1 min-w-[130px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-semibold"
           >
             <ArrowRight className="w-4 h-4" />
@@ -671,9 +684,7 @@ export const MoneyGame: React.FC = () => {
           animate={{ opacity: 1, height: 'auto' }}
           className="mt-3 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20"
         >
-          <p className="text-yellow-300 text-sm">
-            💡 {current.hint}
-          </p>
+          <p className="text-yellow-300 text-sm">💡 {current.hint}</p>
         </motion.div>
       )}
 
@@ -683,9 +694,7 @@ export const MoneyGame: React.FC = () => {
           animate={{ opacity: 1, height: 'auto' }}
           className="mt-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20"
         >
-          <p className="text-blue-300 text-sm">
-            {current.explanation}
-          </p>
+          <p className="text-blue-300 text-sm">{current.explanation}</p>
         </motion.div>
       )}
 
@@ -696,7 +705,8 @@ export const MoneyGame: React.FC = () => {
         </p>
 
         <p className="text-xs text-gray-500">
-          Concrete coins → quantity recognition → addition → mathematical reasoning
+          Concrete coins → quantity recognition → addition → mathematical
+          reasoning
         </p>
       </div>
     </div>

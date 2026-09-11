@@ -9,6 +9,7 @@ import {
   XCircle,
 } from 'lucide-react';
 
+import { useReadAloud } from '../../../hooks/useReadAloud';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
 
@@ -43,12 +44,10 @@ const LEVEL_RANGES: Record<number, { min: number; max: number }> = {
 
 const shuffle = <T,>(items: T[]): T[] => {
   const copy = [...items];
-
   for (let i = copy.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-
   return copy;
 };
 
@@ -61,33 +60,22 @@ const buildNumberOptions = (
   max: number,
 ): number[] => {
   const candidates = new Set<number>();
-
   const offsets = shuffle([-3, -2, -1, 1, 2, 3, 4]);
 
   offsets.forEach((offset) => {
     const value = answer + offset;
-
     if (value >= min && value <= max && value !== answer) {
       candidates.add(value);
     }
   });
 
   let distance = 4;
-
   while (candidates.size < 2) {
     const lower = answer - distance;
     const upper = answer + distance;
-
-    if (lower >= min && lower !== answer) {
-      candidates.add(lower);
-    }
-
-    if (upper <= max && upper !== answer) {
-      candidates.add(upper);
-    }
-
+    if (lower >= min && lower !== answer) candidates.add(lower);
+    if (upper <= max && upper !== answer) candidates.add(upper);
     distance += 1;
-
     if (distance > 20) break;
   }
 
@@ -106,14 +94,9 @@ const createChallenge = (learnerLevel: number): Challenge => {
           ? ['count', 'recognise', 'more', 'less', 'equal', 'ordering']
           : ['recognise', 'more', 'less', 'equal', 'ordering'];
 
-  const type =
-    availableTypes[Math.floor(Math.random() * availableTypes.length)];
-
+  const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
   const emoji = OBJECTS[Math.floor(Math.random() * OBJECTS.length)];
-
-  const count = Math.floor(
-    Math.random() * (range.max - range.min + 1),
-  ) + range.min;
+  const count = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
 
   if (type === 'count') {
     return {
@@ -154,7 +137,6 @@ const createChallenge = (learnerLevel: number): Challenge => {
 
   if (type === 'more') {
     const other = secondCount === count ? clamp(count + 1, range.min, range.max) : secondCount;
-
     return {
       type,
       count,
@@ -170,7 +152,6 @@ const createChallenge = (learnerLevel: number): Challenge => {
 
   if (type === 'less') {
     const other = secondCount === count ? clamp(count + 1, range.min, range.max) : secondCount;
-
     return {
       type,
       count,
@@ -184,17 +165,8 @@ const createChallenge = (learnerLevel: number): Challenge => {
     };
   }
 
-  const middle = clamp(
-    count + (Math.random() > 0.5 ? 2 : -2),
-    range.min,
-    range.max,
-  );
-
-  const last = clamp(
-    middle + (Math.random() > 0.5 ? 2 : -2),
-    range.min,
-    range.max,
-  );
+  const middle = clamp(count + (Math.random() > 0.5 ? 2 : -2), range.min, range.max);
+  const last = clamp(middle + (Math.random() > 0.5 ? 2 : -2), range.min, range.max);
 
   return {
     type: 'ordering',
@@ -207,6 +179,9 @@ const createChallenge = (learnerLevel: number): Challenge => {
 };
 
 export const NumberSense: React.FC = () => {
+  // ✅ NEW: Universal Read Aloud hook (respects accent + mute settings)
+  const { speak } = useReadAloud();
+
   const profile = useProfileStore(
     (state) => state.profiles[state.currentProfileId],
   );
@@ -240,19 +215,16 @@ export const NumberSense: React.FC = () => {
     setCompleted(false);
   }, [currentLevel]);
 
-  const speak = useCallback((text: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      return;
-    }
+  // ✅ AUTO-READ: Speak the challenge prompt when a new one appears
+  useEffect(() => {
+    if (!challenge || completed) return;
 
-    window.speechSynthesis.cancel();
+    const timer = window.setTimeout(() => {
+      speak(challenge.prompt, { rate: 0.85 });
+    }, 500);
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.8;
-    utterance.pitch = 1;
-
-    window.speechSynthesis.speak(utterance);
-  }, []);
+    return () => window.clearTimeout(timer);
+  }, [challenge, completed, speak]);
 
   const options = useMemo(() => {
     const answer =
@@ -266,9 +238,7 @@ export const NumberSense: React.FC = () => {
               ? Math.max(challenge.count, challenge.secondCount ?? challenge.count)
               : Math.min(challenge.count, challenge.secondCount ?? challenge.count);
 
-    if (challenge.type === 'equal') {
-      return ['Yes', 'No'];
-    }
+    if (challenge.type === 'equal') return ['Yes', 'No'];
 
     if (challenge.type === 'ordering') {
       const values = [
@@ -281,44 +251,24 @@ export const NumberSense: React.FC = () => {
           range.max,
         ),
       ];
-
       return shuffle(Array.from(new Set(values)));
     }
 
-    return buildNumberOptions(
-      answer as number,
-      range.min,
-      range.max,
-    );
+    return buildNumberOptions(answer as number, range.min, range.max);
   }, [challenge, range.max, range.min]);
 
   const getCorrectAnswer = (): string | number => {
     if (challenge.type === 'count' || challenge.type === 'recognise') {
       return challenge.count;
     }
-
-    if (challenge.type === 'equal') {
-      return 'Yes';
-    }
-
+    if (challenge.type === 'equal') return 'Yes';
     if (challenge.type === 'more') {
-      return Math.max(
-        challenge.count,
-        challenge.secondCount ?? challenge.count,
-      );
+      return Math.max(challenge.count, challenge.secondCount ?? challenge.count);
     }
-
     if (challenge.type === 'less') {
-      return Math.min(
-        challenge.count,
-        challenge.secondCount ?? challenge.count,
-      );
+      return Math.min(challenge.count, challenge.secondCount ?? challenge.count);
     }
-
-    return Math.min(
-      challenge.count,
-      challenge.secondCount ?? challenge.count,
-    );
+    return Math.min(challenge.count, challenge.secondCount ?? challenge.count);
   };
 
   const isCorrect = (answer: string | number) =>
@@ -328,23 +278,21 @@ export const NumberSense: React.FC = () => {
     if (selected !== null || completed) return;
 
     const correct = isCorrect(answer);
-
     setSelected(answer);
 
     if (correct) {
       setCorrectAnswers((previous) => previous + 1);
+      speak('Correct! Well done!', { rate: 0.9 });
+    } else {
+      speak(`Not quite. The correct answer is ${getCorrectAnswer()}.`, { rate: 0.85 });
     }
 
     setShowExplanation(true);
 
     window.setTimeout(() => {
       if (questionNumber >= SESSION_LENGTH) {
-        const finalCorrect =
-          correctAnswers + (correct ? 1 : 0);
-
-        const finalScore = Math.round(
-          (finalCorrect / SESSION_LENGTH) * 100,
-        );
+        const finalCorrect = correctAnswers + (correct ? 1 : 0);
+        const finalScore = Math.round((finalCorrect / SESSION_LENGTH) * 100);
 
         completeActivity({
           id: 'maths-number-sense-lab',
@@ -363,6 +311,7 @@ export const NumberSense: React.FC = () => {
         });
 
         setCompleted(true);
+        speak(`Session complete. You scored ${finalScore} percent!`, { rate: 0.9 });
         return;
       }
 
@@ -382,6 +331,7 @@ export const NumberSense: React.FC = () => {
     setShowHint(false);
     setShowExplanation(false);
     setCompleted(false);
+    speak('Starting a new session!', { rate: 0.9 });
   };
 
   const renderObjects = (count: number, emoji: string) => (
@@ -427,9 +377,7 @@ export const NumberSense: React.FC = () => {
             <div className="text-xs uppercase tracking-wider text-gray-500 mb-3">
               Group {groupIndex + 1}
             </div>
-
             {renderObjects(count, challenge.emoji)}
-
             <div className="mt-3 text-2xl font-bold text-white">
               {count}
             </div>
@@ -447,9 +395,7 @@ export const NumberSense: React.FC = () => {
       challenge.secondCount ?? challenge.count,
       clamp(
         (challenge.secondCount ?? challenge.count) +
-          (challenge.count > (challenge.secondCount ?? challenge.count)
-            ? 2
-            : -2),
+          (challenge.count > (challenge.secondCount ?? challenge.count) ? 2 : -2),
         range.min,
         range.max,
       ),
@@ -473,10 +419,7 @@ export const NumberSense: React.FC = () => {
   };
 
   if (completed) {
-    const finalAccuracy = Math.round(
-      (correctAnswers / SESSION_LENGTH) * 100,
-    );
-
+    const finalAccuracy = Math.round((correctAnswers / SESSION_LENGTH) * 100);
     const mastered = finalAccuracy >= 80;
 
     return (
@@ -501,7 +444,6 @@ export const NumberSense: React.FC = () => {
           <div className="text-4xl font-black text-white">
             {finalAccuracy}%
           </div>
-
           <div className="text-sm text-gray-400 mt-1">
             Session accuracy
           </div>
@@ -577,12 +519,24 @@ export const NumberSense: React.FC = () => {
           </p>
         </div>
 
-        <div className="shrink-0 text-right">
-          <div className="text-xs uppercase tracking-wider text-gray-500">
-            Level
-          </div>
-          <div className="text-xl font-bold text-white">
-            {currentLevel}
+        <div className="shrink-0 flex items-center gap-2">
+          {/* ✅ Read Aloud button */}
+          <button
+            type="button"
+            onClick={() => speak(challenge.prompt, { rate: 0.85 })}
+            aria-label="Read question aloud"
+            className="p-2 bg-emerald-600 hover:bg-emerald-500 rounded-full text-white transition"
+          >
+            <Volume2 className="w-4 h-4" />
+          </button>
+
+          <div className="text-right">
+            <div className="text-xs uppercase tracking-wider text-gray-500">
+              Level
+            </div>
+            <div className="text-xl font-bold text-white">
+              {currentLevel}
+            </div>
           </div>
         </div>
       </div>
@@ -593,10 +547,7 @@ export const NumberSense: React.FC = () => {
           <span>
             Challenge {questionNumber} of {SESSION_LENGTH}
           </span>
-
-          <span>
-            {correctAnswers} correct
-          </span>
+          <span>{correctAnswers} correct</span>
         </div>
 
         <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
@@ -638,7 +589,7 @@ export const NumberSense: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => speak(challenge.prompt)}
+              onClick={() => speak(challenge.prompt, { rate: 0.85 })}
               className="mt-2 inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition"
             >
               <Volume2 className="w-4 h-4" />
@@ -647,8 +598,7 @@ export const NumberSense: React.FC = () => {
           </div>
 
           {/* Concrete representation */}
-          {challenge.type === 'count' ||
-          challenge.type === 'recognise' ? (
+          {challenge.type === 'count' || challenge.type === 'recognise' ? (
             <div className="rounded-2xl bg-gray-900/60 border border-app-border p-5 mb-6">
               {renderObjects(challenge.count, challenge.emoji)}
             </div>
@@ -668,8 +618,7 @@ export const NumberSense: React.FC = () => {
           >
             {options.map((option, index) => {
               const correct = isCorrect(option);
-              const isSelected =
-                String(selected) === String(option);
+              const isSelected = String(selected) === String(option);
 
               let buttonClass =
                 'bg-gray-900 border-gray-700 text-white hover:border-gray-500';
@@ -691,14 +640,8 @@ export const NumberSense: React.FC = () => {
                   className={`min-h-16 rounded-xl border-2 font-bold text-xl transition ${buttonClass}`}
                 >
                   <span className="flex items-center justify-center gap-2">
-                    {isSelected && correct && (
-                      <CheckCircle className="w-5 h-5" />
-                    )}
-
-                    {isSelected && !correct && (
-                      <XCircle className="w-5 h-5" />
-                    )}
-
+                    {isSelected && correct && <CheckCircle className="w-5 h-5" />}
+                    {isSelected && !correct && <XCircle className="w-5 h-5" />}
                     {option}
                   </span>
                 </motion.button>
@@ -711,7 +654,19 @@ export const NumberSense: React.FC = () => {
             <div className="mt-5">
               <button
                 type="button"
-                onClick={() => setShowHint((previous) => !previous)}
+                onClick={() => {
+                  setShowHint((previous) => !previous);
+                  speak(challenge.type === 'count'
+                    ? 'Touch each object once. Count them one by one.'
+                    : challenge.type === 'more'
+                    ? 'Count both groups. Which has the bigger number?'
+                    : challenge.type === 'less'
+                    ? 'Count both groups. Which has the smaller number?'
+                    : challenge.type === 'equal'
+                    ? 'Do both groups have the same number of objects?'
+                    : 'Look for the smallest number.',
+                    { rate: 0.85 });
+                }}
                 className="mx-auto flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300 transition"
               >
                 <Lightbulb className="w-4 h-4" />
@@ -726,19 +681,14 @@ export const NumberSense: React.FC = () => {
                 >
                   {challenge.type === 'count' &&
                     'Touch or count each object once. The last number you say tells you how many there are.'}
-
                   {challenge.type === 'recognise' &&
                     `Look carefully at the quantity. Count the objects, then find ${challenge.count}.`}
-
                   {challenge.type === 'more' &&
                     'Count both groups. The group with the larger number has more.'}
-
                   {challenge.type === 'less' &&
                     'Count both groups. The group with the smaller number has less.'}
-
                   {challenge.type === 'equal' &&
                     'Compare the two groups. Equal means they have the same number.'}
-
                   {challenge.type === 'ordering' &&
                     'Look for the smallest number. The smallest number comes first.'}
                 </motion.div>

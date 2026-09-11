@@ -10,7 +10,9 @@ import {
   Star,
 } from 'lucide-react';
 
-import { speakArabic } from '../../../services/arabicSpeech';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 interface ProphetStory {
   id: string;
@@ -26,13 +28,6 @@ interface ProphetStory {
 interface ProphetStoriesProps {
   onComplete?: (score: number) => void;
 }
-
-/*
- * IMPORTANT:
- * These are introductory educational summaries.
- * Expand each story with carefully reviewed Islamic source material
- * before using this as a comprehensive Islamic Studies curriculum.
- */
 
 const STORIES: ProphetStory[] = [
   {
@@ -53,7 +48,6 @@ const STORIES: ProphetStory[] = [
     reflection:
       'What should you do when you make a mistake?',
   },
-
   {
     id: 'nuh',
     title: 'Prophet Nuh (AS)',
@@ -72,7 +66,6 @@ const STORIES: ProphetStory[] = [
     reflection:
       'How can you show patience when something is difficult?',
   },
-
   {
     id: 'ibrahim',
     title: 'Prophet Ibrahim (AS)',
@@ -91,7 +84,6 @@ const STORIES: ProphetStory[] = [
     reflection:
       'How can you show strong faith in your everyday life?',
   },
-
   {
     id: 'musa',
     title: 'Prophet Musa (AS)',
@@ -110,7 +102,6 @@ const STORIES: ProphetStory[] = [
     reflection:
       'What can you do when you feel afraid or worried?',
   },
-
   {
     id: 'isa',
     title: 'Prophet Isa (AS)',
@@ -129,7 +120,6 @@ const STORIES: ProphetStory[] = [
     reflection:
       'How can you show kindness and mercy to others?',
   },
-
   {
     id: 'muhammad',
     title: 'Prophet Muhammad (ﷺ)',
@@ -166,93 +156,108 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
   const [isComplete, setIsComplete] = useState(false);
   const [hasFinished, setHasFinished] = useState(false);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const current = STORIES[index];
 
   const progressPercentage = useMemo(() => {
     if (!STORIES.length) return 0;
-
-    return Math.round(
-      ((index + 1) / STORIES.length) * 100
-    );
+    return Math.round(((index + 1) / STORIES.length) * 100);
   }, [index]);
 
   const completedCount = readStories.length;
 
-  /*
-   * Automatically introduce the current story with audio.
-   * This uses the existing speech service and does not introduce AI.
-   */
+  // Arabic still uses its own voice but gated on soundEnabled
+  const speakArabicName = () => {
+    if (!soundEnabled) return;
+    if (!current.arabicName) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(current.arabicName);
+    utterance.lang = 'ar-SA';
+    utterance.rate = 0.75;
+    utterance.pitch = 1;
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Auto-read the story or prompt when the story or mode changes
   useEffect(() => {
-    if (!current || mode !== 'listen' || isComplete) return;
+    if (!current || isComplete) return;
+    if (!autoReadEnabled) return;
 
-    const timer = window.setTimeout(() => {
-      speakStory();
-    }, 400);
+    let readOut = '';
+    switch (mode) {
+      case 'story':
+        readOut = `${current.title}. ${current.shortIntroduction} ${current.story}`;
+        break;
+      case 'listen':
+        readOut = current.arabicName
+          ? `${current.title}.`
+          : current.title;
+        break;
+      case 'reflection':
+        readOut = `Think about it. ${current.reflection}`;
+        break;
+    }
 
+    if (!readOut) return;
+
+    const timer = window.setTimeout(() => speak(readOut), 400);
     return () => window.clearTimeout(timer);
-  }, [index, mode, current, isComplete]);
-
-  /*
-   * Read story
-   */
+  }, [index, mode, current, isComplete, speak, autoReadEnabled]);
 
   const handleReadStory = () => {
     if (!readStories.includes(current.id)) {
-      setReadStories(previous => [
-        ...previous,
-        current.id,
-      ]);
+      setReadStories((previous) => [...previous, current.id]);
 
-      setScore(previous => previous + 10);
+      if (soundEnabled) playSoundFeedback('correct');
+
+      setScore((previous) => previous + 10);
     }
 
     setMode('story');
+
+    speak(
+      `Well done. You read the story of ${current.title}. Let's look at the lessons.`,
+    );
   };
 
-  /*
-   * Listen to the story
-   */
-
-  function speakStory() {
+  const speakStory = () => {
     if (!current) return;
 
-    /*
-     * Arabic speech service is primarily designed for Arabic.
-     * We therefore speak the Arabic name when available.
-     * Full English narration can be connected later to a dedicated
-     * English TTS service.
-     */
-
     if (current.arabicName) {
-      speakArabic(current.arabicName);
+      speakArabicName();
+    } else {
+      speak(current.title);
     }
-  }
-
-  /*
-   * Reflection
-   */
+  };
 
   const handleReflection = () => {
     if (!reflectedStories.includes(current.id)) {
-      setReflectedStories(previous => [
-        ...previous,
-        current.id,
-      ]);
+      setReflectedStories((previous) => [...previous, current.id]);
 
-      setScore(previous => previous + 5);
+      if (soundEnabled) playSoundFeedback('correct');
+
+      setScore((previous) => previous + 5);
+
+      speak(
+        `Masha'Allah. You completed the reflection on ${current.title}.`,
+      );
     }
 
     setMode('reflection');
   };
 
-  /*
-   * Next story
-   */
-
   const handleNext = () => {
     if (index < STORIES.length - 1) {
-      setIndex(previous => previous + 1);
+      setIndex((previous) => previous + 1);
       setMode('story');
       return;
     }
@@ -260,22 +265,12 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
     setIsComplete(true);
   };
 
-  /*
-   * Previous story
-   */
-
   const handlePrevious = () => {
     if (index > 0) {
-      setIndex(previous => previous - 1);
+      setIndex((previous) => previous - 1);
       setMode('story');
     }
   };
-
-  /*
-   * Finish the module.
-   *
-   * Protected against duplicate onComplete calls.
-   */
 
   const finishAndMoveUp = () => {
     if (hasFinished) return;
@@ -285,28 +280,27 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
     if (onComplete) {
       onComplete(score);
     }
-  };
 
-  /*
-   * Reset
-   */
+    speak(
+      `Masha'Allah! You completed the Prophet Stories lesson with ${score} points.`,
+    );
+  };
 
   const handleReset = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
     setIndex(0);
     setMode('story');
-
     setReadStories([]);
     setReflectedStories([]);
-
     setScore(0);
-
     setIsComplete(false);
     setHasFinished(false);
-  };
 
-  /*
-   * Completion screen
-   */
+    speak("Let's explore the stories of Allah's prophets again!");
+  };
 
   if (isComplete) {
     return (
@@ -320,7 +314,7 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
         </motion.div>
 
         <p className="text-2xl font-bold text-emerald-400 mb-2">
-          Masha'Allah!
+          Masha&apos;Allah!
         </p>
 
         <p className="text-gray-300 mb-6">
@@ -330,26 +324,16 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="bg-gray-900 rounded-xl p-4">
             <BookOpen className="w-5 h-5 mx-auto mb-2 text-emerald-400" />
-
             <div className="text-2xl font-bold text-white">
               {completedCount}
             </div>
-
-            <div className="text-xs text-gray-500">
-              Stories Read
-            </div>
+            <div className="text-xs text-gray-500">Stories Read</div>
           </div>
 
           <div className="bg-gray-900 rounded-xl p-4">
             <Star className="w-5 h-5 mx-auto mb-2 text-yellow-400" />
-
-            <div className="text-2xl font-bold text-white">
-              {score}
-            </div>
-
-            <div className="text-xs text-gray-500">
-              Learning Score
-            </div>
+            <div className="text-2xl font-bold text-white">{score}</div>
+            <div className="text-xs text-gray-500">Learning Score</div>
           </div>
         </div>
 
@@ -374,7 +358,7 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
           </p>
 
           <ul className="text-xs text-gray-400 space-y-2">
-            <li>• Stories of Allah's prophets</li>
+            <li>• Stories of Allah&apos;s prophets</li>
             <li>• Faith and obedience</li>
             <li>• Patience and trust in Allah</li>
             <li>• Good character</li>
@@ -395,72 +379,71 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
           disabled={hasFinished}
           className="w-full px-6 py-3 bg-indigo-600 rounded-xl text-white font-bold hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {hasFinished
-            ? 'Completed'
-            : 'Finish & Move Up'}
+          {hasFinished ? 'Completed' : 'Finish & Move Up'}
         </button>
       </div>
     );
   }
 
-  /*
-   * Main interface
-   */
-
   return (
     <div className="max-w-md mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl text-center">
       {/* Header */}
-
       <div className="flex justify-between items-center mb-2">
         <div>
-          <h3 className="text-2xl font-bold text-white">
-            Prophet Stories
-          </h3>
+          <h3 className="text-2xl font-bold text-white">Prophet Stories</h3>
 
           <p className="text-xs text-gray-500 mt-1">
-            Islamic Studies • Stories & Character
+            Islamic Studies • Stories &amp; Character
           </p>
         </div>
 
-        <button
-          onClick={handleReset}
-          aria-label="Reset lesson"
-          className="p-2 bg-gray-800 rounded-lg text-gray-300 hover:text-white"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+
+          <button
+            onClick={handleReset}
+            aria-label="Reset lesson"
+            className="p-2 bg-gray-800 rounded-lg text-gray-300 hover:text-white"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <p className="text-gray-400 text-sm mb-5">
-        Learn from the stories of Allah's prophets and discover
-        the character lessons within them.
+        Learn from the stories of Allah&apos;s prophets and discover the
+        character lessons within them.
       </p>
 
       {/* Progress */}
-
       <div className="mb-5">
         <div className="flex justify-between text-xs text-gray-500 mb-2">
           <span>
             Story {index + 1} / {STORIES.length}
           </span>
-
-          <span>
-            {completedCount} completed
-          </span>
+          <span>{completedCount} completed</span>
         </div>
 
         <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
           <motion.div
             className="h-full bg-emerald-500 rounded-full"
-            animate={{
-              width: `${progressPercentage}%`,
-            }}
+            animate={{ width: `${progressPercentage}%` }}
           />
         </div>
       </div>
 
       {/* Learning modes */}
-
       <div className="grid grid-cols-3 gap-2 mb-5">
         <button
           onClick={() => setMode('story')}
@@ -497,16 +480,13 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
       </div>
 
       {/* Story card */}
-
       <motion.div
         key={index}
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800 mb-5"
       >
-        <div className="text-6xl mb-3">
-          {current.emoji}
-        </div>
+        <div className="text-6xl mb-3">{current.emoji}</div>
 
         <h4 className="text-white font-bold text-xl mb-1">
           {current.title}
@@ -567,15 +547,14 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
             </div>
 
             <p className="text-gray-400 text-xs">
-              Think about your answer. There is no need to rush.
-              The goal is to connect the lesson to your own actions.
+              Think about your answer. There is no need to rush. The goal is
+              to connect the lesson to your own actions.
             </p>
           </div>
         )}
       </motion.div>
 
       {/* Lessons */}
-
       {mode === 'story' && (
         <div className="text-left bg-gray-900 rounded-xl p-4 mb-5">
           <p className="text-sm font-semibold text-white mb-3">
@@ -589,7 +568,6 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
                 className="flex gap-2 text-xs text-gray-400"
               >
                 <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-
                 <span>{lesson}</span>
               </li>
             ))}
@@ -598,7 +576,6 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
       )}
 
       {/* Read / reflection actions */}
-
       {mode === 'story' && (
         <button
           onClick={handleReadStory}
@@ -620,7 +597,6 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
       )}
 
       {/* Navigation */}
-
       <div className="flex gap-3">
         <button
           onClick={handlePrevious}
@@ -635,10 +611,7 @@ export const ProphetStories: React.FC<ProphetStoriesProps> = ({
           onClick={handleNext}
           className="flex-1 px-4 py-3 bg-indigo-600 rounded-xl text-white font-bold hover:bg-indigo-500 flex items-center justify-center gap-2"
         >
-          {index < STORIES.length - 1
-            ? 'Next Story'
-            : 'Complete Lesson'}
-
+          {index < STORIES.length - 1 ? 'Next Story' : 'Complete Lesson'}
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>

@@ -15,6 +15,9 @@ import {
   Volume2,
 } from 'lucide-react';
 
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
+
 type TracingStage =
   | 'observe'
   | 'trace'
@@ -146,6 +149,12 @@ const STAGE_LABELS: Record<TracingStage, string> = {
 export const TracingCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [stage, setStage] = useState<TracingStage>('observe');
   const [isDrawing, setIsDrawing] = useState(false);
@@ -163,9 +172,10 @@ export const TracingCanvas: React.FC = () => {
   const progress =
     ((stageIndex + 1) / STAGE_ORDER.length) * 100;
 
-  /**
-   * Draw the handwriting guide.
-   */
+  /* =======================================================
+     CANVAS DRAWING (unchanged from original)
+  ======================================================= */
+
   const drawGuide = useCallback(
     (
       ctx: CanvasRenderingContext2D,
@@ -177,9 +187,6 @@ export const TracingCanvas: React.FC = () => {
 
       ctx.clearRect(0, 0, width, height);
 
-      /*
-       * Writing guide lines.
-       */
       ctx.save();
 
       ctx.strokeStyle = '#dbe4ee';
@@ -204,9 +211,6 @@ export const TracingCanvas: React.FC = () => {
 
       if (!showTemplate) return;
 
-      /*
-       * Dotted letter template.
-       */
       ctx.save();
 
       ctx.setLineDash([6, 6]);
@@ -223,10 +227,6 @@ export const TracingCanvas: React.FC = () => {
     []
   );
 
-  /**
-   * Draw the template whenever the letter changes
-   * or the activity is reset.
-   */
   useEffect(() => {
     const canvas = canvasRef.current;
 
@@ -243,9 +243,6 @@ export const TracingCanvas: React.FC = () => {
     }
   }, [currentLetter, stage, drawGuide]);
 
-  /**
-   * Convert pointer coordinates into canvas coordinates.
-   */
   const getCanvasPoint = (
     event: React.PointerEvent<HTMLCanvasElement>
   ) => {
@@ -266,9 +263,6 @@ export const TracingCanvas: React.FC = () => {
     };
   };
 
-  /**
-   * Start drawing.
-   */
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
       if (stage !== 'trace' && stage !== 'form') {
@@ -287,6 +281,9 @@ export const TracingCanvas: React.FC = () => {
 
       canvas?.setPointerCapture(event.pointerId);
 
+      // Yield narration to the child's strokes.
+      stopSpeaking();
+
       ctx.beginPath();
       ctx.moveTo(point.x, point.y);
 
@@ -299,12 +296,9 @@ export const TracingCanvas: React.FC = () => {
 
       setFeedback(null);
     },
-    [stage]
+    [stage, stopSpeaking]
   );
 
-  /**
-   * Continue drawing.
-   */
   const handlePointerMove = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
       if (!isDrawing) {
@@ -337,9 +331,6 @@ export const TracingCanvas: React.FC = () => {
     [isDrawing]
   );
 
-  /**
-   * Stop drawing.
-   */
   const handlePointerUp = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
       if (!isDrawing) {
@@ -359,11 +350,9 @@ export const TracingCanvas: React.FC = () => {
     [isDrawing]
   );
 
-  /**
-   * Clear learner writing while preserving
-   * the template.
-   */
   const clearCanvas = useCallback(() => {
+    stopSpeaking();
+
     const canvas = canvasRef.current;
 
     if (!canvas) {
@@ -384,11 +373,79 @@ export const TracingCanvas: React.FC = () => {
 
     setUserPoints([]);
     setFeedback(null);
-  }, [currentLetter, stage, drawGuide]);
+  }, [currentLetter, stage, drawGuide, stopSpeaking]);
 
-  /**
-   * Move to the next learning stage.
-   */
+  /* =======================================================
+     AUTO-READ — stage prompts
+     'observe' and 'master' read the letter.
+     'trace', 'form', 'improve', 'check' do NOT.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          `Look carefully at the letter ${currentLetter.letter}. Notice the shape before you begin tracing. ${currentLetter.word}. Sound: ${currentLetter.sound}.`
+        );
+      } else if (stage === 'trace') {
+        speak(
+          'Follow the guide. Trace the dotted letter slowly and carefully.'
+        );
+      } else if (stage === 'form') {
+        speak(
+          'Now form it yourself. The guide is hidden. Try to write the letter from memory.'
+        );
+      } else if (stage === 'check') {
+        speak(
+          'Look, think, improve. Compare your writing with the letter and think about what you can improve.'
+        );
+      } else if (stage === 'improve') {
+        speak(
+          'Good effort. Look at your letter and compare it with the guide. What could you improve?'
+        );
+      } else if (stage === 'master') {
+        speak(
+          `Letter practice complete. You practised observing, tracing, forming, checking, and improving the letter ${currentLetter.letter}.`
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    stage,
+    currentLetter.letter,
+    currentLetter.word,
+    currentLetter.sound,
+    autoReadEnabled,
+    speak,
+  ]);
+
+  /* =======================================================
+     FEEDBACK NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (!feedback) return;
+
+    speak(feedback);
+  }, [feedback, speak]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const nextStage = () => {
     const currentStageIndex = STAGE_ORDER.indexOf(stage);
 
@@ -398,35 +455,15 @@ export const TracingCanvas: React.FC = () => {
     }
   };
 
-  /**
-   * Listen to the letter and example word.
-   */
+  /* =======================================================
+     SPEAK LETTER — now delegates to shared useReadAloud.
+     Replaces the local SpeechSynthesisUtterance wrapper.
+  ======================================================= */
+
   const speakLetter = () => {
-    if (
-      typeof window === 'undefined' ||
-      !('speechSynthesis' in window)
-    ) {
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(
-      `${currentLetter.letter}. ${currentLetter.word}.`
-    );
-
-    utterance.rate = 0.75;
-    utterance.pitch = 1;
-
-    window.speechSynthesis.speak(utterance);
+    speak(`${currentLetter.letter}. ${currentLetter.word}.`);
   };
 
-  /**
-   * Check whether the learner actually made an attempt.
-   *
-   * This intentionally does NOT produce a fake percentage.
-   * Real handwriting accuracy requires stroke/trajectory analysis.
-   */
   const handleCheck = () => {
     if (userPoints.length < 10) {
       setFeedback(
@@ -444,18 +481,12 @@ export const TracingCanvas: React.FC = () => {
     setStage('improve');
   };
 
-  /**
-   * Start another attempt.
-   */
   const handleImprove = () => {
     clearCanvas();
     setStage('form');
     setFeedback(null);
   };
 
-  /**
-   * Finish the current letter.
-   */
   const handleMaster = () => {
     if (userPoints.length < 10) {
       setFeedback(
@@ -468,10 +499,9 @@ export const TracingCanvas: React.FC = () => {
     setFeedback(null);
   };
 
-  /**
-   * Move to the next letter.
-   */
   const nextLetter = () => {
+    stopSpeaking();
+
     setCurrentIndex(
       (previous) => (previous + 1) % LETTERS.length
     );
@@ -483,10 +513,9 @@ export const TracingCanvas: React.FC = () => {
     setReflection('');
   };
 
-  /**
-   * Restart the current letter.
-   */
   const restartLetter = () => {
+    stopSpeaking();
+
     setStage('observe');
     setUserPoints([]);
     setAttempts(0);
@@ -515,6 +544,19 @@ export const TracingCanvas: React.FC = () => {
           Watch the letter, trace its shape, then try forming it
           independently.
         </p>
+
+        <div className="flex justify-center mt-3">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Progress */}

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2,
@@ -9,7 +9,10 @@ import {
   MapPin,
   Trophy,
 } from 'lucide-react';
-import { speakWord } from '../../../services/audioEngine';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type Region =
   | 'Africa'
@@ -29,298 +32,58 @@ type Country = {
 
 const COUNTRIES: Country[] = [
   // AFRICA
-  {
-    id: 1,
-    country: 'Ghana',
-    flag: '🇬🇭',
-    capital: 'Accra',
-    region: 'Africa',
-  },
-  {
-    id: 2,
-    country: 'Nigeria',
-    flag: '🇳🇬',
-    capital: 'Abuja',
-    region: 'Africa',
-  },
-  {
-    id: 3,
-    country: 'Kenya',
-    flag: '🇰🇪',
-    capital: 'Nairobi',
-    region: 'Africa',
-  },
-  {
-    id: 4,
-    country: 'South Africa',
-    flag: '🇿🇦',
-    capital: 'Pretoria',
-    region: 'Africa',
-  },
-  {
-    id: 5,
-    country: 'Egypt',
-    flag: '🇪🇬',
-    capital: 'Cairo',
-    region: 'Africa',
-  },
-  {
-    id: 6,
-    country: 'Morocco',
-    flag: '🇲🇦',
-    capital: 'Rabat',
-    region: 'Africa',
-  },
-  {
-    id: 7,
-    country: 'Ethiopia',
-    flag: '🇪🇹',
-    capital: 'Addis Ababa',
-    region: 'Africa',
-  },
-  {
-    id: 8,
-    country: 'Senegal',
-    flag: '🇸🇳',
-    capital: 'Dakar',
-    region: 'Africa',
-  },
+  { id: 1, country: 'Ghana', flag: '🇬🇭', capital: 'Accra', region: 'Africa' },
+  { id: 2, country: 'Nigeria', flag: '🇳🇬', capital: 'Abuja', region: 'Africa' },
+  { id: 3, country: 'Kenya', flag: '🇰🇪', capital: 'Nairobi', region: 'Africa' },
+  { id: 4, country: 'South Africa', flag: '🇿🇦', capital: 'Pretoria', region: 'Africa' },
+  { id: 5, country: 'Egypt', flag: '🇪🇬', capital: 'Cairo', region: 'Africa' },
+  { id: 6, country: 'Morocco', flag: '🇲🇦', capital: 'Rabat', region: 'Africa' },
+  { id: 7, country: 'Ethiopia', flag: '🇪🇹', capital: 'Addis Ababa', region: 'Africa' },
+  { id: 8, country: 'Senegal', flag: '🇸🇳', capital: 'Dakar', region: 'Africa' },
 
   // ASIA
-  {
-    id: 9,
-    country: 'Japan',
-    flag: '🇯🇵',
-    capital: 'Tokyo',
-    region: 'Asia',
-  },
-  {
-    id: 10,
-    country: 'China',
-    flag: '🇨🇳',
-    capital: 'Beijing',
-    region: 'Asia',
-  },
-  {
-    id: 11,
-    country: 'India',
-    flag: '🇮🇳',
-    capital: 'New Delhi',
-    region: 'Asia',
-  },
-  {
-    id: 12,
-    country: 'Saudi Arabia',
-    flag: '🇸🇦',
-    capital: 'Riyadh',
-    region: 'Asia',
-  },
-  {
-    id: 13,
-    country: 'United Arab Emirates',
-    flag: '🇦🇪',
-    capital: 'Abu Dhabi',
-    region: 'Asia',
-  },
-  {
-    id: 14,
-    country: 'Türkiye',
-    flag: '🇹🇷',
-    capital: 'Ankara',
-    region: 'Asia',
-  },
-  {
-    id: 15,
-    country: 'South Korea',
-    flag: '🇰🇷',
-    capital: 'Seoul',
-    region: 'Asia',
-  },
-  {
-    id: 16,
-    country: 'Indonesia',
-    flag: '🇮🇩',
-    capital: 'Jakarta',
-    region: 'Asia',
-  },
+  { id: 9, country: 'Japan', flag: '🇯🇵', capital: 'Tokyo', region: 'Asia' },
+  { id: 10, country: 'China', flag: '🇨🇳', capital: 'Beijing', region: 'Asia' },
+  { id: 11, country: 'India', flag: '🇮🇳', capital: 'New Delhi', region: 'Asia' },
+  { id: 12, country: 'Saudi Arabia', flag: '🇸🇦', capital: 'Riyadh', region: 'Asia' },
+  { id: 13, country: 'United Arab Emirates', flag: '🇦🇪', capital: 'Abu Dhabi', region: 'Asia' },
+  { id: 14, country: 'Türkiye', flag: '🇹🇷', capital: 'Ankara', region: 'Asia' },
+  { id: 15, country: 'South Korea', flag: '🇰🇷', capital: 'Seoul', region: 'Asia' },
+  { id: 16, country: 'Indonesia', flag: '🇮🇩', capital: 'Jakarta', region: 'Asia' },
 
   // EUROPE
-  {
-    id: 17,
-    country: 'United Kingdom',
-    flag: '🇬🇧',
-    capital: 'London',
-    region: 'Europe',
-  },
-  {
-    id: 18,
-    country: 'France',
-    flag: '🇫🇷',
-    capital: 'Paris',
-    region: 'Europe',
-  },
-  {
-    id: 19,
-    country: 'Germany',
-    flag: '🇩🇪',
-    capital: 'Berlin',
-    region: 'Europe',
-  },
-  {
-    id: 20,
-    country: 'Italy',
-    flag: '🇮🇹',
-    capital: 'Rome',
-    region: 'Europe',
-  },
-  {
-    id: 21,
-    country: 'Spain',
-    flag: '🇪🇸',
-    capital: 'Madrid',
-    region: 'Europe',
-  },
-  {
-    id: 22,
-    country: 'Portugal',
-    flag: '🇵🇹',
-    capital: 'Lisbon',
-    region: 'Europe',
-  },
-  {
-    id: 23,
-    country: 'Netherlands',
-    flag: '🇳🇱',
-    capital: 'Amsterdam',
-    region: 'Europe',
-  },
-  {
-    id: 24,
-    country: 'Switzerland',
-    flag: '🇨🇭',
-    capital: 'Bern',
-    region: 'Europe',
-  },
+  { id: 17, country: 'United Kingdom', flag: '🇬🇧', capital: 'London', region: 'Europe' },
+  { id: 18, country: 'France', flag: '🇫🇷', capital: 'Paris', region: 'Europe' },
+  { id: 19, country: 'Germany', flag: '🇩🇪', capital: 'Berlin', region: 'Europe' },
+  { id: 20, country: 'Italy', flag: '🇮🇹', capital: 'Rome', region: 'Europe' },
+  { id: 21, country: 'Spain', flag: '🇪🇸', capital: 'Madrid', region: 'Europe' },
+  { id: 22, country: 'Portugal', flag: '🇵🇹', capital: 'Lisbon', region: 'Europe' },
+  { id: 23, country: 'Netherlands', flag: '🇳🇱', capital: 'Amsterdam', region: 'Europe' },
+  { id: 24, country: 'Switzerland', flag: '🇨🇭', capital: 'Bern', region: 'Europe' },
 
   // NORTH AMERICA
-  {
-    id: 25,
-    country: 'United States',
-    flag: '🇺🇸',
-    capital: 'Washington, D.C.',
-    region: 'North America',
-  },
-  {
-    id: 26,
-    country: 'Canada',
-    flag: '🇨🇦',
-    capital: 'Ottawa',
-    region: 'North America',
-  },
-  {
-    id: 27,
-    country: 'Mexico',
-    flag: '🇲🇽',
-    capital: 'Mexico City',
-    region: 'North America',
-  },
-  {
-    id: 28,
-    country: 'Jamaica',
-    flag: '🇯🇲',
-    capital: 'Kingston',
-    region: 'North America',
-  },
-  {
-    id: 29,
-    country: 'Cuba',
-    flag: '🇨🇺',
-    capital: 'Havana',
-    region: 'North America',
-  },
+  { id: 25, country: 'United States', flag: '🇺🇸', capital: 'Washington, D.C.', region: 'North America' },
+  { id: 26, country: 'Canada', flag: '🇨🇦', capital: 'Ottawa', region: 'North America' },
+  { id: 27, country: 'Mexico', flag: '🇲🇽', capital: 'Mexico City', region: 'North America' },
+  { id: 28, country: 'Jamaica', flag: '🇯🇲', capital: 'Kingston', region: 'North America' },
+  { id: 29, country: 'Cuba', flag: '🇨🇺', capital: 'Havana', region: 'North America' },
 
   // SOUTH AMERICA
-  {
-    id: 30,
-    country: 'Brazil',
-    flag: '🇧🇷',
-    capital: 'Brasília',
-    region: 'South America',
-  },
-  {
-    id: 31,
-    country: 'Argentina',
-    flag: '🇦🇷',
-    capital: 'Buenos Aires',
-    region: 'South America',
-  },
-  {
-    id: 32,
-    country: 'Colombia',
-    flag: '🇨🇴',
-    capital: 'Bogotá',
-    region: 'South America',
-  },
-  {
-    id: 33,
-    country: 'Peru',
-    flag: '🇵🇪',
-    capital: 'Lima',
-    region: 'South America',
-  },
-  {
-    id: 34,
-    country: 'Chile',
-    flag: '🇨🇱',
-    capital: 'Santiago',
-    region: 'South America',
-  },
+  { id: 30, country: 'Brazil', flag: '🇧🇷', capital: 'Brasília', region: 'South America' },
+  { id: 31, country: 'Argentina', flag: '🇦🇷', capital: 'Buenos Aires', region: 'South America' },
+  { id: 32, country: 'Colombia', flag: '🇨🇴', capital: 'Bogotá', region: 'South America' },
+  { id: 33, country: 'Peru', flag: '🇵🇪', capital: 'Lima', region: 'South America' },
+  { id: 34, country: 'Chile', flag: '🇨🇱', capital: 'Santiago', region: 'South America' },
 
   // OCEANIA
-  {
-    id: 35,
-    country: 'Australia',
-    flag: '🇦🇺',
-    capital: 'Canberra',
-    region: 'Oceania',
-  },
-  {
-    id: 36,
-    country: 'New Zealand',
-    flag: '🇳🇿',
-    capital: 'Wellington',
-    region: 'Oceania',
-  },
-  {
-    id: 37,
-    country: 'Fiji',
-    flag: '🇫🇯',
-    capital: 'Suva',
-    region: 'Oceania',
-  },
-  {
-    id: 38,
-    country: 'Papua New Guinea',
-    flag: '🇵🇬',
-    capital: 'Port Moresby',
-    region: 'Oceania',
-  },
+  { id: 35, country: 'Australia', flag: '🇦🇺', capital: 'Canberra', region: 'Oceania' },
+  { id: 36, country: 'New Zealand', flag: '🇳🇿', capital: 'Wellington', region: 'Oceania' },
+  { id: 37, country: 'Fiji', flag: '🇫🇯', capital: 'Suva', region: 'Oceania' },
+  { id: 38, country: 'Papua New Guinea', flag: '🇵🇬', capital: 'Port Moresby', region: 'Oceania' },
 
   // ADDITIONAL COUNTRIES
-  {
-    id: 39,
-    country: 'Rwanda',
-    flag: '🇷🇼',
-    capital: 'Kigali',
-    region: 'Africa',
-  },
-  {
-    id: 40,
-    country: 'Tanzania',
-    flag: '🇹🇿',
-    capital: 'Dodoma',
-    region: 'Africa',
-  },
+  { id: 39, country: 'Rwanda', flag: '🇷🇼', capital: 'Kigali', region: 'Africa' },
+  { id: 40, country: 'Tanzania', flag: '🇹🇿', capital: 'Dodoma', region: 'Africa' },
 ];
 
 const REGIONS: Array<'All' | Region> = [
@@ -337,9 +100,7 @@ type GameMode = 'explore' | 'challenge';
 
 export const FlagMatch: React.FC = () => {
   const [matched, setMatched] = useState<number[]>([]);
-  const [selectedCountry, setSelectedCountry] = useState<Country | null>(
-    null
-  );
+  const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
   const [region, setRegion] = useState<'All' | Region>('All');
   const [search, setSearch] = useState('');
   const [gameMode, setGameMode] = useState<GameMode>('explore');
@@ -348,12 +109,17 @@ export const FlagMatch: React.FC = () => {
   const [challengeScore, setChallengeScore] = useState(0);
   const [challengeFinished, setChallengeFinished] = useState(false);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const filteredCountries = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return COUNTRIES.filter((country) => {
-      const matchesRegion =
-        region === 'All' || country.region === region;
+      const matchesRegion = region === 'All' || country.region === region;
 
       const matchesSearch =
         !query ||
@@ -364,26 +130,37 @@ export const FlagMatch: React.FC = () => {
     });
   }, [region, search]);
 
-  const progress = Math.round(
-    (matched.length / COUNTRIES.length) * 100
+  const progress = Math.round((matched.length / COUNTRIES.length) * 100);
+
+  /* Announce discovery-complete milestone once */
+  useEffect(() => {
+    if (gameMode !== 'explore') return;
+    if (matched.length !== COUNTRIES.length) return;
+
+    speak(
+      `World explorer achievement unlocked! You discovered all ${COUNTRIES.length} countries in this activity. You can now test what you remember.`,
+    );
+  }, [matched.length, gameMode, speak]);
+
+  const revealCountry = useCallback(
+    (country: Country) => {
+      if (soundEnabled) playSoundFeedback('move');
+
+      setSelectedCountry(country);
+
+      if (!matched.includes(country.id)) {
+        setMatched((current) => [...current, country.id]);
+      }
+
+      speak(
+        `${country.country}. The capital city is ${country.capital}.`,
+      );
+    },
+    [matched, speak, soundEnabled]
   );
 
-  const revealCountry = useCallback((country: Country) => {
-    setSelectedCountry(country);
-
-    if (!matched.includes(country.id)) {
-      setMatched((current) => [...current, country.id]);
-    }
-
-    speakWord(
-      `${country.country}. The capital city is ${country.capital}.`
-    );
-  }, [matched]);
-
   const speakCountry = (country: Country) => {
-    speakWord(
-      `${country.country}. Capital: ${country.capital}.`
-    );
+    speak(`${country.country}. Capital: ${country.capital}.`);
   };
 
   const reset = () => {
@@ -395,14 +172,20 @@ export const FlagMatch: React.FC = () => {
     setChallengeIndex(0);
     setChallengeScore(0);
     setChallengeFinished(false);
+
+    speak("Let's explore the flags again!");
   };
 
   const startChallenge = () => {
+    if (soundEnabled) playSoundFeedback('move');
+
     setGameMode('challenge');
     setChallengeIndex(0);
     setChallengeScore(0);
     setChallengeFinished(false);
     setSelectedCountry(null);
+
+    speak('Flag challenge. Which country does this flag belong to?');
   };
 
   return (
@@ -413,7 +196,6 @@ export const FlagMatch: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 text-cyan-400 mb-2">
               <Globe2 size={19} />
-
               <span className="text-xs uppercase tracking-wider font-semibold">
                 Geography
               </span>
@@ -428,22 +210,34 @@ export const FlagMatch: React.FC = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={reset}
-            aria-label="Reset flag activity"
-            className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white transition"
-          >
-            <RotateCcw size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white transition"
+            >
+              <Volume2
+                size={18}
+                className={soundEnabled ? 'text-amber-300' : 'text-gray-500'}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={reset}
+              aria-label="Reset flag activity"
+              className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:text-white transition"
+            >
+              <RotateCcw size={18} />
+            </button>
+          </div>
         </div>
 
         {/* PROGRESS */}
         <div className="mt-6">
           <div className="flex justify-between text-xs mb-2">
-            <span className="text-gray-400">
-              Countries discovered
-            </span>
+            <span className="text-gray-400">Countries discovered</span>
 
             <span className="text-cyan-400 font-semibold">
               {matched.length}/{COUNTRIES.length}
@@ -531,8 +325,7 @@ export const FlagMatch: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {filteredCountries.map((country) => {
               const isMatched = matched.includes(country.id);
-              const isSelected =
-                selectedCountry?.id === country.id;
+              const isSelected = selectedCountry?.id === country.id;
 
               return (
                 <motion.button
@@ -545,8 +338,8 @@ export const FlagMatch: React.FC = () => {
                     isSelected
                       ? 'border-cyan-400 bg-cyan-500/10'
                       : isMatched
-                      ? 'border-white/15 bg-white/[0.04]'
-                      : 'border-white/10 bg-black/10 hover:border-cyan-400/40'
+                        ? 'border-white/15 bg-white/[0.04]'
+                        : 'border-white/10 bg-black/10 hover:border-cyan-400/40'
                   }`}
                 >
                   {isMatched && (
@@ -556,9 +349,7 @@ export const FlagMatch: React.FC = () => {
                     />
                   )}
 
-                  <span className="text-5xl mb-3">
-                    {country.flag}
-                  </span>
+                  <span className="text-5xl mb-3">{country.flag}</span>
 
                   <span className="font-bold text-sm text-white">
                     {country.country}
@@ -574,14 +365,9 @@ export const FlagMatch: React.FC = () => {
 
           {filteredCountries.length === 0 && (
             <div className="py-12 text-center">
-              <Globe2
-                size={32}
-                className="mx-auto text-gray-600 mb-3"
-              />
+              <Globe2 size={32} className="mx-auto text-gray-600 mb-3" />
 
-              <p className="text-gray-400">
-                No countries found.
-              </p>
+              <p className="text-gray-400">No countries found.</p>
             </div>
           )}
 
@@ -596,9 +382,7 @@ export const FlagMatch: React.FC = () => {
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <span className="text-5xl">
-                      {selectedCountry.flag}
-                    </span>
+                    <span className="text-5xl">{selectedCountry.flag}</span>
 
                     <div>
                       <h4 className="text-xl font-bold text-white">
@@ -608,9 +392,7 @@ export const FlagMatch: React.FC = () => {
                       <div className="flex items-center gap-2 text-gray-400 text-sm mt-1">
                         <MapPin size={14} />
 
-                        <span>
-                          Capital: {selectedCountry.capital}
-                        </span>
+                        <span>Capital: {selectedCountry.capital}</span>
                       </div>
                     </div>
                   </div>
@@ -654,8 +436,8 @@ export const FlagMatch: React.FC = () => {
                   </h4>
 
                   <p className="text-sm text-gray-400">
-                    You discovered all {COUNTRIES.length} countries
-                    in this activity.
+                    You discovered all {COUNTRIES.length} countries in this
+                    activity.
                   </p>
                 </div>
               </div>
@@ -707,31 +489,42 @@ const FlagChallenge: React.FC<FlagChallengeProps> = ({
   finished,
   setFinished,
 }) => {
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+
+  const { speak } = useReadAloud();
+
   const QUESTIONS = useMemo(() => {
-    return [...COUNTRIES]
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 10);
+    return [...COUNTRIES].sort(() => Math.random() - 0.5).slice(0, 10);
   }, []);
 
   const current = QUESTIONS[challengeIndex];
 
   const [answered, setAnswered] = useState(false);
-  const [selectedAnswer, setSelectedAnswer] =
-    useState<string | null>(null);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
 
   const options = useMemo(() => {
     if (!current) return [];
 
     const others = COUNTRIES.filter(
-      (country) => country.id !== current.id
+      (country) => country.id !== current.id,
     )
       .sort(() => Math.random() - 0.5)
       .slice(0, 3);
 
-    return [...others, current].sort(
-      () => Math.random() - 0.5
-    );
+    return [...others, current].sort(() => Math.random() - 0.5);
   }, [current]);
+
+  /* Auto-read the question when a new flag appears */
+  useEffect(() => {
+    if (!autoReadEnabled || !current || finished) return;
+
+    const timer = window.setTimeout(() => {
+      speak(`Which country does this flag belong to?`);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [challengeIndex, current, finished, speak, autoReadEnabled]);
 
   const answer = (country: Country) => {
     if (answered || !current) return;
@@ -740,12 +533,12 @@ const FlagChallenge: React.FC<FlagChallengeProps> = ({
     setSelectedAnswer(country.country);
 
     if (country.id === current.id) {
+      if (soundEnabled) playSoundFeedback('correct');
       setScore((value) => value + 1);
-      speakWord(`Correct! This is the flag of ${current.country}.`);
+      speak(`Correct! This is the flag of ${current.country}.`);
     } else {
-      speakWord(
-        `The correct answer is ${current.country}.`
-      );
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(`The correct answer is ${current.country}.`);
     }
 
     window.setTimeout(() => {
@@ -756,13 +549,11 @@ const FlagChallenge: React.FC<FlagChallengeProps> = ({
         setAnswered(false);
         setSelectedAnswer(null);
       }
-    }, 900);
+    }, 1400);
   };
 
   if (finished) {
-    const percentage = Math.round(
-      (score / QUESTIONS.length) * 100
-    );
+    const percentage = Math.round((score / QUESTIONS.length) * 100);
 
     return (
       <div className="p-8 text-center">
@@ -770,9 +561,7 @@ const FlagChallenge: React.FC<FlagChallengeProps> = ({
           <Trophy className="text-yellow-400" size={32} />
         </div>
 
-        <h4 className="text-2xl font-bold text-white">
-          Challenge complete!
-        </h4>
+        <h4 className="text-2xl font-bold text-white">Challenge complete!</h4>
 
         <p className="text-gray-400 mt-2">
           You scored {score} out of {QUESTIONS.length}.
@@ -786,8 +575,8 @@ const FlagChallenge: React.FC<FlagChallengeProps> = ({
           {percentage >= 80
             ? 'Excellent geographical knowledge!'
             : percentage >= 50
-            ? 'Good work. Keep exploring the world!'
-            : 'Keep practising. Every explorer learns step by step!'}
+              ? 'Good work. Keep exploring the world!'
+              : 'Keep practising. Every explorer learns step by step!'}
         </p>
       </div>
     );
@@ -809,9 +598,7 @@ const FlagChallenge: React.FC<FlagChallengeProps> = ({
         <motion.div
           className="h-full bg-cyan-400"
           animate={{
-            width: `${
-              ((challengeIndex + 1) / QUESTIONS.length) * 100
-            }%`,
+            width: `${((challengeIndex + 1) / QUESTIONS.length) * 100}%`,
           }}
         />
       </div>
@@ -832,14 +619,9 @@ const FlagChallenge: React.FC<FlagChallengeProps> = ({
 
         <div className="grid grid-cols-2 gap-3 max-w-xl mx-auto">
           {options.map((option) => {
-            const isSelected =
-              selectedAnswer === option.country;
-
-            const isCorrect =
-              answered && option.id === current.id;
-
-            const isWrong =
-              answered && isSelected && !isCorrect;
+            const isSelected = selectedAnswer === option.country;
+            const isCorrect = answered && option.id === current.id;
+            const isWrong = answered && isSelected && !isCorrect;
 
             return (
               <motion.button
@@ -852,8 +634,8 @@ const FlagChallenge: React.FC<FlagChallengeProps> = ({
                   isCorrect
                     ? 'border-green-400 bg-green-500/10 text-green-300'
                     : isWrong
-                    ? 'border-red-400 bg-red-500/10 text-red-300'
-                    : 'border-white/10 bg-white/[0.03] text-white hover:border-cyan-400/50'
+                      ? 'border-red-400 bg-red-500/10 text-red-300'
+                      : 'border-white/10 bg-white/[0.03] text-white hover:border-cyan-400/50'
                 }`}
               >
                 {option.country}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
@@ -8,6 +8,9 @@ import {
   RotateCcw,
   Volume2,
 } from 'lucide-react';
+
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 /* =========================================================
    TYPES
@@ -171,6 +174,12 @@ const getColorClasses = (color: string) => {
 ========================================================= */
 
 export const EmotionMatch: React.FC = () => {
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [stage, setStage] = useState<ActivityStage>('identify');
   const [selectedResponse, setSelectedResponse] =
@@ -189,24 +198,61 @@ export const EmotionMatch: React.FC = () => {
   }, [completed.length]);
 
   /* -------------------------------------------------------
-     Speech
+     Auto-read prompt when emotion changes (identify stage)
   ------------------------------------------------------- */
 
-  const speak = (text: string) => {
-    if (
-      typeof window === 'undefined' ||
-      !('speechSynthesis' in window)
-    ) {
-      return;
-    }
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage !== 'identify') return;
+    if (!emotion) return;
 
-    window.speechSynthesis.cancel();
+    const timer = window.setTimeout(() => {
+      speak(
+        `Can you name this feeling? Take a moment to look at the picture.`
+      );
+    }, 450);
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.8;
+    return () => window.clearTimeout(timer);
+  }, [currentIndex, stage, emotion, autoReadEnabled, speak]);
 
-    window.speechSynthesis.speak(utterance);
-  };
+  /* -------------------------------------------------------
+     Auto-read prompt when moving to response stage
+  ------------------------------------------------------- */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage !== 'response') return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        `What could help when you feel ${emotion.name.toLowerCase()}? Choose a response.`
+      );
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, emotion, autoReadEnabled, speak]);
+
+  /* -------------------------------------------------------
+     Completion narration — fires once when the stage flips
+  ------------------------------------------------------- */
+
+  useEffect(() => {
+    if (stage !== 'complete') return;
+
+    speak(
+      `Wonderful work. You explored ${EMOTIONS.length} feelings. Remember, all feelings are okay to notice. What matters is learning safe and helpful ways to respond to them.`
+    );
+  }, [stage, speak]);
+
+  /* -------------------------------------------------------
+     Cleanup speech on unmount
+  ------------------------------------------------------- */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
 
   /* -------------------------------------------------------
      Identify emotion
@@ -236,6 +282,8 @@ export const EmotionMatch: React.FC = () => {
   const handleResponse = (response: string) => {
     setSelectedResponse(response);
 
+    speak(response);
+
     window.setTimeout(() => {
       const nextIndex = currentIndex + 1;
 
@@ -247,7 +295,7 @@ export const EmotionMatch: React.FC = () => {
       setCurrentIndex(nextIndex);
       setSelectedResponse(null);
       setStage('identify');
-    }, 1000);
+    }, 2200);
   };
 
   /* -------------------------------------------------------
@@ -255,12 +303,7 @@ export const EmotionMatch: React.FC = () => {
   ------------------------------------------------------- */
 
   const resetActivity = () => {
-    if (
-      typeof window !== 'undefined' &&
-      'speechSynthesis' in window
-    ) {
-      window.speechSynthesis.cancel();
-    }
+    stopSpeaking();
 
     setCurrentIndex(0);
     setStage('identify');

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   CheckCircle,
@@ -7,7 +7,12 @@ import {
   Hand,
   RotateCcw,
   ArrowRight,
+  Volume2,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type TextureId = 'rough' | 'smooth' | 'bumpy' | 'soft';
 
@@ -86,6 +91,12 @@ const STAGE_LABELS: Record<ActivityStage, string> = {
 };
 
 export const RoughSmooth: React.FC = () => {
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [stage, setStage] = useState<ActivityStage>('observe');
   const [selected, setSelected] = useState<TextureId | null>(null);
   const [comparison, setComparison] = useState<TextureId[]>([]);
@@ -102,6 +113,110 @@ export const RoughSmooth: React.FC = () => {
 
   const stageIndex = STAGES.indexOf(stage);
 
+  /* =======================================================
+     AUTO-READ — stage prompts
+     Skipped on 'complete' (has its own effect below).
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage === 'complete') return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          'Observe different surfaces. Our screen cannot reproduce real touch. Instead, we will use pictures, words, and examples to learn how people describe different textures.'
+        );
+      } else if (stage === 'identify') {
+        speak(
+          'Identify the texture. Choose a surface and learn the words we use to describe it.'
+        );
+      } else if (stage === 'compare') {
+        speak(
+          'Compare two textures. Choose two surfaces and think about how their sensory qualities are different.'
+        );
+      } else if (stage === 'classify') {
+        speak(
+          'Think about where textures come from. Some textures can be found in nature. Others are created or manufactured by people.'
+        );
+      } else if (stage === 'reflect') {
+        speak(
+          'Use your own experience. Think about something you have touched before, and describe what it felt like.'
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, autoReadEnabled, speak]);
+
+  /* =======================================================
+     SELECTED TEXTURE NARRATION
+     Fires when a texture is tapped during the identify stage.
+     Names the texture + description + sensory words.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'identify') return;
+    if (!selected) return;
+
+    const board = BOARDS.find((b) => b.id === selected);
+    if (!board) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        `${board.name}. ${board.description} Words we can use: ${board.sensoryWords.join(', ')}.`
+      );
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [selected, stage, speak]);
+
+  /* =======================================================
+     FEEDBACK NARRATION
+     Every non-empty feedback message is spoken. Covers
+     the comparison result and the "choose two textures"
+     nudge.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!feedback) return;
+
+    speak(feedback);
+  }, [feedback, speak]);
+
+  /* =======================================================
+     COMPLETION NARRATION — fires once on stage === 'complete'
+     Deliberately does not read the child's own reflection.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'complete') return;
+
+    if (soundEnabled) playSoundFeedback('correct');
+
+    speak(
+      `Sensory explorer complete. You observed, identified, compared, and described different textures. ${
+        reflection.trim()
+          ? 'Thank you for describing what you noticed with your own hands.'
+          : 'Remember, your hands are important tools for discovering the world.'
+      }`
+    );
+  }, [stage, speak, soundEnabled, reflection]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const nextStage = () => {
     const nextIndex = stageIndex + 1;
 
@@ -110,10 +225,12 @@ export const RoughSmooth: React.FC = () => {
       setFeedback('');
       setSelected(null);
       setComparison([]);
+      if (soundEnabled) playSoundFeedback('move');
     }
   };
 
   const reset = () => {
+    stopSpeaking();
     setStage('observe');
     setSelected(null);
     setComparison([]);
@@ -128,10 +245,14 @@ export const RoughSmooth: React.FC = () => {
   };
 
   const handleIdentify = (id: TextureId) => {
+    if (soundEnabled) playSoundFeedback('move');
     setSelected(id);
+    // Narration handled by the selected-texture effect above.
   };
 
   const handleComparison = (id: TextureId) => {
+    if (soundEnabled) playSoundFeedback('move');
+
     if (comparison.includes(id)) {
       setComparison(
         comparison.filter((textureId) => textureId !== id)
@@ -149,6 +270,7 @@ export const RoughSmooth: React.FC = () => {
 
   const compareTextures = () => {
     if (comparison.length !== 2) {
+      if (soundEnabled) playSoundFeedback('try-again');
       setFeedback('Choose two textures to compare.');
       return;
     }
@@ -162,6 +284,8 @@ export const RoughSmooth: React.FC = () => {
 
     if (!first || !second) return;
 
+    if (soundEnabled) playSoundFeedback('move');
+
     setFeedback(
       `${first.name} and ${second.name} have different sensory qualities. Look at the words that describe each one.`
     );
@@ -171,6 +295,8 @@ export const RoughSmooth: React.FC = () => {
     id: TextureId,
     category: 'natural' | 'manmade'
   ) => {
+    if (soundEnabled) playSoundFeedback('move');
+
     setClassification((current) => ({
       ...current,
       [id]: category,
@@ -245,14 +371,27 @@ export const RoughSmooth: React.FC = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={reset}
-            className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition"
-            aria-label="Reset activity"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={reset}
+              className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition"
+              aria-label="Reset activity"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Learning progression */}

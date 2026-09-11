@@ -6,8 +6,14 @@ import {
   RotateCcw,
   Blocks,
   Star,
+  Volume2,
 } from 'lucide-react';
+
 import { PUZZLE_CHALLENGES } from './engineeringData';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type PuzzleChallenge = {
   title: string;
@@ -32,6 +38,12 @@ export const PuzzleBuilder: React.FC = () => {
   const [attempts, setAttempts] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const [message, setMessage] = useState('');
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
 
   const challenge = challenges[challengeIndex];
 
@@ -58,9 +70,7 @@ export const PuzzleBuilder: React.FC = () => {
     return Array.from({ length: totalPieces }, () => 1);
   }, [challenge, totalPieces]);
 
-  const requiredPieces = targetPattern.filter(
-    (cell) => cell === 1
-  ).length;
+  const requiredPieces = targetPattern.filter((cell) => cell === 1).length;
 
   useEffect(() => {
     setPlacedPieces([]);
@@ -71,8 +81,45 @@ export const PuzzleBuilder: React.FC = () => {
     setMessage('');
   }, [challengeIndex]);
 
+  /* Auto-read the challenge when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled || !challenge) return;
+
+    const readOut = `${challenge.title}. ${
+      challenge.objective ||
+      'Reconstruct the target pattern using the puzzle grid.'
+    }`;
+
+    const timer = window.setTimeout(() => speak(readOut), 450);
+    return () => window.clearTimeout(timer);
+  }, [challengeIndex, challenge, speak, autoReadEnabled]);
+
+  /* Read the hint when it opens */
+  useEffect(() => {
+    if (showHint && !completed) {
+      speak(
+        challenge.hint ||
+          'Look at the target from left to right and top to bottom. Compare each space carefully.',
+      );
+    }
+  }, [showHint, completed, challenge, speak]);
+
+  /* Announce completion once */
+  useEffect(() => {
+    if (!completed) return;
+
+    speak(
+      `Puzzle complete! ${
+        challenge.learningPoint ||
+        'You used observation, planning and spatial reasoning to solve the puzzle.'
+      }`,
+    );
+  }, [completed, challenge, speak]);
+
   const togglePiece = (index: number) => {
     if (completed) return;
+
+    if (soundEnabled) playSoundFeedback('move');
 
     setTested(false);
     setMessage('');
@@ -99,20 +146,21 @@ export const PuzzleBuilder: React.FC = () => {
       targetCells.every((index) => placedPieces.includes(index));
 
     if (isCorrect) {
+      if (soundEnabled) playSoundFeedback('correct');
       setCompleted(true);
       setScore((previous) => previous + 10);
-      setMessage(
-        'Excellent! You reconstructed the puzzle correctly.'
-      );
+      setMessage('Excellent! You reconstructed the puzzle correctly.');
     } else {
-      setMessage(
-        'Not quite. Look carefully at the pattern and try again.'
-      );
+      if (soundEnabled) playSoundFeedback('try-again');
+      setMessage('Not quite. Look carefully at the pattern and try again.');
+      speak('Not quite. Look carefully at the pattern and try again.');
     }
   };
 
   const removeLastPiece = () => {
     if (completed) return;
+
+    if (soundEnabled) playSoundFeedback('move');
 
     setTested(false);
     setMessage('');
@@ -127,6 +175,8 @@ export const PuzzleBuilder: React.FC = () => {
     setAttempts(0);
     setShowHint(false);
     setMessage('');
+
+    speak('Puzzle reset.');
   };
 
   const nextChallenge = () => {
@@ -136,7 +186,10 @@ export const PuzzleBuilder: React.FC = () => {
       setChallengeIndex(0);
       setScore(0);
       setMessage(
-        'Wonderful! You completed the puzzle sequence. Let’s practise again.'
+        'Wonderful! You completed the puzzle sequence. Let’s practise again.',
+      );
+      speak(
+        'Wonderful! You completed the puzzle sequence. Let us practise again.',
       );
     }
   };
@@ -162,13 +215,28 @@ export const PuzzleBuilder: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={reset}
-          className="p-2 bg-gray-800 rounded-lg text-gray-300 hover:bg-gray-700"
-          aria-label="Reset puzzle"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+
+          <button
+            onClick={reset}
+            className="p-2 bg-gray-800 rounded-lg text-gray-300 hover:bg-gray-700"
+            aria-label="Reset puzzle"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Challenge information */}
@@ -193,9 +261,7 @@ export const PuzzleBuilder: React.FC = () => {
           Your Mission
         </p>
 
-        <h4 className="text-white font-bold text-lg">
-          {challenge.title}
-        </h4>
+        <h4 className="text-white font-bold text-lg">{challenge.title}</h4>
 
         <p className="text-gray-400 text-sm mt-1">
           {challenge.objective ||
@@ -204,12 +270,8 @@ export const PuzzleBuilder: React.FC = () => {
 
         {challenge.skill && (
           <div className="mt-3">
-            <span className="text-xs text-gray-500">
-              Skill: 
-            </span>{' '}
-            <span className="text-xs text-gray-300">
-              {challenge.skill}
-            </span>
+            <span className="text-xs text-gray-500">Skill: </span>{' '}
+            <span className="text-xs text-gray-300">{challenge.skill}</span>
           </div>
         )}
       </div>
@@ -242,9 +304,7 @@ export const PuzzleBuilder: React.FC = () => {
               }`}
             >
               {cell === 1 && (
-                <span className="text-xl">
-                  {challenge.emoji}
-                </span>
+                <span className="text-xl">{challenge.emoji}</span>
               )}
             </div>
           ))}
@@ -258,9 +318,7 @@ export const PuzzleBuilder: React.FC = () => {
       {/* Progress */}
       <div className="mb-4">
         <div className="flex justify-between text-xs mb-2">
-          <span className="text-gray-400">
-            Pieces placed
-          </span>
+          <span className="text-gray-400">Pieces placed</span>
 
           <span className="text-gray-300">
             {placedPieces.length} / {requiredPieces}
@@ -304,14 +362,8 @@ export const PuzzleBuilder: React.FC = () => {
                 whileTap={{ scale: 0.92 }}
                 animate={
                   isPlaced
-                    ? {
-                        scale: 1,
-                        opacity: 1,
-                      }
-                    : {
-                        scale: 0.96,
-                        opacity: 0.55,
-                      }
+                    ? { scale: 1, opacity: 1 }
+                    : { scale: 0.96, opacity: 0.55 }
                 }
                 className={`aspect-square rounded-md flex items-center justify-center transition ${
                   isPlaced
@@ -325,9 +377,7 @@ export const PuzzleBuilder: React.FC = () => {
                 }
               >
                 {isPlaced && (
-                  <span className="text-2xl">
-                    {challenge.emoji}
-                  </span>
+                  <span className="text-2xl">{challenge.emoji}</span>
                 )}
               </motion.button>
             );
@@ -396,9 +446,7 @@ export const PuzzleBuilder: React.FC = () => {
               : 'bg-yellow-500/10 text-yellow-300'
           }`}
         >
-          {completed && (
-            <CheckCircle className="w-5 h-5 inline mr-2" />
-          )}
+          {completed && <CheckCircle className="w-5 h-5 inline mr-2" />}
           {message}
         </motion.div>
       )}

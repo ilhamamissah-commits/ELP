@@ -106,8 +106,10 @@ import { IslamicVocabulary } from './components/interactive/Islamic/IslamicVocab
 import { QuranFoundations } from './components/interactive/Islamic/QuranFoundations';
 import { Seerah } from './components/interactive/Islamic/Seerah';
 import { Tarbiyah } from './components/interactive/Islamic/Tarbiyah';
+import { Settings } from './components/dashboard/Settings';
+import { useSettingsStore } from './store/useSettingsStore';
 
-type Screen = 'age' | 'subjects' | 'dashboard' | 'list' | 'activity' | 'profiles' | 'portal';
+type Screen = 'age' | 'subjects' | 'dashboard' | 'list' | 'activity' | 'profiles' | 'portal' | 'settings';
 
 function App() {
   const [screen, setScreen] = useState<Screen>('age');
@@ -119,6 +121,7 @@ function App() {
   const { setActiveProfile } = useProgressStore();
   const { currentProfileId, profiles, setCurrentProfile, addProfile } = useProfileStore();
   const [showEmotionCheck, setShowEmotionCheck] = useState(true);
+  const { theme, textSize, reduceMotion } = useSettingsStore();
 
   useEffect(() => {
     if (currentProfileId && profiles[currentProfileId]) {
@@ -127,6 +130,11 @@ function App() {
       setScreen('subjects');
     }
   }, [currentProfileId, profiles]);
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-text-size', textSize);
+    document.documentElement.setAttribute('data-reduce-motion', String(reduceMotion));
+  }, [theme, textSize, reduceMotion]);
 
   const handleStartOver = () => {
     setCurrentProfile("");
@@ -385,6 +393,7 @@ function App() {
               {screen === 'subjects' && (
                 <>
                   <button onClick={handleOpenPortal} className="text-xs bg-indigo-600 px-3 py-1 rounded-full hover:bg-indigo-500 text-white">👨‍👩‍👧‍👦 Parents</button>
+                  <button onClick={() => setScreen('settings')} className="text-xs bg-gray-700 px-3 py-1 rounded-full hover:bg-gray-600 text-white">⚙️ Settings</button>
                   <button onClick={handleStartOver} className="text-xs bg-gray-700 px-3 py-1 rounded-full hover:bg-gray-600 text-white">🔄 Start Over</button>
                 </>
               )}
@@ -394,6 +403,9 @@ function App() {
 
         {screen === 'age' && <AgeGate onSelect={handleAgeSelect} />}
         {screen === 'subjects' && <LearningWorld onSelect={handleSubjectSelect} />}
+        {screen === 'settings' && (
+           <Settings onBack={() => setScreen('subjects')} />
+          )}
 
         {screen === 'dashboard' && (
           <SubjectDashboard 
@@ -539,14 +551,24 @@ function App() {
         )}
 
         {screen !== 'age' && screen !== 'portal' && (
-          <button
-            onClick={() => setScreen('age')}
-            className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-500 shadow-2xl border-2 border-white/20 text-white text-2xl font-bold flex items-center justify-center transition-all"
-            title="Switch Profile"
-          >
-            👤
-          </button>
-        )}
+  <>
+    <button
+      onClick={() => setScreen('settings')}
+      className="fixed bottom-6 right-24 z-50 w-12 h-12 rounded-full bg-gray-700 hover:bg-gray-600 shadow-2xl border-2 border-white/20 text-white text-2xl font-bold flex items-center justify-center transition-all"
+      title="Settings"
+    >
+      ⚙️
+    </button>
+
+    <button
+      onClick={() => setScreen('age')}
+      className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-500 shadow-2xl border-2 border-white/20 text-white text-2xl font-bold flex items-center justify-center transition-all"
+      title="Switch Profile"
+    >
+      👤
+    </button>
+  </>
+)}
       </div>
     </>
   );

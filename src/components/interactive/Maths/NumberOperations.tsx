@@ -11,6 +11,9 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
 
@@ -27,269 +30,93 @@ interface Challenge {
 
 const CHALLENGES_BY_LEVEL: Record<number, Challenge[]> = {
   1: [
-    {
-      start: 3,
-      operation: 'add',
-      amount: 1,
-      answer: 4,
-      hint: 'Move one step forward from 3.',
-      explanation: '3 + 1 = 4.',
-    },
-    {
-      start: 5,
-      operation: 'subtract',
-      amount: 1,
-      answer: 4,
-      hint: 'Move one step backward from 5.',
-      explanation: '5 − 1 = 4.',
-    },
-    {
-      start: 2,
-      operation: 'add',
-      amount: 2,
-      answer: 4,
-      hint: 'Count two steps forward: 3, 4.',
-      explanation: '2 + 2 = 4.',
-    },
-    {
-      start: 6,
-      operation: 'subtract',
-      amount: 2,
-      answer: 4,
-      hint: 'Count two steps backward: 5, 4.',
-      explanation: '6 − 2 = 4.',
-    },
-    {
-      start: 4,
-      operation: 'add',
-      amount: 3,
-      answer: 7,
-      hint: 'Count three more: 5, 6, 7.',
-      explanation: '4 + 3 = 7.',
-    },
+    { start: 3, operation: 'add', amount: 1, answer: 4,
+      hint: 'Move one step forward from 3.', explanation: '3 + 1 = 4.' },
+    { start: 5, operation: 'subtract', amount: 1, answer: 4,
+      hint: 'Move one step backward from 5.', explanation: '5 − 1 = 4.' },
+    { start: 2, operation: 'add', amount: 2, answer: 4,
+      hint: 'Count two steps forward: 3, 4.', explanation: '2 + 2 = 4.' },
+    { start: 6, operation: 'subtract', amount: 2, answer: 4,
+      hint: 'Count two steps backward: 5, 4.', explanation: '6 − 2 = 4.' },
+    { start: 4, operation: 'add', amount: 3, answer: 7,
+      hint: 'Count three more: 5, 6, 7.', explanation: '4 + 3 = 7.' },
   ],
 
   2: [
-    {
-      start: 7,
-      operation: 'add',
-      amount: 2,
-      answer: 9,
-      hint: 'Count two numbers after 7.',
-      explanation: '7 + 2 = 9.',
-    },
-    {
-      start: 10,
-      operation: 'subtract',
-      amount: 3,
-      answer: 7,
-      hint: 'Count three numbers backwards.',
-      explanation: '10 − 3 = 7.',
-    },
-    {
-      start: 8,
-      operation: 'add',
-      amount: 5,
-      answer: 13,
-      hint: 'Add five by counting forward.',
-      explanation: '8 + 5 = 13.',
-    },
-    {
-      start: 15,
-      operation: 'subtract',
-      amount: 5,
-      answer: 10,
-      hint: 'Taking away five from fifteen leaves ten.',
-      explanation: '15 − 5 = 10.',
-    },
-    {
-      start: 9,
-      operation: 'add',
-      amount: 6,
-      answer: 15,
-      hint: 'Think about making 10 first.',
-      explanation: '9 + 6 = 15.',
-    },
+    { start: 7, operation: 'add', amount: 2, answer: 9,
+      hint: 'Count two numbers after 7.', explanation: '7 + 2 = 9.' },
+    { start: 10, operation: 'subtract', amount: 3, answer: 7,
+      hint: 'Count three numbers backwards.', explanation: '10 − 3 = 7.' },
+    { start: 8, operation: 'add', amount: 5, answer: 13,
+      hint: 'Add five by counting forward.', explanation: '8 + 5 = 13.' },
+    { start: 15, operation: 'subtract', amount: 5, answer: 10,
+      hint: 'Taking away five from fifteen leaves ten.', explanation: '15 − 5 = 10.' },
+    { start: 9, operation: 'add', amount: 6, answer: 15,
+      hint: 'Think about making 10 first.', explanation: '9 + 6 = 15.' },
   ],
 
   3: [
-    {
-      start: 12,
-      operation: 'add',
-      amount: 5,
-      answer: 17,
-      hint: 'Add five to twelve.',
-      explanation: '12 + 5 = 17.',
-    },
-    {
-      start: 18,
-      operation: 'subtract',
-      amount: 7,
-      answer: 11,
-      hint: 'Take away seven from eighteen.',
-      explanation: '18 − 7 = 11.',
-    },
-    {
-      start: 14,
-      operation: 'add',
-      amount: 8,
-      answer: 22,
-      hint: 'Add six to reach 20, then two more.',
-      explanation: '14 + 8 = 22.',
-    },
-    {
-      start: 25,
-      operation: 'subtract',
-      amount: 9,
-      answer: 16,
-      hint: 'Take away ten, then give one back.',
-      explanation: '25 − 9 = 16.',
-    },
-    {
-      start: 17,
-      operation: 'add',
-      amount: 6,
-      answer: 23,
-      hint: 'Think 17 + 3 = 20, then add 3.',
-      explanation: '17 + 6 = 23.',
-    },
+    { start: 12, operation: 'add', amount: 5, answer: 17,
+      hint: 'Add five to twelve.', explanation: '12 + 5 = 17.' },
+    { start: 18, operation: 'subtract', amount: 7, answer: 11,
+      hint: 'Take away seven from eighteen.', explanation: '18 − 7 = 11.' },
+    { start: 14, operation: 'add', amount: 8, answer: 22,
+      hint: 'Add six to reach 20, then two more.', explanation: '14 + 8 = 22.' },
+    { start: 25, operation: 'subtract', amount: 9, answer: 16,
+      hint: 'Take away ten, then give one back.', explanation: '25 − 9 = 16.' },
+    { start: 17, operation: 'add', amount: 6, answer: 23,
+      hint: 'Think 17 + 3 = 20, then add 3.', explanation: '17 + 6 = 23.' },
   ],
 
   4: [
-    {
-      start: 24,
-      operation: 'add',
-      amount: 8,
-      answer: 32,
-      hint: 'Make the next ten first.',
-      explanation: '24 + 8 = 32.',
-    },
-    {
-      start: 35,
-      operation: 'subtract',
-      amount: 7,
-      answer: 28,
-      hint: 'Take away five, then two more.',
-      explanation: '35 − 7 = 28.',
-    },
-    {
-      start: 27,
-      operation: 'add',
-      amount: 15,
-      answer: 42,
-      hint: 'Add ten, then five.',
-      explanation: '27 + 15 = 42.',
-    },
-    {
-      start: 50,
-      operation: 'subtract',
-      amount: 18,
-      answer: 32,
-      hint: 'Take away 20, then add 2 back.',
-      explanation: '50 − 18 = 32.',
-    },
-    {
-      start: 36,
-      operation: 'add',
-      amount: 19,
-      answer: 55,
-      hint: 'Add 20, then subtract 1.',
-      explanation: '36 + 19 = 55.',
-    },
+    { start: 24, operation: 'add', amount: 8, answer: 32,
+      hint: 'Make the next ten first.', explanation: '24 + 8 = 32.' },
+    { start: 35, operation: 'subtract', amount: 7, answer: 28,
+      hint: 'Take away five, then two more.', explanation: '35 − 7 = 28.' },
+    { start: 27, operation: 'add', amount: 15, answer: 42,
+      hint: 'Add ten, then five.', explanation: '27 + 15 = 42.' },
+    { start: 50, operation: 'subtract', amount: 18, answer: 32,
+      hint: 'Take away 20, then add 2 back.', explanation: '50 − 18 = 32.' },
+    { start: 36, operation: 'add', amount: 19, answer: 55,
+      hint: 'Add 20, then subtract 1.', explanation: '36 + 19 = 55.' },
   ],
 
   5: [
-    {
-      start: 48,
-      operation: 'add',
-      amount: 27,
-      answer: 75,
-      hint: 'Add tens first, then ones.',
-      explanation: '48 + 27 = 75.',
-    },
-    {
-      start: 72,
-      operation: 'subtract',
-      amount: 28,
-      answer: 44,
-      hint: 'Subtract 30, then add 2 back.',
-      explanation: '72 − 28 = 44.',
-    },
-    {
-      start: 65,
-      operation: 'add',
-      amount: 36,
-      answer: 101,
-      hint: 'Add 30, then 6.',
-      explanation: '65 + 36 = 101.',
-    },
-    {
-      start: 100,
-      operation: 'subtract',
-      amount: 37,
-      answer: 63,
-      hint: 'Subtract 40, then add 3 back.',
-      explanation: '100 − 37 = 63.',
-    },
-    {
-      start: 57,
-      operation: 'add',
-      amount: 28,
-      answer: 85,
-      hint: 'Think 57 + 30 − 2.',
-      explanation: '57 + 28 = 85.',
-    },
+    { start: 48, operation: 'add', amount: 27, answer: 75,
+      hint: 'Add tens first, then ones.', explanation: '48 + 27 = 75.' },
+    { start: 72, operation: 'subtract', amount: 28, answer: 44,
+      hint: 'Subtract 30, then add 2 back.', explanation: '72 − 28 = 44.' },
+    { start: 65, operation: 'add', amount: 36, answer: 101,
+      hint: 'Add 30, then 6.', explanation: '65 + 36 = 101.' },
+    { start: 100, operation: 'subtract', amount: 37, answer: 63,
+      hint: 'Subtract 40, then add 3 back.', explanation: '100 − 37 = 63.' },
+    { start: 57, operation: 'add', amount: 28, answer: 85,
+      hint: 'Think 57 + 30 − 2.', explanation: '57 + 28 = 85.' },
   ],
 };
 
 const shuffle = <T,>(items: T[]): T[] => {
   const result = [...items];
-
   for (let i = result.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [result[i], result[j]] = [result[j], result[i]];
   }
-
   return result;
 };
 
 const buildOptions = (answer: number): number[] => {
   const options = new Set<number>([answer]);
-
   const offsets = [-2, 2, -5, 5, -10, 10];
 
   for (const offset of offsets) {
     const candidate = answer + offset;
-
-    if (candidate >= 0) {
-      options.add(candidate);
-    }
-
+    if (candidate >= 0) options.add(candidate);
     if (options.size === 3) break;
   }
 
-  while (options.size < 3) {
-    options.add(answer + options.size);
-  }
+  while (options.size < 3) options.add(answer + options.size);
 
   return shuffle(Array.from(options));
-};
-
-const speak = (text: string) => {
-  if (
-    typeof window === 'undefined' ||
-    !('speechSynthesis' in window)
-  ) {
-    return;
-  }
-
-  window.speechSynthesis.cancel();
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.8;
-  utterance.pitch = 1.05;
-
-  window.speechSynthesis.speak(utterance);
 };
 
 export const NumberOperations: React.FC = () => {
@@ -301,21 +128,21 @@ export const NumberOperations: React.FC = () => {
     (state) => state.completeActivity
   );
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const currentLevel = profile?.currentLevel ?? 1;
 
   const challenges = useMemo(() => {
     const level = Math.min(Math.max(currentLevel, 1), 5);
-
-    return shuffle(
-      CHALLENGES_BY_LEVEL[level] ?? CHALLENGES_BY_LEVEL[1]
-    );
+    return shuffle(CHALLENGES_BY_LEVEL[level] ?? CHALLENGES_BY_LEVEL[1]);
   }, [currentLevel]);
 
   const [challengeIndex, setChallengeIndex] = useState(0);
-  const [number, setNumber] = useState(
-    challenges[0]?.start ?? 5
-  );
-
+  const [number, setNumber] = useState(challenges[0]?.start ?? 5);
   const [selected, setSelected] = useState<number | null>(null);
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [attempts, setAttempts] = useState(0);
@@ -325,32 +152,49 @@ export const NumberOperations: React.FC = () => {
 
   const SESSION_SIZE = 5;
 
-  const current =
-    challenges[challengeIndex % challenges.length];
+  const current = challenges[challengeIndex % challenges.length];
 
-  const options = useMemo(
-    () => buildOptions(current.answer),
-    [current.answer]
-  );
+  const options = useMemo(() => buildOptions(current.answer), [current.answer]);
 
   const accuracy =
-    attempts > 0
-      ? Math.round((correctAnswers / attempts) * 100)
-      : 0;
+    attempts > 0 ? Math.round((correctAnswers / attempts) * 100) : 0;
 
-  const progress = Math.min(
-    (attempts / SESSION_SIZE) * 100,
-    100
-  );
-
+  const progress = Math.min((attempts / SESSION_SIZE) * 100, 100);
   const isCorrectNumber = number === current.answer;
+
+  // Auto-read the challenge on load
+  useEffect(() => {
+    if (autoReadEnabled) {
+      const opWord = current.operation === 'add' ? 'plus' : 'minus';
+      const readOut = `${current.start} ${opWord} ${current.amount}. Find the answer.`;
+      const timer = window.setTimeout(() => speak(readOut), 350);
+      return () => window.clearTimeout(timer);
+    }
+  }, [challengeIndex, current, speak, autoReadEnabled]);
+
+  // Read hint when it opens
+  useEffect(() => {
+    if (showHint && current) speak(current.hint);
+  }, [showHint, current, speak]);
+
+  // Announce completion
+  useEffect(() => {
+    if (!completed) return;
+
+    const finalAccuracy =
+      attempts > 0 ? Math.round((correctAnswers / attempts) * 100) : 0;
+
+    speak(
+      finalAccuracy >= 80
+        ? `Brilliant work! You scored ${finalAccuracy} percent. You are a number star!`
+        : `Well done! You scored ${finalAccuracy} percent. Let's practise number operations again.`,
+    );
+  }, [completed, attempts, correctAnswers, speak]);
 
   const finishSession = useCallback(
     (finalCorrect: number, finalAttempts: number) => {
       const finalAccuracy =
-        finalAttempts > 0
-          ? Math.round((finalCorrect / finalAttempts) * 100)
-          : 0;
+        finalAttempts > 0 ? Math.round((finalCorrect / finalAttempts) * 100) : 0;
 
       completeActivity({
         id: 'maths-number-operations-lab',
@@ -373,79 +217,52 @@ export const NumberOperations: React.FC = () => {
     [completeActivity]
   );
 
-  /*
-   * Direct manipulation is deliberately retained.
-   * This gives the learner a concrete way to explore
-   * what addition and subtraction actually do.
-   */
-  const add = () => {
-    setNumber((previous) =>
-      Math.min(previous + 1, 100)
-    );
-  };
+  const add = () => setNumber((prev) => Math.min(prev + 1, 100));
+  const subtract = () => setNumber((prev) => Math.max(prev - 1, 0));
 
-  const subtract = () => {
-    setNumber((previous) =>
-      Math.max(previous - 1, 0)
-    );
-  };
-
-  const moveBy = (amount: number) => {
-    setNumber((previous) =>
-      Math.max(0, Math.min(previous + amount, 100))
-    );
-  };
+  const moveBy = (amount: number) =>
+    setNumber((prev) => Math.max(0, Math.min(prev + amount, 100)));
 
   const handleAnswer = (answer: number) => {
     if (selected !== null || completed) return;
 
     const nextAttempts = attempts + 1;
-
     setSelected(answer);
     setAttempts(nextAttempts);
 
     if (answer === current.answer) {
-      const nextCorrect = correctAnswers + 1;
+      if (soundEnabled) playSoundFeedback('correct');
 
+      const nextCorrect = correctAnswers + 1;
       setCorrectAnswers(nextCorrect);
 
-      speak(
-        `Correct! ${current.explanation}`
-      );
+      speak(`Correct! ${current.explanation}`);
 
       if (nextAttempts >= SESSION_SIZE) {
-        setTimeout(() => {
-          finishSession(nextCorrect, nextAttempts);
-        }, 1200);
-
+        setTimeout(() => finishSession(nextCorrect, nextAttempts), 2000);
         return;
       }
 
       setTimeout(() => {
-        const nextIndex =
-          (challengeIndex + 1) % challenges.length;
-
+        const nextIndex = (challengeIndex + 1) % challenges.length;
         setChallengeIndex(nextIndex);
         setNumber(challenges[nextIndex].start);
-
         setSelected(null);
         setShowHint(false);
         setShowExplanation(false);
-      }, 1200);
+      }, 2000);
     } else {
-      speak('Not quite. Try using the number line.');
+      if (soundEnabled) playSoundFeedback('try-again');
 
+      speak('Not quite. Try using the number line.');
       setShowExplanation(true);
     }
   };
 
-  const resetExploration = () => {
-    setNumber(current.start);
-  };
+  const resetExploration = () => setNumber(current.start);
 
   const restart = () => {
     const first = challenges[0];
-
     setChallengeIndex(0);
     setNumber(first.start);
     setSelected(null);
@@ -454,33 +271,16 @@ export const NumberOperations: React.FC = () => {
     setShowHint(false);
     setShowExplanation(false);
     setCompleted(false);
-  };
 
-  useEffect(() => {
-    return () => {
-      if (
-        typeof window !== 'undefined' &&
-        'speechSynthesis' in window
-      ) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
+    speak("Let's practise number operations again!");
+  };
 
   if (completed) {
     const finalAccuracy =
-      attempts > 0
-        ? Math.round((correctAnswers / attempts) * 100)
-        : 0;
+      attempts > 0 ? Math.round((correctAnswers / attempts) * 100) : 0;
 
     const stars =
-      finalAccuracy >= 90
-        ? 3
-        : finalAccuracy >= 70
-          ? 2
-          : finalAccuracy >= 50
-            ? 1
-            : 0;
+      finalAccuracy >= 90 ? 3 : finalAccuracy >= 70 ? 2 : finalAccuracy >= 50 ? 1 : 0;
 
     return (
       <motion.div
@@ -505,11 +305,7 @@ export const NumberOperations: React.FC = () => {
             {Array.from({ length: 3 }).map((_, index) => (
               <span
                 key={index}
-                className={
-                  index < stars
-                    ? 'text-yellow-400'
-                    : 'text-gray-700'
-                }
+                className={index < stars ? 'text-yellow-400' : 'text-gray-700'}
               >
                 ★
               </span>
@@ -551,7 +347,6 @@ export const NumberOperations: React.FC = () => {
               <h3 className="text-2xl font-bold text-white">
                 Number Operations Lab
               </h3>
-
               <p className="text-xs text-gray-500">
                 Mathematics Academy · Level {currentLevel}
               </p>
@@ -559,32 +354,38 @@ export const NumberOperations: React.FC = () => {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() =>
-            speak(
-              `${current.start} ${
-                current.operation === 'add'
-                  ? 'plus'
-                  : 'minus'
-              } ${current.amount}. Find the answer.`
-            )
-          }
-          aria-label="Read activity"
-          className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300"
-        >
-          <Volume2 className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const opWord = current.operation === 'add' ? 'plus' : 'minus';
+              speak(`${current.start} ${opWord} ${current.amount}. Find the answer.`);
+            }}
+            aria-label="Read activity"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300"
+          >
+            <Volume2 className="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-5 h-5 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Progress */}
       <div className="mb-6">
         <div className="flex justify-between text-xs text-gray-500 mb-2">
           <span>
-            Challenge {Math.min(attempts + 1, SESSION_SIZE)} of{' '}
-            {SESSION_SIZE}
+            Challenge {Math.min(attempts + 1, SESSION_SIZE)} of {SESSION_SIZE}
           </span>
-
           <span>{accuracy}% accuracy</span>
         </div>
 
@@ -603,26 +404,12 @@ export const NumberOperations: React.FC = () => {
         </p>
 
         <div className="flex items-center justify-center gap-3 text-4xl font-black">
-          <span className="text-white">
-            {current.start}
-          </span>
-
-          <span
-            className={
-              current.operation === 'add'
-                ? 'text-emerald-400'
-                : 'text-red-400'
-            }
-          >
+          <span className="text-white">{current.start}</span>
+          <span className={current.operation === 'add' ? 'text-emerald-400' : 'text-red-400'}>
             {current.operation === 'add' ? '+' : '−'}
           </span>
-
-          <span className="text-white">
-            {current.amount}
-          </span>
-
+          <span className="text-white">{current.amount}</span>
           <span className="text-gray-500">=</span>
-
           <span className="text-indigo-400">?</span>
         </div>
       </div>
@@ -666,16 +453,11 @@ export const NumberOperations: React.FC = () => {
           </motion.button>
         </div>
 
-        {/* Larger jumps */}
         <div className="flex justify-center gap-2 mt-4">
           <button
             type="button"
             onClick={() =>
-              moveBy(
-                current.operation === 'add'
-                  ? current.amount
-                  : -current.amount
-              )
+              moveBy(current.operation === 'add' ? current.amount : -current.amount)
             }
             className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs text-gray-300 font-semibold"
           >
@@ -700,11 +482,8 @@ export const NumberOperations: React.FC = () => {
           <span className="text-xs uppercase tracking-wider text-gray-600 font-bold">
             Number Line
           </span>
-
           <span className="text-xs text-gray-500">
-            {current.operation === 'add'
-              ? 'Move forward'
-              : 'Move backward'}
+            {current.operation === 'add' ? 'Move forward' : 'Move backward'}
           </span>
         </div>
 
@@ -714,40 +493,27 @@ export const NumberOperations: React.FC = () => {
               {
                 length: Math.min(
                   21,
-                  Math.max(
-                    current.start,
-                    current.answer,
-                    10
-                  ) + 1
+                  Math.max(current.start, current.answer, 10) + 1
                 ),
               },
               (_, index) => index
             ).map((value) => {
               const active =
-                value === number ||
-                value === current.start ||
-                value === current.answer;
+                value === number || value === current.start || value === current.answer;
 
               return (
                 <div
                   key={value}
                   className={`w-7 flex flex-col items-center ${
-                    active
-                      ? 'text-indigo-300'
-                      : 'text-gray-700'
+                    active ? 'text-indigo-300' : 'text-gray-700'
                   }`}
                 >
                   <div
                     className={`w-px h-3 ${
-                      active
-                        ? 'bg-indigo-400'
-                        : 'bg-gray-700'
+                      active ? 'bg-indigo-400' : 'bg-gray-700'
                     }`}
                   />
-
-                  <span className="text-[9px]">
-                    {value}
-                  </span>
+                  <span className="text-[9px]">{value}</span>
                 </div>
               );
             })}
@@ -764,29 +530,18 @@ export const NumberOperations: React.FC = () => {
           let className =
             'bg-gray-800 border-gray-700 text-white hover:bg-gray-700';
 
-          if (isSelected && correct) {
-            className =
-              'bg-emerald-500/20 border-emerald-400 text-emerald-300';
-          } else if (isSelected && !correct) {
-            className =
-              'bg-red-500/20 border-red-400 text-red-300';
-          }
+          if (isSelected && correct)
+            className = 'bg-emerald-500/20 border-emerald-400 text-emerald-300';
+          else if (isSelected && !correct)
+            className = 'bg-red-500/20 border-red-400 text-red-300';
 
           return (
             <motion.button
               key={option}
               type="button"
               disabled={selected !== null}
-              whileHover={
-                selected === null
-                  ? { scale: 1.04 }
-                  : undefined
-              }
-              whileTap={
-                selected === null
-                  ? { scale: 0.97 }
-                  : undefined
-              }
+              whileHover={selected === null ? { scale: 1.04 } : undefined}
+              whileTap={selected === null ? { scale: 0.97 } : undefined}
               onClick={() => handleAnswer(option)}
               className={`h-16 rounded-xl border-2 text-2xl font-black transition-colors ${className}`}
             >
@@ -808,39 +563,29 @@ export const NumberOperations: React.FC = () => {
               <CheckCircle className="w-5 h-5" />
               Correct!
             </div>
-
-            <p className="text-sm text-gray-400 mt-1">
-              {current.explanation}
-            </p>
+            <p className="text-sm text-gray-400 mt-1">{current.explanation}</p>
           </motion.div>
         )}
 
-        {selected !== null &&
-          selected !== current.answer && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-5 p-4 rounded-xl bg-red-500/10 border border-red-500/20"
-            >
-              <p className="text-red-300 font-bold">
-                Not quite. Let's use the number line.
-              </p>
-
-              <p className="text-sm text-gray-400 mt-1">
-                {current.hint}
-              </p>
-            </motion.div>
-          )}
+        {selected !== null && selected !== current.answer && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-5 p-4 rounded-xl bg-red-500/10 border border-red-500/20"
+          >
+            <p className="text-red-300 font-bold">
+              Not quite. Let's use the number line.
+            </p>
+            <p className="text-sm text-gray-400 mt-1">{current.hint}</p>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Learning tools */}
       <div className="mt-5 flex gap-2">
         <button
           type="button"
-          onClick={() => {
-            setShowHint((value) => !value);
-            speak(current.hint);
-          }}
+          onClick={() => setShowHint((value) => !value)}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-semibold"
         >
           <Lightbulb className="w-4 h-4" />
@@ -849,9 +594,7 @@ export const NumberOperations: React.FC = () => {
 
         <button
           type="button"
-          onClick={() =>
-            setShowExplanation((value) => !value)
-          }
+          onClick={() => setShowExplanation((value) => !value)}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-semibold"
         >
           <ArrowRight className="w-4 h-4" />
@@ -865,9 +608,7 @@ export const NumberOperations: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mt-3 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20"
         >
-          <p className="text-yellow-300 text-sm">
-            💡 {current.hint}
-          </p>
+          <p className="text-yellow-300 text-sm">💡 {current.hint}</p>
         </motion.div>
       )}
 
@@ -877,9 +618,7 @@ export const NumberOperations: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mt-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20"
         >
-          <p className="text-blue-300 text-sm">
-            {current.explanation}
-          </p>
+          <p className="text-blue-300 text-sm">{current.explanation}</p>
         </motion.div>
       )}
 
@@ -888,7 +627,6 @@ export const NumberOperations: React.FC = () => {
         <p className="text-[11px] uppercase tracking-wider text-gray-600 font-bold mb-1">
           Montessori → Cambridge Progression
         </p>
-
         <p className="text-xs text-gray-500">
           Concrete manipulation → number line → operation → calculation → reasoning
         </p>

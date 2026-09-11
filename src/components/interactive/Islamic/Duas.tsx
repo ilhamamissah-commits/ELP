@@ -12,6 +12,10 @@ import {
   Target,
 } from 'lucide-react';
 
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
+
 type LearningMode = 'guided' | 'practice' | 'mastery';
 
 interface DuaQuestion {
@@ -121,8 +125,7 @@ const DUAS: Dua[] = [
       question: 'When is this dua recited?',
       options: ['Before sleeping', 'Before eating', 'When studying'],
       answer: 'Before sleeping',
-      explanation:
-        'This is a supplication taught for bedtime.',
+      explanation: 'This is a supplication taught for bedtime.',
     },
   },
   {
@@ -210,8 +213,7 @@ const DUAS: Dua[] = [
         'Thank you for my food',
       ],
       answer: 'I seek Your forgiveness',
-      explanation:
-        'Ghufrānak means that we ask Allah for His forgiveness.',
+      explanation: 'Ghufrānak means that we ask Allah for His forgiveness.',
     },
   },
   {
@@ -241,13 +243,12 @@ const DUAS: Dua[] = [
   {
     id: 8,
     title: 'For Parents',
-    arabic:
-      'رَبِّ ارْحَمْهُمَا كَمَا رَبَّيَانِي صَغِيرًا',
-    transliteration:
-      'Rabbirḥamhumā kamā rabbayānī ṣaghīrā',
+    arabic: 'رَبِّ ارْحَمْهُمَا كَمَا رَبَّيَانِي صَغِيرًا',
+    transliteration: 'Rabbirḥamhumā kamā rabbayānī ṣaghīrā',
     meaning:
       'My Lord, have mercy upon them as they raised me when I was small.',
-    occasion: 'A dua for asking Allah to have mercy upon our parents.',
+    occasion:
+      'A dua for asking Allah to have mercy upon our parents.',
     emoji: '❤️',
     category: 'Family',
     lesson:
@@ -274,7 +275,8 @@ const DUAS: Dua[] = [
       'Bismillāhi walajnā, wa bismillāhi kharajnā, wa ʿalā rabbinā tawakkalnā',
     meaning:
       'In the name of Allah we enter, in the name of Allah we leave, and upon our Lord we rely.',
-    occasion: 'A supplication connected with entering and leaving the home.',
+    occasion:
+      'A supplication connected with entering and leaving the home.',
     emoji: '🏠',
     category: 'Home',
     lesson:
@@ -302,7 +304,8 @@ const DUAS: Dua[] = [
     arabic: 'حَسْبِيَ اللَّهُ',
     transliteration: 'Ḥasbiyallāh',
     meaning: 'Allah is sufficient for me.',
-    occasion: 'A short remembrance that can help us remember to rely upon Allah.',
+    occasion:
+      'A short remembrance that can help us remember to rely upon Allah.',
     emoji: '🛡️',
     category: 'Trust in Allah',
     lesson:
@@ -326,21 +329,6 @@ const DUAS: Dua[] = [
   },
 ];
 
-const speakArabic = (text: string) => {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    return;
-  }
-
-  window.speechSynthesis.cancel();
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'ar-SA';
-  utterance.rate = 0.72;
-  utterance.pitch = 1;
-
-  window.speechSynthesis.speak(utterance);
-};
-
 const getInitialProgress = (): DuaProgress[] =>
   DUAS.map((dua) => ({
     id: dua.id,
@@ -351,9 +339,7 @@ const getInitialProgress = (): DuaProgress[] =>
 export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
   const [index, setIndex] = useState(0);
   const [mode, setMode] = useState<LearningMode>('guided');
-  const [progress, setProgress] = useState<DuaProgress[]>(
-    getInitialProgress
-  );
+  const [progress, setProgress] = useState<DuaProgress[]>(getInitialProgress);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [answerChecked, setAnswerChecked] = useState(false);
   const [reflectionShown, setReflectionShown] = useState(false);
@@ -361,6 +347,13 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
   const [streak, setStreak] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [hasFinished, setHasFinished] = useState(false);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  // English narration uses the shared pipeline (respects mute + accent)
+  const { speak } = useReadAloud();
 
   const currentDua = DUAS[index];
 
@@ -379,10 +372,24 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
     [progress]
   );
 
-  const masteryPercentage = Math.round(
-    (masteredCount / DUAS.length) * 100
-  );
+  const masteryPercentage = Math.round((masteredCount / DUAS.length) * 100);
 
+  // Arabic still uses its own voice, but gated on soundEnabled
+  const speakArabic = (text: string) => {
+    if (!soundEnabled) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ar-SA';
+    utterance.rate = 0.72;
+    utterance.pitch = 1;
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Reset per-lesson state + auto-read Arabic (or English in mastery mode)
   useEffect(() => {
     if (!currentDua) return;
 
@@ -390,27 +397,31 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
     setAnswerChecked(false);
     setReflectionShown(false);
 
-    if (mode !== 'mastery') {
-      const timer = window.setTimeout(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      if (mode === 'mastery') {
+        speak(
+          `${currentDua.title}. ${currentDua.question.question}`,
+        );
+      } else {
         speakArabic(currentDua.arabic);
-      }, 400);
-
-      return () => window.clearTimeout(timer);
-    }
-  }, [index, mode, currentDua]);
-
-  useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
       }
-    };
-  }, []);
+    }, 400);
 
-  const updateProgress = (
-    duaId: number,
-    updates: Partial<DuaProgress>
-  ) => {
+    return () => window.clearTimeout(timer);
+  }, [index, mode, currentDua, speak, autoReadEnabled, soundEnabled]);
+
+  // Read reflection when it opens
+  useEffect(() => {
+    if (!reflectionShown || !currentDua) return;
+
+    speak(
+      `How could remembering Allah during this part of your day help you become more thankful and mindful?`,
+    );
+  }, [reflectionShown, currentDua, speak]);
+
+  const updateProgress = (duaId: number, updates: Partial<DuaProgress>) => {
     setProgress((previous) =>
       previous.map((item) =>
         item.id === duaId ? { ...item, ...updates } : item
@@ -430,6 +441,10 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
     });
 
     if (isCorrect) {
+      if (soundEnabled) playSoundFeedback('correct');
+
+      speak(`Correct! ${currentDua.question.explanation}`);
+
       const alreadyMastered = currentProgress.mastered;
 
       if (!alreadyMastered) {
@@ -446,7 +461,13 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
         setStreak((previous) => previous + 1);
       }
     } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+
       setStreak(0);
+
+      speak(
+        `Not quite. ${currentDua.question.explanation} Try again when you are ready.`,
+      );
     }
   };
 
@@ -479,6 +500,10 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
 
     setHasFinished(true);
     onComplete?.(score);
+
+    speak(
+      `Well done! You mastered ${masteredCount} of ${DUAS.length} duas and earned ${score} points.`,
+    );
   };
 
   const reset = () => {
@@ -496,6 +521,8 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
     setStreak(0);
     setIsComplete(false);
     setHasFinished(false);
+
+    speak("Let's practise the daily duas again!");
   };
 
   if (!currentDua) {
@@ -544,10 +571,10 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
             </div>
 
             <div className="rounded-2xl bg-slate-50 p-5">
-              <div className="text-3xl font-bold text-slate-900">
-                {score}
+              <div className="text-3xl font-bold text-slate-900">{score}</div>
+              <div className="mt-1 text-sm text-slate-500">
+                Points earned
               </div>
-              <div className="mt-1 text-sm text-slate-500">Points earned</div>
             </div>
 
             <div className="rounded-2xl bg-slate-50 p-5">
@@ -610,8 +637,7 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
   }
 
   const isCorrect =
-    answerChecked &&
-    selectedAnswer === currentDua.question.answer;
+    answerChecked && selectedAnswer === currentDua.question.answer;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
@@ -620,7 +646,7 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-emerald-600">
             <BookOpen className="h-4 w-4" />
-            Islamic Studies • Duas & Dhikr
+            Islamic Studies • Duas &amp; Dhikr
           </div>
 
           <h1 className="mt-1 text-3xl font-bold text-slate-900">
@@ -644,6 +670,19 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
               {masteredCount}/{DUAS.length}
             </span>
           </div>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+          >
+            <Volume2
+              className={`w-5 h-5 ${
+                soundEnabled ? 'text-amber-500' : 'text-slate-400'
+              }`}
+            />
+          </button>
         </div>
       </div>
 
@@ -660,9 +699,7 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
           <motion.div
             className="h-full bg-emerald-500"
             initial={{ width: 0 }}
-            animate={{
-              width: `${((index + 1) / DUAS.length) * 100}%`,
-            }}
+            animate={{ width: `${((index + 1) / DUAS.length) * 100}%` }}
             transition={{ duration: 0.3 }}
           />
         </div>
@@ -690,16 +727,24 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
           <button
             key={item.id}
             type="button"
-            onClick={() => setMode(item.id)}
+            onClick={() => {
+              setMode(item.id);
+
+              speak(
+                item.id === 'guided'
+                  ? 'Guided mode. Listen and learn.'
+                  : item.id === 'practice'
+                    ? 'Practice mode. Test your understanding.'
+                    : 'Mastery mode. Recall independently.',
+              );
+            }}
             className={`rounded-2xl border p-4 text-left transition ${
               mode === item.id
                 ? 'border-emerald-500 bg-emerald-50'
                 : 'border-slate-200 bg-white hover:border-emerald-200'
             }`}
           >
-            <div className="font-semibold text-slate-900">
-              {item.title}
-            </div>
+            <div className="font-semibold text-slate-900">{item.title}</div>
             <div className="mt-1 text-xs text-slate-500">
               {item.description}
             </div>
@@ -775,9 +820,7 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
                 Meaning
               </div>
 
-              <p className="mt-2 text-slate-700">
-                {currentDua.meaning}
-              </p>
+              <p className="mt-2 text-slate-700">{currentDua.meaning}</p>
             </div>
           </div>
 
@@ -790,9 +833,7 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
               </h3>
             </div>
 
-            <p className="mt-2 text-slate-600">
-              {currentDua.occasion}
-            </p>
+            <p className="mt-2 text-slate-600">{currentDua.occasion}</p>
           </div>
 
           {/* Lesson */}
@@ -824,9 +865,7 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="font-semibold text-slate-900">
-                    {mode === 'mastery'
-                      ? 'Mastery Check'
-                      : 'Practice Check'}
+                    {mode === 'mastery' ? 'Mastery Check' : 'Practice Check'}
                   </h3>
 
                   <p className="mt-1 text-sm text-slate-500">
@@ -845,8 +884,7 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
                 {currentDua.question.options.map((option) => {
                   const selected = selectedAnswer === option;
                   const correct =
-                    answerChecked &&
-                    option === currentDua.question.answer;
+                    answerChecked && option === currentDua.question.answer;
                   const incorrect = answerChecked && selected && !correct;
 
                   return (
@@ -910,11 +948,7 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
               {!reflectionShown ? (
                 <button
                   type="button"
-                  onClick={
-                    mode === 'guided'
-                      ? showReflection
-                      : markPracticed
-                  }
+                  onClick={mode === 'guided' ? showReflection : markPracticed}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   <Heart className="h-4 w-4" />
@@ -933,12 +967,9 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
                   </p>
 
                   <div className="mt-4 rounded-xl bg-white p-4 text-sm text-slate-600">
-                    <strong className="text-slate-900">
-                      Remember:
-                    </strong>{' '}
-                    Learning a dua is not only about memorising its words.
-                    Try to understand its meaning and use it at the right
-                    time.
+                    <strong className="text-slate-900">Remember:</strong>{' '}
+                    Learning a dua is not only about memorising its words. Try
+                    to understand its meaning and use it at the right time.
                   </div>
                 </div>
               )}
@@ -978,4 +1009,4 @@ export const Duas: React.FC<DuasProps> = ({ onComplete }) => {
       </div>
     </div>
   );
-}
+};

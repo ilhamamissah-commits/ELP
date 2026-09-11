@@ -9,7 +9,9 @@ import {
   Trophy,
 } from 'lucide-react';
 
-import { speakWord } from '../../../services/audioEngine';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useProfileStore } from '../../../store/useProfileStore';
 import { useProgressStore } from '../../../store/useProgressStore';
 
@@ -63,7 +65,8 @@ const TIMES: TimeProblem[] = [
     words: 'quarter past nine',
     difficulty: 'developing',
     hint: '15 minutes is a quarter of an hour.',
-    explanation: '15 minutes is a quarter of an hour, so 9:15 is quarter past nine.',
+    explanation:
+      '15 minutes is a quarter of an hour, so 9:15 is quarter past nine.',
   },
   {
     id: 'time-5',
@@ -192,9 +195,9 @@ const getHandAngles = (hour: number, minute: number) => {
 const buildOptions = (current: TimeProblem): string[] => {
   const correct = current.label;
 
-  const distractors = TIMES
-    .filter((time) => time.label !== correct)
-    .map((time) => time.label);
+  const distractors = TIMES.filter((time) => time.label !== correct).map(
+    (time) => time.label,
+  );
 
   /*
    * Prefer common misconceptions:
@@ -205,18 +208,12 @@ const buildOptions = (current: TimeProblem): string[] => {
   const preferred = [
     formatTime(current.hour, 45),
     formatTime(current.hour + 1 > 12 ? 1 : current.hour + 1, 0),
-    formatTime(
-      current.hour - 1 <= 0 ? 12 : current.hour - 1,
-      30,
-    ),
+    formatTime(current.hour - 1 <= 0 ? 12 : current.hour - 1, 30),
   ].filter((value) => value !== correct);
 
   const uniquePreferred = Array.from(new Set(preferred));
 
-  const selectedDistractors = [
-    ...uniquePreferred,
-    ...shuffle(distractors),
-  ]
+  const selectedDistractors = [...uniquePreferred, ...shuffle(distractors)]
     .filter((value, index, array) => array.indexOf(value) === index)
     .slice(0, 2);
 
@@ -230,9 +227,15 @@ export const ClockGame: React.FC = () => {
 
   const currentLevel = profile?.currentLevel ?? 1;
 
-  const completeActivity = useProgressStore(
-    (state) => state.completeActivity,
-  );
+  const completeActivity = useProgressStore((state) => state.completeActivity);
+
+  // Global sound / auto-read settings
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  // useReadAloud already respects soundEnabled + voiceAccent internally
+  const { speak } = useReadAloud();
 
   const [problemIndex, setProblemIndex] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
@@ -256,9 +259,7 @@ export const ClockGame: React.FC = () => {
       return true;
     });
 
-    return shuffle(
-      eligible.length >= 5 ? eligible : TIMES,
-    ).slice(0, 5);
+    return shuffle(eligible.length >= 5 ? eligible : TIMES).slice(0, 5);
   }, [currentLevel]);
 
   const current = sessionProblems[problemIndex];
@@ -269,25 +270,53 @@ export const ClockGame: React.FC = () => {
   );
 
   const accuracy =
-    attempts > 0
-      ? Math.round((correctAnswers / attempts) * 100)
-      : 0;
+    attempts > 0 ? Math.round((correctAnswers / attempts) * 100) : 0;
 
   const progress =
     sessionProblems.length > 0
-      ? ((problemIndex + (completed ? 1 : 0)) /
-          sessionProblems.length) *
-        100
+      ? ((problemIndex + (completed ? 1 : 0)) / sessionProblems.length) * 100
       : 0;
 
   const { hourAngle, minuteAngle } = current
     ? getHandAngles(current.hour, current.minute)
     : { hourAngle: 0, minuteAngle: 0 };
 
+  // Reset per-question state + auto-read the question (if enabled)
   useEffect(() => {
     setSelected(null);
     setShowHint(false);
-  }, [problemIndex]);
+
+    if (current && autoReadEnabled) {
+      const timer = window.setTimeout(() => {
+        speak(
+          'What time is it? Look carefully at the hour hand and minute hand.',
+        );
+      }, 350);
+
+      return () => window.clearTimeout(timer);
+    }
+  }, [problemIndex, current, speak, autoReadEnabled]);
+
+  // Read hint aloud when it opens
+  useEffect(() => {
+    if (showHint && current) {
+      speak(current.hint);
+    }
+  }, [showHint, current, speak]);
+
+  // Announce completion result
+  useEffect(() => {
+    if (!completed) return;
+
+    const finalAccuracy =
+      attempts > 0 ? Math.round((correctAnswers / attempts) * 100) : 0;
+
+    speak(
+      finalAccuracy >= 80
+        ? `Brilliant work! You scored ${finalAccuracy} percent. You are a time expert!`
+        : `Well done! You scored ${finalAccuracy} percent. Let's practise again.`,
+    );
+  }, [completed, attempts, correctAnswers, speak]);
 
   const finishActivity = (finalCorrect: number, finalAttempts: number) => {
     const finalAccuracy =
@@ -319,20 +348,30 @@ export const ClockGame: React.FC = () => {
     setSelected(answer);
 
     if (isCorrect) {
-      speakWord(`Correct. ${current.words}.`);
+      if (soundEnabled) {
+        playSoundFeedback('correct');
+      }
+
       setCorrectAnswers(nextCorrect);
+
+      speak(`Correct! It is ${current.words}. ${current.explanation}`);
 
       if (problemIndex === sessionProblems.length - 1) {
         setTimeout(() => {
           finishActivity(nextCorrect, nextAttempts);
-        }, 1200);
+        }, 2200);
       } else {
         setTimeout(() => {
           setProblemIndex((value) => value + 1);
-        }, 1200);
+        }, 2200);
       }
     } else {
-      speakWord(`Not quite. Try again.`);
+      if (soundEnabled) {
+        playSoundFeedback('try-again');
+      }
+
+      speak('Not quite. Look at the hands again and try another answer.');
+      setShowHint(true);
     }
   };
 
@@ -343,14 +382,14 @@ export const ClockGame: React.FC = () => {
     setAttempts(0);
     setShowHint(false);
     setCompleted(false);
+
+    speak("Let's practise telling the time again!");
   };
 
   const readTime = () => {
     if (!current) return;
 
-    speakWord(
-      `What time is it? Look carefully at the hour hand and minute hand.`,
-    );
+    speak('What time is it? Look carefully at the hour hand and minute hand.');
   };
 
   if (!current && !completed) {
@@ -359,9 +398,7 @@ export const ClockGame: React.FC = () => {
 
   if (completed) {
     const finalAccuracy =
-      attempts > 0
-        ? Math.round((correctAnswers / attempts) * 100)
-        : 0;
+      attempts > 0 ? Math.round((correctAnswers / attempts) * 100) : 0;
 
     return (
       <motion.div
@@ -373,9 +410,7 @@ export const ClockGame: React.FC = () => {
           <Trophy className="w-8 h-8 text-emerald-400" />
         </div>
 
-        <h3 className="text-2xl font-bold text-white">
-          Time Lab Complete
-        </h3>
+        <h3 className="text-2xl font-bold text-white">Time Lab Complete</h3>
 
         <p className="text-gray-400 text-sm mt-2">
           You practised reading clocks and explaining time.
@@ -390,9 +425,7 @@ export const ClockGame: React.FC = () => {
           </div>
 
           <div className="rounded-xl bg-gray-900/70 p-3">
-            <div className="text-xl font-bold text-white">
-              {finalAccuracy}%
-            </div>
+            <div className="text-xl font-bold text-white">{finalAccuracy}%</div>
             <div className="text-xs text-gray-500">Accuracy</div>
           </div>
 
@@ -410,8 +443,8 @@ export const ClockGame: React.FC = () => {
           </p>
 
           <p className="text-sm text-gray-300 mt-2">
-            A clock is a number system. The minute hand moves through
-            60 minutes, while the hour hand moves through 12 hours.
+            A clock is a number system. The minute hand moves through 60
+            minutes, while the hour hand moves through 12 hours.
           </p>
         </div>
 
@@ -434,9 +467,7 @@ export const ClockGame: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <Clock3 className="w-6 h-6 text-cyan-400" />
-            <h3 className="text-2xl font-bold text-white">
-              Time Lab
-            </h3>
+            <h3 className="text-2xl font-bold text-white">Time Lab</h3>
           </div>
 
           <p className="text-gray-400 text-sm mt-1">
@@ -444,14 +475,29 @@ export const ClockGame: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={readTime}
-          aria-label="Read instructions"
-          className="p-2.5 rounded-xl bg-gray-800 border border-gray-700 text-cyan-400 hover:bg-gray-700 transition-colors"
-        >
-          <Volume2 className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={readTime}
+            aria-label="Read instructions"
+            className="p-2.5 rounded-xl bg-gray-800 border border-gray-700 text-cyan-400 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2 className="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2.5 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-5 h-5 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Progress */}
@@ -487,11 +533,8 @@ export const ClockGame: React.FC = () => {
             const angle = number * 30;
             const radius = 42;
 
-            const x =
-              50 + radius * Math.sin((angle * Math.PI) / 180);
-
-            const y =
-              50 - radius * Math.cos((angle * Math.PI) / 180);
+            const x = 50 + radius * Math.sin((angle * Math.PI) / 180);
+            const y = 50 - radius * Math.cos((angle * Math.PI) / 180);
 
             return (
               <span
@@ -530,9 +573,7 @@ export const ClockGame: React.FC = () => {
 
       {/* Question */}
       <div className="text-center mb-5">
-        <p className="text-gray-400 text-sm">
-          Look carefully at both hands.
-        </p>
+        <p className="text-gray-400 text-sm">Look carefully at both hands.</p>
 
         <p className="text-white text-lg font-semibold mt-1">
           What time is it?
@@ -549,11 +590,9 @@ export const ClockGame: React.FC = () => {
             'bg-gray-800 border-gray-700 text-white hover:bg-gray-700';
 
           if (isSelected && isCorrect) {
-            classes =
-              'bg-emerald-500/20 border-emerald-400 text-emerald-300';
+            classes = 'bg-emerald-500/20 border-emerald-400 text-emerald-300';
           } else if (isSelected && !isCorrect) {
-            classes =
-              'bg-red-500/20 border-red-400 text-red-300';
+            classes = 'bg-red-500/20 border-red-400 text-red-300';
           }
 
           return (
@@ -612,9 +651,7 @@ export const ClockGame: React.FC = () => {
                 Correct!
               </div>
 
-              <p className="text-sm text-gray-300 mt-2">
-                {current.words}
-              </p>
+              <p className="text-sm text-gray-300 mt-2">{current.words}</p>
 
               <p className="text-xs text-gray-500 mt-1">
                 {current.explanation}
@@ -632,7 +669,10 @@ export const ClockGame: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => setSelected(null)}
+                onClick={() => {
+                  setSelected(null);
+                  setShowHint(false);
+                }}
                 className="mt-3 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white text-sm font-semibold"
               >
                 Try Again
@@ -646,9 +686,7 @@ export const ClockGame: React.FC = () => {
       <div className="mt-6 pt-5 border-t border-app-border flex justify-between text-sm">
         <span className="text-gray-500">
           Score:{' '}
-          <span className="text-white font-semibold">
-            {correctAnswers * 10}
-          </span>
+          <span className="text-white font-semibold">{correctAnswers * 10}</span>
         </span>
 
         <span className="text-gray-500">

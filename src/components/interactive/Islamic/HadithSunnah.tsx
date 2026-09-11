@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,9 +14,13 @@ import {
   MessageCircle,
   Target,
   Lightbulb,
-} from "lucide-react";
+} from 'lucide-react';
 
-type LearningMode = "guided" | "practice" | "mastery";
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
+
+type LearningMode = 'guided' | 'practice' | 'mastery';
 
 interface HadithQuestion {
   question: string;
@@ -54,381 +58,338 @@ interface HadithSunnahProps {
 const LESSONS: HadithLesson[] = [
   {
     id: 1,
-    title: "Actions and Intentions",
-    arabicTitle: "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ",
-    emoji: "❤️",
-    category: "Sincerity",
+    title: 'Actions and Intentions',
+    arabicTitle: 'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ',
+    emoji: '❤️',
+    category: 'Sincerity',
     arabicHadith:
-      "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى",
+      'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى',
     transliteration:
       "Innamal-a'malu bin-niyyat, wa innama likulli imri'in ma nawa.",
     meaning:
-      "Actions are judged by intentions, and every person will have what they intended.",
+      'Actions are judged by intentions, and every person will have what they intended.',
     explanation:
-      "The Prophet Muhammad ﷺ taught that what is inside our hearts matters. Before doing something good, we should try to have a good intention for Allah.",
+      'The Prophet Muhammad ﷺ taught that what is inside our hearts matters. Before doing something good, we should try to have a good intention for Allah.',
     lesson:
-      "Do good things sincerely and try to make your intention good.",
+      'Do good things sincerely and try to make your intention good.',
     keyPoints: [
-      "Intentions are important.",
-      "Allah knows what is in our hearts.",
-      "Good actions should be done sincerely.",
+      'Intentions are important.',
+      'Allah knows what is in our hearts.',
+      'Good actions should be done sincerely.',
     ],
     reflection:
-      "What good thing could you do today with a sincere intention?",
+      'What good thing could you do today with a sincere intention?',
     question: {
-      question: "What does this hadith teach us about intentions?",
+      question: 'What does this hadith teach us about intentions?',
       options: [
-        "Intentions do not matter.",
-        "Intentions are important in our actions.",
-        "Only adults need good intentions.",
-        "We should never help anyone.",
+        'Intentions do not matter.',
+        'Intentions are important in our actions.',
+        'Only adults need good intentions.',
+        'We should never help anyone.',
       ],
-      answer: "Intentions are important in our actions.",
+      answer: 'Intentions are important in our actions.',
       explanation:
-        "The hadith teaches that intentions are an important part of our actions.",
+        'The hadith teaches that intentions are an important part of our actions.',
     },
   },
   {
     id: 2,
-    title: "Kindness",
-    arabicTitle: "الرَّحْمَةُ",
-    emoji: "🤍",
-    category: "Character",
-    arabicHadith:
-      "مَنْ لَا يَرْحَمْ لَا يُرْحَمْ",
-    transliteration: "Man la yarham la yurham.",
-    meaning:
-      "Whoever does not show mercy will not be shown mercy.",
+    title: 'Kindness',
+    arabicTitle: 'الرَّحْمَةُ',
+    emoji: '🤍',
+    category: 'Character',
+    arabicHadith: 'مَنْ لَا يَرْحَمْ لَا يُرْحَمْ',
+    transliteration: 'Man la yarham la yurham.',
+    meaning: 'Whoever does not show mercy will not be shown mercy.',
     explanation:
-      "Islam teaches children to treat people, animals, and other living things with mercy and care.",
-    lesson:
-      "Be gentle, caring, and merciful toward others.",
+      'Islam teaches children to treat people, animals, and other living things with mercy and care.',
+    lesson: 'Be gentle, caring, and merciful toward others.',
     keyPoints: [
-      "Mercy is an important Islamic quality.",
-      "Be gentle with younger children.",
-      "Treat animals kindly.",
+      'Mercy is an important Islamic quality.',
+      'Be gentle with younger children.',
+      'Treat animals kindly.',
     ],
-    reflection:
-      "Who could you show kindness and mercy to today?",
+    reflection: 'Who could you show kindness and mercy to today?',
     question: {
-      question: "Which action shows mercy?",
+      question: 'Which action shows mercy?',
       options: [
-        "Hurting an animal",
-        "Laughing when someone is sad",
-        "Helping someone who needs you",
+        'Hurting an animal',
+        'Laughing when someone is sad',
+        'Helping someone who needs you',
         "Taking someone's belongings",
       ],
-      answer: "Helping someone who needs you",
+      answer: 'Helping someone who needs you',
       explanation:
-        "Helping someone who needs you is an example of mercy and kindness.",
+        'Helping someone who needs you is an example of mercy and kindness.',
     },
   },
   {
     id: 3,
-    title: "Speaking Good Words",
-    arabicTitle: "الْكَلِمَةُ الطَّيِّبَةُ",
-    emoji: "💬",
-    category: "Speech",
+    title: 'Speaking Good Words',
+    arabicTitle: 'الْكَلِمَةُ الطَّيِّبَةُ',
+    emoji: '💬',
+    category: 'Speech',
     arabicHadith:
-      "مَنْ كَانَ يُؤْمِنُ بِاللَّهِ وَالْيَوْمِ الآخِرِ فَلْيَقُلْ خَيْرًا أَوْ لِيَصْمُتْ",
+      'مَنْ كَانَ يُؤْمِنُ بِاللَّهِ وَالْيَوْمِ الآخِرِ فَلْيَقُلْ خَيْرًا أَوْ لِيَصْمُتْ',
     transliteration:
       "Man kana yu'minu billahi wal-yawmil-akhir falyaqul khayran aw liyasmut.",
     meaning:
-      "Whoever believes in Allah and the Last Day should speak good or remain silent.",
+      'Whoever believes in Allah and the Last Day should speak good or remain silent.',
     explanation:
-      "Our words can help people or hurt them. Islam teaches us to think before we speak and choose words that are truthful, kind, and useful.",
-    lesson:
-      "Think before you speak and choose good words.",
+      'Our words can help people or hurt them. Islam teaches us to think before we speak and choose words that are truthful, kind, and useful.',
+    lesson: 'Think before you speak and choose good words.',
     keyPoints: [
-      "Words have consequences.",
-      "Speak kindly.",
-      "Do not say hurtful things.",
-      "Silence can be better than harmful speech.",
+      'Words have consequences.',
+      'Speak kindly.',
+      'Do not say hurtful things.',
+      'Silence can be better than harmful speech.',
     ],
-    reflection:
-      "What kind words could you say to someone today?",
+    reflection: 'What kind words could you say to someone today?',
     question: {
-      question: "What should we do when we have nothing good to say?",
+      question: 'What should we do when we have nothing good to say?',
       options: [
-        "Say something hurtful.",
-        "Shout loudly.",
-        "Remain silent.",
-        "Make fun of someone.",
+        'Say something hurtful.',
+        'Shout loudly.',
+        'Remain silent.',
+        'Make fun of someone.',
       ],
-      answer: "Remain silent.",
-      explanation:
-        "The hadith teaches us to speak good or remain silent.",
+      answer: 'Remain silent.',
+      explanation: 'The hadith teaches us to speak good or remain silent.',
     },
   },
   {
     id: 4,
-    title: "Love for Others",
-    arabicTitle: "حُبُّ الْخَيْرِ لِلْآخَرِينَ",
-    emoji: "🤝",
-    category: "Brotherhood",
+    title: 'Love for Others',
+    arabicTitle: 'حُبُّ الْخَيْرِ لِلْآخَرِينَ',
+    emoji: '🤝',
+    category: 'Brotherhood',
     arabicHadith:
-      "لَا يُؤْمِنُ أَحَدُكُمْ حَتَّى يُحِبَّ لِأَخِيهِ مَا يُحِبُّ لِنَفْسِهِ",
+      'لَا يُؤْمِنُ أَحَدُكُمْ حَتَّى يُحِبَّ لِأَخِيهِ مَا يُحِبُّ لِنَفْسِهِ',
     transliteration:
       "La yu'minu ahadukum hatta yuhibba li-akhihi ma yuhibbu linafsihi.",
     meaning:
-      "None of you truly believes until he loves for his brother what he loves for himself.",
+      'None of you truly believes until he loves for his brother what he loves for himself.',
     explanation:
-      "This teaches us to care about other people and wish good things for them just as we wish good things for ourselves.",
+      'This teaches us to care about other people and wish good things for them just as we wish good things for ourselves.',
     lesson:
-      "Want good for others just as you want good for yourself.",
+      'Want good for others just as you want good for yourself.',
     keyPoints: [
-      "Care about other people.",
-      "Share good things.",
-      "Do not be selfish.",
-      "Celebrate the good of others.",
+      'Care about other people.',
+      'Share good things.',
+      'Do not be selfish.',
+      'Celebrate the good of others.',
     ],
-    reflection:
-      "What is one good thing you could share with someone?",
+    reflection: 'What is one good thing you could share with someone?',
     question: {
-      question: "What does loving good for others mean?",
+      question: 'What does loving good for others mean?',
       options: [
-        "Wanting everyone to fail",
-        "Wanting good things for others",
-        "Never helping anyone",
-        "Only thinking about yourself",
+        'Wanting everyone to fail',
+        'Wanting good things for others',
+        'Never helping anyone',
+        'Only thinking about yourself',
       ],
-      answer: "Wanting good things for others",
+      answer: 'Wanting good things for others',
       explanation:
-        "A believer should want good for others as they want good for themselves.",
+        'A believer should want good for others as they want good for themselves.',
     },
   },
   {
     id: 5,
-    title: "Cleanliness",
-    arabicTitle: "الطَّهَارَةُ",
-    emoji: "🧼",
-    category: "Purity",
-    arabicHadith:
-      "الطُّهُورُ شَطْرُ الإِيمَانِ",
-    transliteration: "At-tuhuru shatrul-iman.",
-    meaning: "Purity is half of faith.",
+    title: 'Cleanliness',
+    arabicTitle: 'الطَّهَارَةُ',
+    emoji: '🧼',
+    category: 'Purity',
+    arabicHadith: 'الطُّهُورُ شَطْرُ الإِيمَانِ',
+    transliteration: 'At-tuhuru shatrul-iman.',
+    meaning: 'Purity is half of faith.',
     explanation:
-      "Islam places great importance on cleanliness and purity. We learn to keep our bodies, clothes, homes, and places of worship clean.",
-    lesson:
-      "Keep yourself and your surroundings clean.",
+      'Islam places great importance on cleanliness and purity. We learn to keep our bodies, clothes, homes, and places of worship clean.',
+    lesson: 'Keep yourself and your surroundings clean.',
     keyPoints: [
-      "Cleanliness is important in Islam.",
-      "Keep your body clean.",
-      "Keep your clothes clean.",
-      "Respect clean places.",
+      'Cleanliness is important in Islam.',
+      'Keep your body clean.',
+      'Keep your clothes clean.',
+      'Respect clean places.',
     ],
-    reflection:
-      "What can you clean or organize today?",
+    reflection: 'What can you clean or organize today?',
     question: {
-      question: "Why should Muslims care about cleanliness?",
+      question: 'Why should Muslims care about cleanliness?',
       options: [
-        "Because cleanliness is encouraged in Islam.",
-        "Because dirt is always better.",
-        "Because cleanliness does not matter.",
-        "Only because adults say so.",
+        'Because cleanliness is encouraged in Islam.',
+        'Because dirt is always better.',
+        'Because cleanliness does not matter.',
+        'Only because adults say so.',
       ],
-      answer: "Because cleanliness is encouraged in Islam.",
+      answer: 'Because cleanliness is encouraged in Islam.',
       explanation:
-        "The hadith teaches the importance of purity and cleanliness.",
+        'The hadith teaches the importance of purity and cleanliness.',
     },
   },
   {
     id: 6,
-    title: "Helping Others",
-    arabicTitle: "مَعُونَةُ النَّاسِ",
-    emoji: "👐",
-    category: "Good Deeds",
+    title: 'Helping Others',
+    arabicTitle: 'مَعُونَةُ النَّاسِ',
+    emoji: '👐',
+    category: 'Good Deeds',
     arabicHadith:
-      "وَاللَّهُ فِي عَوْنِ الْعَبْدِ مَا كَانَ الْعَبْدُ فِي عَوْنِ أَخِيهِ",
+      'وَاللَّهُ فِي عَوْنِ الْعَبْدِ مَا كَانَ الْعَبْدُ فِي عَوْنِ أَخِيهِ',
     transliteration:
-      "Wallahu fi awnil-abdi ma kanal-abdu fi awni akhihi.",
+      'Wallahu fi awnil-abdi ma kanal-abdu fi awni akhihi.',
     meaning:
-      "Allah continues to help a servant as long as the servant helps his brother.",
+      'Allah continues to help a servant as long as the servant helps his brother.',
     explanation:
-      "Helping people is a beautiful form of goodness. We can help family members, friends, classmates, neighbors, and people who need assistance.",
-    lesson:
-      "Look for safe and useful ways to help others.",
+      'Helping people is a beautiful form of goodness. We can help family members, friends, classmates, neighbors, and people who need assistance.',
+    lesson: 'Look for safe and useful ways to help others.',
     keyPoints: [
-      "Helping others is a good deed.",
-      "Small acts of help matter.",
-      "Help without expecting praise.",
+      'Helping others is a good deed.',
+      'Small acts of help matter.',
+      'Help without expecting praise.',
     ],
-    reflection:
-      "Who can you safely help today?",
+    reflection: 'Who can you safely help today?',
     question: {
-      question: "Which is an example of helping someone?",
+      question: 'Which is an example of helping someone?',
       options: [
-        "Ignoring someone who needs help",
-        "Helping a younger child pick up their books",
+        'Ignoring someone who needs help',
+        'Helping a younger child pick up their books',
         "Breaking someone's things",
-        "Taking something without permission",
+        'Taking something without permission',
       ],
-      answer: "Helping a younger child pick up their books",
+      answer: 'Helping a younger child pick up their books',
       explanation:
-        "Helping someone with a useful task is a good example of service.",
+        'Helping someone with a useful task is a good example of service.',
     },
   },
   {
     id: 7,
-    title: "Honesty",
-    arabicTitle: "الصِّدْقُ",
-    emoji: "🛡️",
-    category: "Character",
-    arabicHadith:
-      "عَلَيْكُمْ بِالصِّدْقِ",
-    transliteration: "Alaykum bis-sidq.",
-    meaning: "You should be truthful.",
+    title: 'Honesty',
+    arabicTitle: 'الصِّدْقُ',
+    emoji: '🛡️',
+    category: 'Character',
+    arabicHadith: 'عَلَيْكُمْ بِالصِّدْقِ',
+    transliteration: 'Alaykum bis-sidq.',
+    meaning: 'You should be truthful.',
     explanation:
-      "The Prophet ﷺ encouraged truthfulness. Being honest means telling the truth and not deliberately deceiving people.",
-    lesson:
-      "Tell the truth even when it is difficult.",
+      'The Prophet ﷺ encouraged truthfulness. Being honest means telling the truth and not deliberately deceiving people.',
+    lesson: 'Tell the truth even when it is difficult.',
     keyPoints: [
-      "Tell the truth.",
-      "Do not deliberately deceive others.",
-      "Admit mistakes.",
-      "Build trust through honesty.",
+      'Tell the truth.',
+      'Do not deliberately deceive others.',
+      'Admit mistakes.',
+      'Build trust through honesty.',
     ],
-    reflection:
-      "Why is it important for people to trust you?",
+    reflection: 'Why is it important for people to trust you?',
     question: {
-      question: "What does honesty mean?",
+      question: 'What does honesty mean?',
       options: [
-        "Telling the truth",
-        "Hiding every mistake",
-        "Blaming other people",
-        "Taking things secretly",
+        'Telling the truth',
+        'Hiding every mistake',
+        'Blaming other people',
+        'Taking things secretly',
       ],
-      answer: "Telling the truth",
-      explanation:
-        "Honesty means being truthful and trustworthy.",
+      answer: 'Telling the truth',
+      explanation: 'Honesty means being truthful and trustworthy.',
     },
   },
   {
     id: 8,
-    title: "Smiling and Kindness",
-    arabicTitle: "التَّبَسُّمُ",
-    emoji: "😊",
-    category: "Character",
-    arabicHadith:
-      "تَبَسُّمُكَ فِي وَجْهِ أَخِيكَ لَكَ صَدَقَةٌ",
-    transliteration:
-      "Tabassumuka fi wajhi akhika laka sadaqah.",
-    meaning:
-      "Your smile for your brother is charity.",
+    title: 'Smiling and Kindness',
+    arabicTitle: 'التَّبَسُّمُ',
+    emoji: '😊',
+    category: 'Character',
+    arabicHadith: 'تَبَسُّمُكَ فِي وَجْهِ أَخِيكَ لَكَ صَدَقَةٌ',
+    transliteration: 'Tabassumuka fi wajhi akhika laka sadaqah.',
+    meaning: 'Your smile for your brother is charity.',
     explanation:
-      "A kind smile can make someone feel welcome and valued. Islam teaches that even simple acts of kindness can be rewarded.",
-    lesson:
-      "Small acts of kindness can have great value.",
+      'A kind smile can make someone feel welcome and valued. Islam teaches that even simple acts of kindness can be rewarded.',
+    lesson: 'Small acts of kindness can have great value.',
     keyPoints: [
-      "A smile can encourage someone.",
-      "Kindness does not have to cost money.",
-      "Good manners are valuable.",
+      'A smile can encourage someone.',
+      'Kindness does not have to cost money.',
+      'Good manners are valuable.',
     ],
-    reflection:
-      "Who could you greet with a warm smile today?",
+    reflection: 'Who could you greet with a warm smile today?',
     question: {
-      question: "What can a kind smile do?",
+      question: 'What can a kind smile do?',
       options: [
-        "Make someone feel welcome",
-        "Always make people angry",
-        "Replace every good action",
-        "Make kindness unnecessary",
+        'Make someone feel welcome',
+        'Always make people angry',
+        'Replace every good action',
+        'Make kindness unnecessary',
       ],
-      answer: "Make someone feel welcome",
+      answer: 'Make someone feel welcome',
       explanation:
-        "A friendly smile is a simple way to show kindness.",
+        'A friendly smile is a simple way to show kindness.',
     },
   },
   {
     id: 9,
-    title: "Good Character",
-    arabicTitle: "حُسْنُ الْخُلُقِ",
-    emoji: "⭐",
-    category: "Akhlaq",
-    arabicHadith:
-      "إِنَّ مِنْ خِيَارِكُمْ أَحْسَنَكُمْ أَخْلَاقًا",
-    transliteration:
-      "Inna min khiyarikum ahsanakum akhlaqan.",
+    title: 'Good Character',
+    arabicTitle: 'حُسْنُ الْخُلُقِ',
+    emoji: '⭐',
+    category: 'Akhlaq',
+    arabicHadith: 'إِنَّ مِنْ خِيَارِكُمْ أَحْسَنَكُمْ أَخْلَاقًا',
+    transliteration: 'Inna min khiyarikum ahsanakum akhlaqan.',
     meaning:
-      "Among the best of you are those who have the best character.",
+      'Among the best of you are those who have the best character.',
     explanation:
-      "Good character includes kindness, patience, honesty, respect, forgiveness, and good manners.",
-    lesson:
-      "Work on becoming a person with beautiful character.",
+      'Good character includes kindness, patience, honesty, respect, forgiveness, and good manners.',
+    lesson: 'Work on becoming a person with beautiful character.',
     keyPoints: [
-      "Be respectful.",
-      "Be patient.",
-      "Be honest.",
-      "Be kind.",
-      "Try to forgive.",
+      'Be respectful.',
+      'Be patient.',
+      'Be honest.',
+      'Be kind.',
+      'Try to forgive.',
     ],
     reflection:
-      "Which good character quality would you like to practise more?",
+      'Which good character quality would you like to practise more?',
     question: {
-      question: "Which is part of good character?",
+      question: 'Which is part of good character?',
       options: [
-        "Being rude",
-        "Being dishonest",
-        "Being respectful",
-        "Hurting others",
+        'Being rude',
+        'Being dishonest',
+        'Being respectful',
+        'Hurting others',
       ],
-      answer: "Being respectful",
-      explanation:
-        "Respect is one part of good character.",
+      answer: 'Being respectful',
+      explanation: 'Respect is one part of good character.',
     },
   },
   {
     id: 10,
-    title: "The Best People",
-    arabicTitle: "خَيْرُ النَّاسِ",
-    emoji: "🌟",
-    category: "Service",
-    arabicHadith:
-      "خَيْرُ النَّاسِ أَنْفَعُهُمْ لِلنَّاسِ",
+    title: 'The Best People',
+    arabicTitle: 'خَيْرُ النَّاسِ',
+    emoji: '🌟',
+    category: 'Service',
+    arabicHadith: 'خَيْرُ النَّاسِ أَنْفَعُهُمْ لِلنَّاسِ',
     transliteration: "Khayrun-nasi anfa'uhum lin-nas.",
     meaning:
-      "The best of people are those who are most beneficial to people.",
+      'The best of people are those who are most beneficial to people.',
     explanation:
-      "Islam encourages us to become people who bring useful goodness to others. This can happen through learning, helping, teaching, sharing, building, caring, and serving.",
-    lesson:
-      "Use what you have learned to benefit others.",
+      'Islam encourages us to become people who bring useful goodness to others. This can happen through learning, helping, teaching, sharing, building, caring, and serving.',
+    lesson: 'Use what you have learned to benefit others.',
     keyPoints: [
-      "Learning can help you serve others.",
-      "Useful work is valuable.",
-      "Help people in safe and appropriate ways.",
-      "Goodness can be shown through actions.",
+      'Learning can help you serve others.',
+      'Useful work is valuable.',
+      'Help people in safe and appropriate ways.',
+      'Goodness can be shown through actions.',
     ],
     reflection:
-      "What useful thing could you do for someone this week?",
+      'What useful thing could you do for someone this week?',
     question: {
-      question: "What does it mean to benefit people?",
+      question: 'What does it mean to benefit people?',
       options: [
-        "To make life harder for everyone",
-        "To use your abilities to help others",
-        "To ignore everyone",
-        "To keep every useful skill secret",
+        'To make life harder for everyone',
+        'To use your abilities to help others',
+        'To ignore everyone',
+        'To keep every useful skill secret',
       ],
-      answer: "To use your abilities to help others",
+      answer: 'To use your abilities to help others',
       explanation:
-        "Benefiting people means using your abilities and actions to bring useful good.",
+        'Benefiting people means using your abilities and actions to bring useful good.',
     },
   },
 ];
-
-const speakArabic = (text: string) => {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-    return;
-  }
-
-  window.speechSynthesis.cancel();
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "ar-SA";
-  utterance.rate = 0.82;
-  utterance.pitch = 1;
-
-  window.speechSynthesis.speak(utterance);
-};
 
 const createInitialProgress = (): HadithProgress[] =>
   LESSONS.map((lesson) => ({
@@ -439,7 +400,7 @@ const createInitialProgress = (): HadithProgress[] =>
 
 export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
   const [index, setIndex] = useState(0);
-  const [mode, setMode] = useState<LearningMode>("guided");
+  const [mode, setMode] = useState<LearningMode>('guided');
   const [progress, setProgress] =
     useState<HadithProgress[]>(createInitialProgress);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -449,6 +410,13 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
   const [streak, setStreak] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [hasFinished, setHasFinished] = useState(false);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  // English narration uses the shared pipeline (respects mute + accent)
+  const { speak } = useReadAloud();
 
   const currentLesson = LESSONS[index];
 
@@ -468,31 +436,51 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
     (masteredCount / LESSONS.length) * 100
   );
 
-  useEffect(() => {
-    return () => {
-      if ("speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
+  // Arabic still uses its own voice, but gated on soundEnabled
+  const speakArabic = (text: string) => {
+    if (!soundEnabled) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ar-SA';
+    utterance.rate = 0.82;
+    utterance.pitch = 1;
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Reset per-lesson state
   useEffect(() => {
     setSelectedAnswer(null);
     setAnswerChecked(false);
     setReflectionShown(false);
   }, [index, mode]);
 
+  // Auto-read Arabic (or English question in mastery mode)
   useEffect(() => {
-    if (!currentLesson || mode === "mastery") {
-      return;
-    }
+    if (!currentLesson || !autoReadEnabled) return;
 
     const timer = window.setTimeout(() => {
-      speakArabic(currentLesson.arabicHadith);
+      if (mode === 'mastery') {
+        speak(
+          `${currentLesson.title}. ${currentLesson.question.question}`,
+        );
+      } else {
+        speakArabic(currentLesson.arabicHadith);
+      }
     }, 450);
 
     return () => window.clearTimeout(timer);
-  }, [currentLesson, mode]);
+  }, [currentLesson, mode, speak, autoReadEnabled, soundEnabled]);
+
+  // Read reflection when it opens
+  useEffect(() => {
+    if (reflectionShown && currentLesson) {
+      speak(currentLesson.reflection);
+    }
+  }, [reflectionShown, currentLesson, speak]);
 
   const updateCurrentProgress = (
     updater: (item: HadithProgress) => HadithProgress
@@ -515,6 +503,10 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
     setAnswerChecked(true);
 
     if (isCorrect) {
+      if (soundEnabled) playSoundFeedback('correct');
+
+      speak(`Correct! ${currentLesson.question.explanation}`);
+
       setStreak((previous) => previous + 1);
 
       updateCurrentProgress((item) => ({
@@ -522,7 +514,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
         attempts: item.attempts + 1,
       }));
 
-      if (mode === "mastery" && !currentProgress.mastered) {
+      if (mode === 'mastery' && !currentProgress.mastered) {
         setScore((previous) => previous + 10);
 
         if (streak >= 1) {
@@ -536,7 +528,13 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
         }));
       }
     } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+
       setStreak(0);
+
+      speak(
+        `Keep practising. The correct answer is: ${currentLesson.question.answer}. ${currentLesson.question.explanation}`,
+      );
 
       updateCurrentProgress((item) => ({
         ...item,
@@ -571,11 +569,15 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
 
     setHasFinished(true);
     onComplete?.(score);
+
+    speak(
+      `Masha'Allah! You mastered ${masteredCount} of ${LESSONS.length} hadiths and earned ${score} points.`,
+    );
   };
 
   const resetCourse = () => {
     setIndex(0);
-    setMode("guided");
+    setMode('guided');
     setProgress(createInitialProgress());
     setSelectedAnswer(null);
     setAnswerChecked(false);
@@ -585,9 +587,11 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
     setIsComplete(false);
     setHasFinished(false);
 
-    if ("speechSynthesis" in window) {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
+
+    speak("Let's explore the Prophetic teachings again!");
   };
 
   if (!currentLesson) {
@@ -595,7 +599,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
       <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <BookOpen className="mx-auto mb-4 h-10 w-10 text-slate-500" />
         <h2 className="text-xl font-semibold text-slate-900">
-          Hadith & Sunnah
+          Hadith &amp; Sunnah
         </h2>
         <p className="mt-2 text-sm text-slate-600">
           No lessons are currently available.
@@ -617,7 +621,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
           </div>
 
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Hadith & Sunnah
+            Hadith &amp; Sunnah
           </p>
 
           <h2 className="mt-3 text-3xl font-bold text-slate-900">
@@ -635,19 +639,13 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
               <p className="text-2xl font-bold text-slate-900">
                 {masteredCount}
               </p>
-              <p className="text-sm text-slate-500">
-                Hadiths mastered
-              </p>
+              <p className="text-sm text-slate-500">Hadiths mastered</p>
             </div>
 
             <div className="rounded-2xl bg-slate-50 p-5">
               <Star className="mx-auto mb-2 h-6 w-6 text-amber-500" />
-              <p className="text-2xl font-bold text-slate-900">
-                {score}
-              </p>
-              <p className="text-sm text-slate-500">
-                Learning points
-              </p>
+              <p className="text-2xl font-bold text-slate-900">{score}</p>
+              <p className="text-sm text-slate-500">Learning points</p>
             </div>
 
             <div className="rounded-2xl bg-slate-50 p-5">
@@ -655,9 +653,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
               <p className="text-2xl font-bold text-slate-900">
                 {masteryPercentage}%
               </p>
-              <p className="text-sm text-slate-500">
-                Mastery
-              </p>
+              <p className="text-sm text-slate-500">Mastery</p>
             </div>
           </div>
 
@@ -673,7 +669,9 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
               <li>• Practise truthful and respectful speech.</li>
               <li>• Understand the importance of cleanliness.</li>
               <li>• Learn to help and benefit others.</li>
-              <li>• Connect Prophetic teachings with everyday behaviour.</li>
+              <li>
+                • Connect Prophetic teachings with everyday behaviour.
+              </li>
             </ul>
           </div>
 
@@ -694,7 +692,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ArrowRight className="h-4 w-4" />
-              {hasFinished ? "Completed" : "Finish & Move Up"}
+              {hasFinished ? 'Completed' : 'Finish & Move Up'}
             </button>
           </div>
         </div>
@@ -703,8 +701,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
   }
 
   const isCorrect =
-    answerChecked &&
-    selectedAnswer === currentLesson.question.answer;
+    answerChecked && selectedAnswer === currentLesson.question.answer;
 
   return (
     <motion.div
@@ -721,7 +718,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
             </p>
 
             <h1 className="mt-2 text-2xl font-bold text-slate-900">
-              Hadith & Sunnah
+              Hadith &amp; Sunnah
             </h1>
 
             <p className="mt-1 text-sm text-slate-600">
@@ -746,15 +743,26 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
                 {masteredCount}/{LESSONS.length}
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+            >
+              <Volume2
+                className={`w-5 h-5 ${
+                  soundEnabled ? 'text-amber-500' : 'text-slate-400'
+                }`}
+              />
+            </button>
           </div>
         </div>
 
         <div className="mt-6 h-2 overflow-hidden rounded-full bg-slate-100">
           <motion.div
             initial={{ width: 0 }}
-            animate={{
-              width: `${((index + 1) / LESSONS.length) * 100}%`,
-            }}
+            animate={{ width: `${((index + 1) / LESSONS.length) * 100}%` }}
             className="h-full rounded-full bg-slate-900"
           />
         </div>
@@ -764,37 +772,45 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
       <div className="grid gap-3 sm:grid-cols-3">
         {[
           {
-            id: "guided" as const,
-            title: "Guided",
-            description: "Learn the hadith with support.",
+            id: 'guided' as const,
+            title: 'Guided',
+            description: 'Learn the hadith with support.',
           },
           {
-            id: "practice" as const,
-            title: "Practice",
-            description: "Check what you remember.",
+            id: 'practice' as const,
+            title: 'Practice',
+            description: 'Check what you remember.',
           },
           {
-            id: "mastery" as const,
-            title: "Mastery",
-            description: "Answer independently.",
+            id: 'mastery' as const,
+            title: 'Mastery',
+            description: 'Answer independently.',
           },
         ].map((item) => (
           <button
             key={item.id}
             type="button"
-            onClick={() => setMode(item.id)}
+            onClick={() => {
+              setMode(item.id);
+
+              speak(
+                item.id === 'guided'
+                  ? 'Guided mode. Learn the hadith with support.'
+                  : item.id === 'practice'
+                    ? 'Practice mode. Check what you remember.'
+                    : 'Mastery mode. Answer independently.',
+              );
+            }}
             className={`rounded-2xl border p-4 text-left transition ${
               mode === item.id
-                ? "border-slate-900 bg-slate-900 text-white"
-                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                ? 'border-slate-900 bg-slate-900 text-white'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
             }`}
           >
             <p className="font-semibold">{item.title}</p>
             <p
               className={`mt-1 text-xs ${
-                mode === item.id
-                  ? "text-slate-300"
-                  : "text-slate-500"
+                mode === item.id ? 'text-slate-300' : 'text-slate-500'
               }`}
             >
               {item.description}
@@ -882,9 +898,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
 
         {/* Key points */}
         <div className="mt-6">
-          <h3 className="font-semibold text-slate-900">
-            Key points
-          </h3>
+          <h3 className="font-semibold text-slate-900">Key points</h3>
 
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {currentLesson.keyPoints.map((point) => (
@@ -893,9 +907,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
                 className="flex gap-3 rounded-xl bg-slate-50 p-4"
               >
                 <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                <p className="text-sm leading-6 text-slate-600">
-                  {point}
-                </p>
+                <p className="text-sm leading-6 text-slate-600">{point}</p>
               </div>
             ))}
           </div>
@@ -913,7 +925,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
         </div>
 
         {/* Question */}
-        {mode !== "guided" && (
+        {mode !== 'guided' && (
           <div className="mt-7 rounded-2xl border border-slate-200 p-5">
             <div className="flex items-start gap-3">
               <MessageCircle className="mt-0.5 h-5 w-5 text-slate-600" />
@@ -942,10 +954,10 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
                         onClick={() => setSelectedAnswer(option)}
                         className={`w-full rounded-xl border p-4 text-left text-sm transition ${
                           correct
-                            ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
                             : selected
-                              ? "border-slate-900 bg-slate-900 text-white"
-                              : "border-slate-200 hover:border-slate-400"
+                              ? 'border-slate-900 bg-slate-900 text-white'
+                              : 'border-slate-200 hover:border-slate-400'
                         }`}
                       >
                         {option}
@@ -969,12 +981,12 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
                   <div
                     className={`mt-4 rounded-xl p-4 ${
                       isCorrect
-                        ? "bg-emerald-50 text-emerald-800"
-                        : "bg-rose-50 text-rose-800"
+                        ? 'bg-emerald-50 text-emerald-800'
+                        : 'bg-rose-50 text-rose-800'
                     }`}
                   >
                     <p className="font-semibold">
-                      {isCorrect ? "Correct!" : "Keep practising."}
+                      {isCorrect ? 'Correct!' : 'Keep practising.'}
                     </p>
 
                     <p className="mt-1 text-sm leading-6">
@@ -990,7 +1002,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
         )}
 
         {/* Reflection */}
-        {mode !== "guided" && answerChecked && (
+        {mode !== 'guided' && answerChecked && (
           <div className="mt-6">
             {!reflectionShown ? (
               <button
@@ -1007,9 +1019,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
                 animate={{ opacity: 1, y: 0 }}
                 className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
               >
-                <h3 className="font-semibold text-slate-900">
-                  Reflection
-                </h3>
+                <h3 className="font-semibold text-slate-900">Reflection</h3>
 
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   {currentLesson.reflection}
@@ -1045,10 +1055,10 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
                   aria-label={`Go to hadith ${lessonIndex + 1}`}
                   className={`h-2.5 rounded-full transition-all ${
                     lessonIndex === index
-                      ? "w-8 bg-slate-900"
+                      ? 'w-8 bg-slate-900'
                       : lessonProgress?.mastered
-                        ? "w-2.5 bg-emerald-500"
-                        : "w-2.5 bg-slate-200"
+                        ? 'w-2.5 bg-emerald-500'
+                        : 'w-2.5 bg-slate-200'
                   }`}
                 />
               );
@@ -1060,7 +1070,7 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
             onClick={nextLesson}
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
-            {index === LESSONS.length - 1 ? "Complete" : "Next"}
+            {index === LESSONS.length - 1 ? 'Complete' : 'Next'}
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
@@ -1091,10 +1101,10 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
               key={item.id}
               className={`h-2 rounded-full ${
                 item.mastered
-                  ? "bg-emerald-500"
+                  ? 'bg-emerald-500'
                   : item.attempts > 0
-                    ? "bg-amber-300"
-                    : "bg-slate-100"
+                    ? 'bg-amber-300'
+                    : 'bg-slate-100'
               }`}
             />
           ))}
@@ -1119,4 +1129,4 @@ export const HadithSunnah: React.FC<HadithSunnahProps> = ({ onComplete }) => {
       </div>
     </motion.div>
   );
-}
+};

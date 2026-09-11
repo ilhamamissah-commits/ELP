@@ -11,7 +11,7 @@ import {
   Sparkles,
   Volume2,
 } from 'lucide-react';
-import { useAudioPrompt } from '../../../hooks/useAudioPrompt';
+import { useReadAloud } from '../../../hooks/useReadAloud';
 import { useProgressStore } from '../../../store/useProgressStore';
 
 interface SoundCard {
@@ -56,11 +56,10 @@ const SOUND_LOTTERY_SKILLS = [
 export const SoundLottery: React.FC<SoundLotteryProps> = ({
   onComplete,
 }) => {
-  const { speak } = useAudioPrompt();
+  // ✅ NEW: Universal read aloud hook
+  const { speak } = useReadAloud();
 
-  const [currentSound, setCurrentSound] =
-    useState<string>('s');
-
+  const [currentSound, setCurrentSound] = useState<string>('s');
   const [cards, setCards] = useState<SoundCard[]>([]);
   const [revealed, setRevealed] = useState<string[]>([]);
   const [found, setFound] = useState<string[]>([]);
@@ -79,27 +78,22 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
     timerIdsRef.current.forEach((timerId) => {
       clearTimeout(timerId);
     });
-
     timerIdsRef.current = [];
   }, []);
 
   useEffect(() => {
     return () => {
       clearTimers();
-
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
     };
   }, [clearTimers]);
 
+  // ✅ Play the phoneme sound with a slow, clear rate
   const playSound = useCallback(
     (sound: string) => {
-      speak(sound, {
-        rate: 0.5,
-        pitch: 1.2,
-        userInitiated: true,
-      });
+      speak(sound, { rate: 0.5, pitch: 1.2 });
     },
     [speak],
   );
@@ -133,12 +127,25 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
     setCurrentSound(nextSound);
     setupRound(nextSound);
     setRound((previousRound) => previousRound + 1);
-  }, [clearTimers, round, setupRound]);
+
+    // ✅ Auto-speak the new target sound
+    const timer = window.setTimeout(() => {
+      speak(nextSound, { rate: 0.5, pitch: 1.2 });
+    }, 600);
+    timerIdsRef.current.push(timer);
+  }, [clearTimers, round, setupRound, speak]);
 
   useEffect(() => {
     setupRound(PHONICS_SOUNDS[0]);
     setRound(1);
-  }, [setupRound]);
+
+    // ✅ Auto-speak the first sound
+    const timer = window.setTimeout(() => {
+      speak(PHONICS_SOUNDS[0], { rate: 0.5, pitch: 1.2 });
+    }, 800);
+    timerIdsRef.current.push(timer);
+    return () => window.clearTimeout(timer);
+  }, [setupRound, speak]);
 
   const handleReveal = useCallback(
     (id: string, sound: string) => {
@@ -155,10 +162,11 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
 
       if (sound === currentSound) {
         setFound((previous) => [...previous, id]);
-
         setScore((previous) => previous + 10);
-
         playSound(currentSound);
+      } else {
+        // ✅ Gentle "try again" feedback when wrong card tapped
+        speak('Try another card.', { rate: 0.85 });
       }
     },
     [
@@ -168,6 +176,7 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
       lessonComplete,
       playSound,
       revealed,
+      speak,
     ],
   );
 
@@ -190,6 +199,9 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
 
     setIsFinished(true);
 
+    // ✅ Celebrate the completed round
+    speak('Excellent! You found all three!', { rate: 0.85 });
+
     const isFinalRound = round >= PHONICS_SOUNDS.length;
 
     const completionTimer = setTimeout(() => {
@@ -210,7 +222,9 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
         });
 
         setLessonComplete(true);
-
+        speak('Congratulations! You finished the Sound Lottery!', {
+          rate: 0.85,
+        });
         onComplete?.(score);
         return;
       }
@@ -230,11 +244,11 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
     round,
     score,
     startGame,
+    speak,
   ]);
 
   const handleRestart = useCallback(() => {
     clearTimers();
-
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -249,7 +263,8 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
     setLessonComplete(false);
 
     setupRound(PHONICS_SOUNDS[0]);
-  }, [clearTimers, setupRound]);
+    speak('Restarting sound lottery.', { rate: 0.85 });
+  }, [clearTimers, setupRound, speak]);
 
   const progressPercent = Math.min(
     100,
@@ -273,11 +288,9 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
 
         <div className="mb-2 flex items-center justify-center gap-2 text-emerald-300">
           <Sparkles className="h-5 w-5" />
-
           <span className="text-sm font-semibold uppercase tracking-wider">
             Phonics Practice Complete
           </span>
-
           <Sparkles className="h-5 w-5" />
         </div>
 
@@ -295,7 +308,6 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
             <div className="text-2xl font-bold text-white">
               {PHONICS_SOUNDS.length}
             </div>
-
             <div className="mt-1 text-xs text-gray-500">
               Sounds practised
             </div>
@@ -305,7 +317,6 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
             <div className="text-2xl font-bold text-white">
               {score}
             </div>
-
             <div className="mt-1 text-xs text-gray-500">
               Session points
             </div>
@@ -333,11 +344,9 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
             <p className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
               Reading • Phonics
             </p>
-
             <h3 className="mt-1 text-2xl font-bold text-white">
               Sound Lottery
             </h3>
-
             <p className="mt-1 text-sm text-gray-400">
               Find the words that begin with the target sound.
             </p>
@@ -365,7 +374,6 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
             <span className="text-gray-400">
               Sound recognition progression
             </span>
-
             <span className="font-semibold text-gray-300">
               {progressPercent}%
             </span>
@@ -438,22 +446,16 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 whileHover={
-                  isHidden && !isFinished
-                    ? { scale: 1.04 }
-                    : {}
+                  isHidden && !isFinished ? { scale: 1.04 } : {}
                 }
                 whileTap={
-                  isHidden && !isFinished
-                    ? { scale: 0.96 }
-                    : {}
+                  isHidden && !isFinished ? { scale: 0.96 } : {}
                 }
                 onClick={() =>
                   handleReveal(card.id, card.sound)
                 }
                 disabled={
-                  !isHidden ||
-                  isFinished ||
-                  lessonComplete
+                  !isHidden || isFinished || lessonComplete
                 }
                 aria-label={
                   isHidden
@@ -472,14 +474,10 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
                   <span className="text-4xl opacity-20">?</span>
                 ) : (
                   <div className="flex flex-col items-center gap-1">
-                    <span className="text-4xl">
-                      {card.emoji}
-                    </span>
-
+                    <span className="text-4xl">{card.emoji}</span>
                     <span className="text-xs font-bold text-white/80">
                       {card.word}
                     </span>
-
                     {isFound && (
                       <motion.div
                         initial={{ scale: 0 }}
@@ -500,10 +498,7 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
       {/* ROUND PROGRESS */}
       <div className="mb-5">
         <div className="mb-2 flex items-center justify-between text-xs">
-          <span className="text-gray-500">
-            Sounds practised
-          </span>
-
+          <span className="text-gray-500">Sounds practised</span>
           <span className="text-gray-400">
             {Math.min(round, PHONICS_SOUNDS.length)} /{' '}
             {PHONICS_SOUNDS.length}
@@ -537,12 +532,10 @@ export const SoundLottery: React.FC<SoundLotteryProps> = ({
           >
             <div className="flex items-center justify-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-green-400" />
-
               <p className="font-bold text-indigo-300">
                 All three words found!
               </p>
             </div>
-
             <p className="mt-1 text-xs text-gray-500">
               Excellent sound recognition. Next sound coming up...
             </p>

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   RotateCcw,
@@ -8,6 +8,9 @@ import {
   Sparkles,
   Volume2,
 } from 'lucide-react';
+
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type StickerCategory =
   | 'nature'
@@ -120,6 +123,12 @@ const CATEGORIES: {
 const MAX_STICKERS = 25;
 
 export const StickerBoard: React.FC = () => {
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [placed, setPlaced] = useState<PlacedSticker[]>([]);
   const [selectedSticker, setSelectedSticker] =
     useState<Sticker>(STICKERS[0]);
@@ -139,9 +148,51 @@ export const StickerBoard: React.FC = () => {
     );
   }, [category]);
 
-  /**
-   * Place sticker on board.
-   */
+  /* =======================================================
+     AUTO-READ — one-time intro on mount
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        'Sticker story. Choose stickers and place them anywhere to make your own scene.'
+      );
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* =======================================================
+     COMPLETION NARRATION — fires once on `completed`
+  ======================================================= */
+
+  useEffect(() => {
+    if (!completed) return;
+
+    speak(
+      `Amazing scene! You used ${placed.length} ${
+        placed.length === 1 ? 'sticker' : 'stickers'
+      } to create your world. Now tell me about your picture.`
+    );
+  }, [completed, placed.length, speak]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const handleBoardClick = (
     e: React.MouseEvent<HTMLDivElement>
   ) => {
@@ -150,6 +201,9 @@ export const StickerBoard: React.FC = () => {
     if (placed.length >= MAX_STICKERS) {
       return;
     }
+
+    // Yield any in-flight narration to the child's placement.
+    stopSpeaking();
 
     const rect =
       e.currentTarget.getBoundingClientRect();
@@ -177,57 +231,54 @@ export const StickerBoard: React.FC = () => {
     setCompleted(false);
   };
 
-  /**
-   * Undo last sticker.
-   */
   const undo = () => {
+    if (placed.length === 0) return;
+
     setPlaced((previous) =>
       previous.slice(0, -1)
     );
 
     setCompleted(false);
+
+    speak('Undo.');
   };
 
-  /**
-   * Clear board.
-   */
   const clearBoard = () => {
+    stopSpeaking();
     setPlaced([]);
     setCompleted(false);
   };
 
-  /**
-   * Select sticker.
-   */
   const selectSticker = (sticker: Sticker) => {
     setSelectedSticker(sticker);
     setCompleted(false);
+
+    // Speak the sticker's vocabulary word — this IS the lesson.
+    speak(sticker.vocabulary);
   };
 
-  /**
-   * Change category.
-   */
   const selectCategory = (
     newCategory: 'all' | StickerCategory
   ) => {
     setCategory(newCategory);
   };
 
-  /**
-   * Simple scene completion.
-   *
-   * This can later be replaced by
-   * a curriculum-specific assessment.
-   */
   const finishScene = () => {
     if (placed.length < 3) return;
 
     setCompleted(true);
+    // Narration handled by the completion effect above.
   };
 
-  /**
-   * Count categories used.
-   */
+  /* =======================================================
+     SPEAK WORD — now uses the shared useReadAloud.
+     Replaces the local SpeechSynthesisUtterance wrapper.
+  ======================================================= */
+
+  const speakWord = () => {
+    speak(selectedSticker.vocabulary);
+  };
+
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
 
@@ -238,35 +289,6 @@ export const StickerBoard: React.FC = () => {
 
     return counts;
   }, [placed]);
-
-  /**
-   * Speak selected vocabulary word.
-   *
-   * This can later connect to the ELP
-   * multilingual speech engine.
-   */
-  const speakWord = () => {
-    if (
-      typeof window === 'undefined' ||
-      !('speechSynthesis' in window)
-    ) {
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-
-    const utterance =
-      new SpeechSynthesisUtterance(
-        selectedSticker.vocabulary
-      );
-
-    utterance.rate = 0.75;
-    utterance.pitch = 1.1;
-
-    window.speechSynthesis.speak(
-      utterance
-    );
-  };
 
   return (
     <motion.section
@@ -307,14 +329,27 @@ export const StickerBoard: React.FC = () => {
 
             </div>
 
-            <button
-              onClick={clearBoard}
-              disabled={placed.length === 0}
-              aria-label="Clear scene"
-              className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center justify-center disabled:opacity-30 transition"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={toggleSound}
+                aria-label="Toggle sound"
+                className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors flex items-center justify-center"
+              >
+                <Volume2
+                  className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+                />
+              </button>
+
+              <button
+                onClick={clearBoard}
+                disabled={placed.length === 0}
+                aria-label="Clear scene"
+                className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 flex items-center justify-center disabled:opacity-30 transition"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
 
           </div>
 

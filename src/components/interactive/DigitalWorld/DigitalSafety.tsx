@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -9,7 +9,12 @@ import {
   MessageCircle,
   MousePointer,
   Heart,
+  Volume2,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type SafetyCategory =
   | 'Personal Information'
@@ -46,7 +51,8 @@ const SCENARIOS: Scenario[] = [
   {
     id: 2,
     category: 'Personal Information',
-    scenario: 'A website asks for your full name, school, phone number, and home address.',
+    scenario:
+      'A website asks for your full name, school, phone number, and home address.',
     question: 'Should you enter all of this information by yourself?',
     safe: false,
     correctAction: 'Stop and ask a parent or trusted adult first.',
@@ -68,7 +74,8 @@ const SCENARIOS: Scenario[] = [
   {
     id: 4,
     category: 'Strangers',
-    scenario: 'Someone you have never met sends you a message asking to meet in person.',
+    scenario:
+      'Someone you have never met sends you a message asking to meet in person.',
     question: 'Should you agree to meet them?',
     safe: false,
     correctAction: 'Do not meet them. Tell a trusted adult immediately.',
@@ -79,7 +86,8 @@ const SCENARIOS: Scenario[] = [
   {
     id: 5,
     category: 'Cyberbullying',
-    scenario: 'Someone sends you a mean message online and tells you to keep it secret.',
+    scenario:
+      'Someone sends you a mean message online and tells you to keep it secret.',
     question: 'Should you keep it secret?',
     safe: false,
     correctAction: 'Save the evidence and tell a trusted adult.',
@@ -90,7 +98,8 @@ const SCENARIOS: Scenario[] = [
   {
     id: 6,
     category: 'Links & Pop-ups',
-    scenario: 'A pop-up says: "Congratulations! You won a FREE tablet! Click here now!"',
+    scenario:
+      'A pop-up says: "Congratulations! You won a FREE tablet! Click here now!"',
     question: 'Should you click the button?',
     safe: false,
     correctAction: 'Do not click. Close it and tell an adult.',
@@ -145,7 +154,8 @@ const SCENARIOS: Scenario[] = [
   {
     id: 11,
     category: 'Personal Information',
-    scenario: 'You are learning to type your first name on a computer with your teacher.',
+    scenario:
+      'You are learning to type your first name on a computer with your teacher.',
     question: 'Is learning to type with a teacher safe?',
     safe: true,
     correctAction: 'Yes. Learn with a trusted adult or teacher.',
@@ -156,10 +166,12 @@ const SCENARIOS: Scenario[] = [
   {
     id: 12,
     category: 'Media Sharing',
-    scenario: 'You want to take a picture of your friend for a school project and ask permission first.',
+    scenario:
+      'You want to take a picture of your friend for a school project and ask permission first.',
     question: 'Is asking permission a good choice?',
     safe: true,
-    correctAction: 'Yes. Ask permission before taking or sharing someone’s photo.',
+    correctAction:
+      'Yes. Ask permission before taking or sharing someone’s photo.',
     explanation:
       'Respecting other people’s privacy is an important part of being a good digital citizen.',
     hint: 'Ask before you share.',
@@ -168,15 +180,12 @@ const SCENARIOS: Scenario[] = [
 
 const CATEGORY_INFO: Record<
   SafetyCategory,
-  {
-    icon: React.ReactNode;
-    description: string;
-  }
+  { icon: React.ReactNode; description: string }
 > = {
   'Personal Information': {
-  icon: <User className="w-5 h-5" />,
-  description: 'Protect information about yourself.',
-},
+    icon: <User className="w-5 h-5" />,
+    description: 'Protect information about yourself.',
+  },
   Passwords: {
     icon: <Lock className="w-5 h-5" />,
     description: 'Keep your passwords private and secure.',
@@ -186,9 +195,9 @@ const CATEGORY_INFO: Record<
     description: 'Be careful when communicating with people online.',
   },
   Cyberbullying: {
-  icon: <MessageCircle className="w-5 h-5" />,
-  description: 'Know what to do when someone is unkind online.',
-},
+    icon: <MessageCircle className="w-5 h-5" />,
+    description: 'Know what to do when someone is unkind online.',
+  },
   'Links & Pop-ups': {
     icon: <MousePointer className="w-5 h-5" />,
     description: 'Think before clicking links and pop-ups.',
@@ -211,12 +220,43 @@ export const DigitalSafety: React.FC = () => {
   const [showHint, setShowHint] = useState(false);
   const [completed, setCompleted] = useState(false);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
   const current = SCENARIOS[index];
   const categoryInfo = CATEGORY_INFO[current.category];
 
-  const progress = Math.round(
-    (answered.length / SCENARIOS.length) * 100
-  );
+  const progress = Math.round((answered.length / SCENARIOS.length) * 100);
+
+  /* Auto-read the scenario + question when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled || completed) return;
+
+    const timer = window.setTimeout(() => {
+      speak(`${current.scenario} ${current.question}`);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [index, current, completed, speak, autoReadEnabled]);
+
+  /* Read the hint when it opens */
+  useEffect(() => {
+    if (showHint && selected === null) {
+      speak(current.hint);
+    }
+  }, [showHint, selected, current, speak]);
+
+  /* Announce completion once */
+  useEffect(() => {
+    if (!completed) return;
+
+    speak(
+      `Digital Safety complete! You scored ${score} points. Remember: if something online makes you uncomfortable, stop and tell a trusted adult.`,
+    );
+  }, [completed, score, speak]);
 
   const handleAnswer = (answer: boolean) => {
     if (selected !== null || answered.includes(current.id)) {
@@ -226,8 +266,17 @@ export const DigitalSafety: React.FC = () => {
     setSelected(answer);
     setAnswered((previous) => [...previous, current.id]);
 
-    if (answer === current.safe) {
+    const isCorrect = answer === current.safe;
+
+    if (isCorrect) {
+      if (soundEnabled) playSoundFeedback('correct');
       setScore((previous) => previous + 10);
+      speak(`Excellent choice! ${current.correctAction}`);
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(
+        `Let's learn from this. What to do: ${current.correctAction} ${current.explanation}`,
+      );
     }
   };
 
@@ -251,6 +300,8 @@ export const DigitalSafety: React.FC = () => {
     setAnswered([]);
     setShowHint(false);
     setCompleted(false);
+
+    speak("Let's practise digital safety again!");
   };
 
   const isCorrect = selected === current.safe;
@@ -321,9 +372,24 @@ export const DigitalSafety: React.FC = () => {
           </p>
         </div>
 
-        <div className="text-right">
-          <p className="text-xs text-gray-500">Score</p>
-          <p className="text-xl font-bold text-white">{score}</p>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <p className="text-xs text-gray-500">Score</p>
+            <p className="text-xl font-bold text-white">{score}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
         </div>
       </div>
 
@@ -350,9 +416,7 @@ export const DigitalSafety: React.FC = () => {
           <p className="text-white text-sm font-semibold">
             {current.category}
           </p>
-          <p className="text-gray-500 text-xs">
-            {categoryInfo.description}
-          </p>
+          <p className="text-gray-500 text-xs">{categoryInfo.description}</p>
         </div>
       </div>
 
@@ -392,9 +456,7 @@ export const DigitalSafety: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-4"
         >
-          <p className="text-yellow-300 text-sm">
-            💡 {current.hint}
-          </p>
+          <p className="text-yellow-300 text-sm">💡 {current.hint}</p>
         </motion.div>
       )}
 
@@ -459,9 +521,7 @@ export const DigitalSafety: React.FC = () => {
             {current.correctAction}
           </p>
 
-          <p className="text-gray-400 text-sm">
-            {current.explanation}
-          </p>
+          <p className="text-gray-400 text-sm">{current.explanation}</p>
         </motion.div>
       )}
 

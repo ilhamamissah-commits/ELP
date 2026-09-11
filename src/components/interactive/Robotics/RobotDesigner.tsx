@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Shield,
   Trash2,
+  Volume2,
   Wrench,
   Zap,
 } from 'lucide-react';
@@ -23,15 +24,15 @@ import {
   type RobotPartType,
 } from './roboticsData';
 
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
+
 /* =========================================================
    TYPES
    ========================================================= */
 
-type DesignerMode =
-  | 'build'
-  | 'inspect'
-  | 'validate'
-  | 'complete';
+type DesignerMode = 'build' | 'inspect' | 'validate' | 'complete';
 
 type BuildCategory =
   | 'body'
@@ -104,17 +105,10 @@ const CATEGORIES: CategoryConfig[] = [
    HELPERS
    ========================================================= */
 
-const getCategoryParts = (
-  category: BuildCategory
-): RobotPart[] => {
-  return ROBOT_PARTS.filter(
-    (part) => part.type === category
-  );
-};
+const getCategoryParts = (category: BuildCategory): RobotPart[] =>
+  ROBOT_PARTS.filter((part) => part.type === category);
 
-const getPartTypeLabel = (
-  type: RobotPartType
-): string => {
+const getPartTypeLabel = (type: RobotPartType): string => {
   const labels: Record<RobotPartType, string> = {
     body: 'Body',
     brain: 'Brain',
@@ -125,7 +119,6 @@ const getPartTypeLabel = (
     communication: 'Communication',
     accessory: 'Accessory',
   };
-
   return labels[type];
 };
 
@@ -136,21 +129,24 @@ const getPartTypeLabel = (
 export const RobotDesigner: React.FC = () => {
   const [mode, setMode] = useState<DesignerMode>('build');
 
-  const [selectedParts, setSelectedParts] =
-    useState<string[]>([]);
+  const [selectedParts, setSelectedParts] = useState<string[]>([]);
 
   const [activeCategory, setActiveCategory] =
     useState<BuildCategory>('body');
 
-  const [inspectedPart, setInspectedPart] =
-    useState<RobotPart | null>(null);
+  const [inspectedPart, setInspectedPart] = useState<RobotPart | null>(null);
 
-  const [feedback, setFeedback] = useState<
-    'idle' | 'success' | 'error'
-  >('idle');
+  const [feedback, setFeedback] = useState<'idle' | 'success' | 'error'>(
+    'idle'
+  );
 
-  const [engineeringXP, setEngineeringXP] =
-    useState(0);
+  const [engineeringXP, setEngineeringXP] = useState(0);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
 
   /* =======================================================
      SELECTED PARTS
@@ -158,132 +154,116 @@ export const RobotDesigner: React.FC = () => {
 
   const selectedPartObjects = useMemo(() => {
     return selectedParts
-      .map((id) =>
-        ROBOT_PARTS.find(
-          (part) => part.id === id
-        )
-      )
-      .filter(
-        (part): part is RobotPart =>
-          Boolean(part)
-      );
+      .map((id) => ROBOT_PARTS.find((part) => part.id === id))
+      .filter((part): part is RobotPart => Boolean(part));
   }, [selectedParts]);
 
-  const totalCost = useMemo(() => {
-    return selectedPartObjects.reduce(
-      (total, part) => total + part.cost,
-      0
-    );
-  }, [selectedPartObjects]);
+  const totalCost = useMemo(
+    () => selectedPartObjects.reduce((total, part) => total + part.cost, 0),
+    [selectedPartObjects]
+  );
 
-  const remainingBudget =
-    BUDGET - totalCost;
+  const remainingBudget = BUDGET - totalCost;
 
   /* =======================================================
      ROBOT SYSTEM ANALYSIS
      ======================================================= */
 
-  const hasBody = selectedPartObjects.some(
-    (part) => part.type === 'body'
-  );
-
-  const hasBrain = selectedPartObjects.some(
-    (part) => part.type === 'brain'
-  );
-
-  const hasPower = selectedPartObjects.some(
-    (part) => part.type === 'power'
-  );
-
-  const hasSensor = selectedPartObjects.some(
-    (part) => part.type === 'sensor'
-  );
-
+  const hasBody = selectedPartObjects.some((part) => part.type === 'body');
+  const hasBrain = selectedPartObjects.some((part) => part.type === 'brain');
+  const hasPower = selectedPartObjects.some((part) => part.type === 'power');
+  const hasSensor = selectedPartObjects.some((part) => part.type === 'sensor');
   const hasActuator = selectedPartObjects.some(
     (part) => part.type === 'actuator'
   );
-
-  const hasOutput = selectedPartObjects.some(
-    (part) => part.type === 'output'
+  const hasOutput = selectedPartObjects.some((part) => part.type === 'output');
+  const hasCommunication = selectedPartObjects.some(
+    (part) => part.type === 'communication'
   );
 
-  const hasCommunication =
-    selectedPartObjects.some(
-      (part) => part.type === 'communication'
-    );
+  const canSense = hasSensor;
+  const canThink = hasBrain;
+  const canAct = hasActuator || hasOutput;
 
-  const canSense =
-    hasSensor;
+  const canOperate = hasBody && hasBrain && hasPower;
+  const canMove = hasBody && hasBrain && hasPower && hasActuator;
+  const isSmartRobot = canSense && canThink && canAct;
+  const isCompleteRobot = canOperate && canMove;
 
-  const canThink =
-    hasBrain;
+  /* =======================================================
+     AUTO-READ
+     ======================================================= */
 
-  const canAct =
-    hasActuator || hasOutput;
+  // Read category description when it changes in build mode
+  useEffect(() => {
+    if (mode !== 'build' || !autoReadEnabled) return;
 
-  const canOperate =
-    hasBody &&
-    hasBrain &&
-    hasPower;
+    const category = CATEGORIES.find((c) => c.id === activeCategory);
+    if (!category) return;
 
-  const canMove =
-    hasBody &&
-    hasBrain &&
-    hasPower &&
-    hasActuator;
+    const timer = window.setTimeout(() => {
+      speak(`${category.label}. ${category.description}`);
+    }, 350);
 
-  const isSmartRobot =
-    canSense &&
-    canThink &&
-    canAct;
+    return () => window.clearTimeout(timer);
+  }, [activeCategory, mode, speak, autoReadEnabled]);
 
-  const isCompleteRobot =
-    canOperate &&
-    canMove;
+  // Read the inspected part's info when the inspect view opens
+  useEffect(() => {
+    if (mode !== 'inspect' || !inspectedPart || !autoReadEnabled) return;
+
+    const readOut = `${inspectedPart.name}. ${inspectedPart.childDescription}. What it does: ${inspectedPart.technicalDescription}`;
+    const timer = window.setTimeout(() => speak(readOut), 350);
+    return () => window.clearTimeout(timer);
+  }, [mode, inspectedPart, speak, autoReadEnabled]);
+
+  // Announce validate mode outcome when it changes
+  useEffect(() => {
+    if (mode !== 'validate' || !autoReadEnabled) return;
+
+    const readOut =
+      feedback === 'success'
+        ? 'Design passes the basic engineering check. Your robot has the essential components required for movement.'
+        : 'Your robot needs improvement. Check the missing requirements, then return to Build.';
+
+    const timer = window.setTimeout(() => speak(readOut), 350);
+    return () => window.clearTimeout(timer);
+  }, [mode, feedback, speak, autoReadEnabled]);
 
   /* =======================================================
      PART MANAGEMENT
      ======================================================= */
 
   const addPart = (part: RobotPart) => {
-    if (selectedParts.includes(part.id)) {
-      return;
-    }
+    if (selectedParts.includes(part.id)) return;
 
-    if (
-      totalCost + part.cost >
-      BUDGET
-    ) {
+    if (totalCost + part.cost > BUDGET) {
+      if (soundEnabled) playSoundFeedback('try-again');
       setFeedback('error');
+      speak("That part is too expensive. You've reached your budget.");
       return;
     }
 
-    setSelectedParts(
-      (previous) => [
-        ...previous,
-        part.id,
-      ]
-    );
-
+    setSelectedParts((previous) => [...previous, part.id]);
     setFeedback('idle');
+
+    if (soundEnabled) playSoundFeedback('move');
+    speak(`Added ${part.name}.`);
   };
 
-  const removePart = (
-    partId: string
-  ) => {
-    setSelectedParts(
-      (previous) =>
-        previous.filter(
-          (id) => id !== partId
-        )
-    );
+  const removePart = (partId: string) => {
+    const part = selectedPartObjects.find((p) => p.id === partId);
 
+    setSelectedParts((previous) => previous.filter((id) => id !== partId));
     setFeedback('idle');
+
+    if (part) {
+      if (soundEnabled) playSoundFeedback('move');
+      speak(`Removed ${part.name}.`);
+    }
   };
 
-  const inspectPart = (
-    part: RobotPart
-  ) => {
+  const inspectPart = (part: RobotPart) => {
     setInspectedPart(part);
     setMode('inspect');
   };
@@ -293,31 +273,23 @@ export const RobotDesigner: React.FC = () => {
      ======================================================= */
 
   const validateRobot = () => {
-    if (!hasBody) {
+    if (!hasBody || !hasBrain || !hasPower || !hasActuator) {
+      if (soundEnabled) playSoundFeedback('try-again');
       setFeedback('error');
       return;
     }
 
-    if (!hasBrain) {
-      setFeedback('error');
-      return;
-    }
-
-    if (!hasPower) {
-      setFeedback('error');
-      return;
-    }
-
-    if (!hasActuator) {
-      setFeedback('error');
-      return;
-    }
-
+    if (soundEnabled) playSoundFeedback('correct');
     setFeedback('success');
-    setEngineeringXP(
-      (previous) =>
-        previous + 25
-    );
+    setEngineeringXP((previous) => previous + 25);
+
+    if (isSmartRobot) {
+      speak(
+        'Design passes the basic engineering check. Bonus: your robot can sense, think, and act!',
+      );
+    } else {
+      speak('Design passes the basic engineering check.');
+    }
 
     setMode('validate');
   };
@@ -333,24 +305,18 @@ export const RobotDesigner: React.FC = () => {
     setFeedback('idle');
     setEngineeringXP(0);
     setMode('build');
+
+    speak("Let's design a new robot!");
   };
 
   /* =======================================================
      PROGRESS
      ======================================================= */
 
-  const systemComponents = [
-    hasBody,
-    hasBrain,
-    hasPower,
-    hasActuator,
-  ];
+  const systemComponents = [hasBody, hasBrain, hasPower, hasActuator];
 
   const systemProgress =
-    (systemComponents.filter(Boolean)
-      .length /
-      systemComponents.length) *
-    100;
+    (systemComponents.filter(Boolean).length / systemComponents.length) * 100;
 
   /* =======================================================
      COMPLETION
@@ -360,14 +326,8 @@ export const RobotDesigner: React.FC = () => {
     return (
       <div className="max-w-3xl mx-auto">
         <motion.div
-          initial={{
-            opacity: 0,
-            scale: 0.94,
-          }}
-          animate={{
-            opacity: 1,
-            scale: 1,
-          }}
+          initial={{ opacity: 0, scale: 0.94 }}
+          animate={{ opacity: 1, scale: 1 }}
           className="bg-app-card border border-app-border rounded-3xl p-8 text-center shadow-2xl"
         >
           <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-emerald-500/10 flex items-center justify-center">
@@ -379,46 +339,29 @@ export const RobotDesigner: React.FC = () => {
           </h2>
 
           <p className="text-gray-400 max-w-xl mx-auto mb-8">
-            You designed a functioning robotic system
-            by combining structure, power, processing
-            and movement.
+            You designed a functioning robotic system by combining structure,
+            power, processing and movement.
           </p>
 
           <div className="grid grid-cols-3 gap-3 mb-8">
             <div className="bg-gray-900 rounded-2xl p-4">
               <Brain className="w-6 h-6 mx-auto mb-2 text-cyan-400" />
-
-              <p className="text-2xl font-bold text-white">
-                {engineeringXP}
-              </p>
-
-              <p className="text-xs text-gray-500">
-                Engineering XP
-              </p>
+              <p className="text-2xl font-bold text-white">{engineeringXP}</p>
+              <p className="text-xs text-gray-500">Engineering XP</p>
             </div>
 
             <div className="bg-gray-900 rounded-2xl p-4">
               <Wrench className="w-6 h-6 mx-auto mb-2 text-amber-400" />
-
               <p className="text-2xl font-bold text-white">
                 {selectedParts.length}
               </p>
-
-              <p className="text-xs text-gray-500">
-                Parts
-              </p>
+              <p className="text-xs text-gray-500">Parts</p>
             </div>
 
             <div className="bg-gray-900 rounded-2xl p-4">
               <Zap className="w-6 h-6 mx-auto mb-2 text-emerald-400" />
-
-              <p className="text-2xl font-bold text-white">
-                ${totalCost}
-              </p>
-
-              <p className="text-xs text-gray-500">
-                Build Cost
-              </p>
+              <p className="text-2xl font-bold text-white">${totalCost}</p>
+              <p className="text-xs text-gray-500">Build Cost</p>
             </div>
           </div>
 
@@ -440,40 +383,46 @@ export const RobotDesigner: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto text-white">
       {/* HEADER */}
-
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">
             <Wrench className="w-7 h-7 text-cyan-400" />
-
-            <h2 className="text-2xl font-bold">
-              Robot Designer
-            </h2>
+            <h2 className="text-2xl font-bold">Robot Designer</h2>
           </div>
 
           <p className="text-sm text-gray-400 mt-1">
-            Build a robot by understanding how its
-            components work together.
+            Build a robot by understanding how its components work together.
           </p>
         </div>
 
-        <button
-          onClick={resetDesigner}
-          aria-label="Reset robot design"
-          className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+
+          <button
+            onClick={resetDesigner}
+            aria-label="Reset robot design"
+            className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* ENGINEERING PROGRESS */}
-
       <div className="mb-6">
         <div className="flex justify-between text-xs mb-2">
-          <span className="text-gray-400">
-            System Completion
-          </span>
-
+          <span className="text-gray-400">System Completion</span>
           <span className="text-cyan-400 font-bold">
             {Math.round(systemProgress)}%
           </span>
@@ -482,113 +431,71 @@ export const RobotDesigner: React.FC = () => {
         <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
           <motion.div
             className="h-full bg-cyan-500"
-            animate={{
-              width: `${systemProgress}%`,
-            }}
+            animate={{ width: `${systemProgress}%` }}
           />
         </div>
       </div>
 
       {/* BUILD STATUS */}
-
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-6">
-        <StatusCard
-          label="Body"
-          complete={hasBody}
-        />
-
-        <StatusCard
-          label="Brain"
-          complete={hasBrain}
-        />
-
-        <StatusCard
-          label="Power"
-          complete={hasPower}
-        />
-
-        <StatusCard
-          label="Movement"
-          complete={hasActuator}
-        />
-
-        <StatusCard
-          label="Sensing"
-          complete={hasSensor}
-        />
+        <StatusCard label="Body" complete={hasBody} />
+        <StatusCard label="Brain" complete={hasBrain} />
+        <StatusCard label="Power" complete={hasPower} />
+        <StatusCard label="Movement" complete={hasActuator} />
+        <StatusCard label="Sensing" complete={hasSensor} />
       </div>
 
       {/* MODE NAVIGATION */}
-
       <div className="grid grid-cols-3 gap-2 mb-6">
         <ModeButton
           active={mode === 'build'}
-          onClick={() =>
-            setMode('build')
-          }
+          onClick={() => {
+            setMode('build');
+            speak('Build mode. Select components for your robot.');
+          }}
           label="Build"
         />
 
         <ModeButton
           active={mode === 'inspect'}
-          onClick={() =>
-            setMode('inspect')
-          }
+          onClick={() => {
+            setMode('inspect');
+            speak('Inspect mode.');
+          }}
           label="Inspect"
         />
 
         <ModeButton
-          active={
-            mode === 'validate'
-          }
-          onClick={() =>
-            setMode('validate')
-          }
+          active={mode === 'validate'}
+          onClick={() => {
+            setMode('validate');
+          }}
           label="Test Design"
         />
       </div>
 
       <AnimatePresence mode="wait">
-        {/* =================================================
-            BUILD
-        ================================================= */}
-
+        {/* BUILD */}
         {mode === 'build' && (
           <motion.div
             key="build"
-            initial={{
-              opacity: 0,
-              y: 10,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-            exit={{
-              opacity: 0,
-              y: -10,
-            }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
           >
             <div className="grid lg:grid-cols-[1.35fr_1fr] gap-5">
               {/* PART LIBRARY */}
-
               <div className="bg-app-card border border-app-border rounded-3xl p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="font-bold">
-                      Component Library
-                    </h3>
-
+                    <h3 className="font-bold">Component Library</h3>
                     <p className="text-xs text-gray-500 mt-1">
                       Select components for your robot.
                     </p>
                   </div>
 
                   <div className="text-right">
-                    <p className="text-xs text-gray-500">
-                      Budget
-                    </p>
-
+                    <p className="text-xs text-gray-500">Budget</p>
                     <p
                       className={`font-bold ${
                         remainingBudget < 0
@@ -602,67 +509,44 @@ export const RobotDesigner: React.FC = () => {
                 </div>
 
                 {/* CATEGORIES */}
-
                 <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-                  {CATEGORIES.map(
-                    (category) => (
-                      <button
-                        key={category.id}
-                        onClick={() =>
-                          setActiveCategory(
-                            category.id
-                          )
-                        }
-                        className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition ${
-                          activeCategory ===
-                          category.id
-                            ? 'bg-cyan-500 text-slate-950'
-                            : 'bg-gray-900 text-gray-400 hover:bg-gray-800'
-                        }`}
-                      >
-                        {category.icon}
-                        {category.label}
-                      </button>
-                    )
-                  )}
+                  {CATEGORIES.map((category) => (
+                    <button
+                      key={category.id}
+                      onClick={() => setActiveCategory(category.id)}
+                      className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                        activeCategory === category.id
+                          ? 'bg-cyan-500 text-slate-950'
+                          : 'bg-gray-900 text-gray-400 hover:bg-gray-800'
+                      }`}
+                    >
+                      {category.icon}
+                      {category.label}
+                    </button>
+                  ))}
                 </div>
 
                 {/* CATEGORY DESCRIPTION */}
-
                 <div className="p-3 rounded-xl bg-cyan-500/5 border border-cyan-500/10 mb-4">
                   <p className="text-xs text-cyan-300">
                     {
                       CATEGORIES.find(
-                        (category) =>
-                          category.id ===
-                          activeCategory
+                        (category) => category.id === activeCategory
                       )?.description
                     }
                   </p>
                 </div>
 
                 {/* PARTS */}
-
                 <div className="grid grid-cols-2 gap-3 max-h-[520px] overflow-y-auto pr-1">
-                  {getCategoryParts(
-                    activeCategory
-                  ).map((part) => {
-                    const selected =
-                      selectedParts.includes(
-                        part.id
-                      );
-
-                    const affordable =
-                      totalCost +
-                        part.cost <=
-                      BUDGET;
+                  {getCategoryParts(activeCategory).map((part) => {
+                    const selected = selectedParts.includes(part.id);
+                    const affordable = totalCost + part.cost <= BUDGET;
 
                     return (
                       <motion.div
                         key={part.id}
-                        whileHover={{
-                          y: -2,
-                        }}
+                        whileHover={{ y: -2 }}
                         className={`rounded-2xl border p-4 transition ${
                           selected
                             ? 'border-emerald-500/50 bg-emerald-500/5'
@@ -671,11 +555,7 @@ export const RobotDesigner: React.FC = () => {
                       >
                         <div className="flex items-start justify-between">
                           <button
-                            onClick={() =>
-                              inspectPart(
-                                part
-                              )
-                            }
+                            onClick={() => inspectPart(part)}
                             className="text-4xl hover:scale-105 transition"
                             aria-label={`Inspect ${part.name}`}
                           >
@@ -688,21 +568,12 @@ export const RobotDesigner: React.FC = () => {
                         </div>
 
                         <button
-                          onClick={() =>
-                            inspectPart(
-                              part
-                            )
-                          }
+                          onClick={() => inspectPart(part)}
                           className="text-left mt-3"
                         >
-                          <p className="text-sm font-bold">
-                            {part.name}
-                          </p>
-
+                          <p className="text-sm font-bold">{part.name}</p>
                           <p className="text-xs text-gray-500 mt-1">
-                            {getPartTypeLabel(
-                              part.type
-                            )}
+                            {getPartTypeLabel(part.type)}
                           </p>
                         </button>
 
@@ -713,31 +584,22 @@ export const RobotDesigner: React.FC = () => {
 
                           <button
                             onClick={() =>
-                              selected
-                                ? removePart(
-                                    part.id
-                                  )
-                                : addPart(
-                                    part
-                                  )
+                              selected ? removePart(part.id) : addPart(part)
                             }
-                            disabled={
-                              !selected &&
-                              !affordable
-                            }
+                            disabled={!selected && !affordable}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
                               selected
                                 ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
                                 : affordable
-                                ? 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
-                                : 'bg-gray-800 text-gray-600'
+                                  ? 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
+                                  : 'bg-gray-800 text-gray-600'
                             }`}
                           >
                             {selected
                               ? 'Remove'
                               : affordable
-                              ? 'Add'
-                              : 'Too Expensive'}
+                                ? 'Add'
+                                : 'Too Expensive'}
                           </button>
                         </div>
                       </motion.div>
@@ -745,17 +607,14 @@ export const RobotDesigner: React.FC = () => {
                   })}
                 </div>
 
-                {feedback ===
-                  'error' && (
+                {feedback === 'error' && (
                   <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
                     <p className="text-sm text-amber-400 font-bold">
-                      🔧 Your design needs another
-                      component.
+                      🔧 Your design needs another component.
                     </p>
 
                     <p className="text-xs text-gray-400 mt-1">
-                      A functioning robot needs
-                      structure, power, processing
+                      A functioning robot needs structure, power, processing
                       and a way to act.
                     </p>
                   </div>
@@ -763,15 +622,11 @@ export const RobotDesigner: React.FC = () => {
               </div>
 
               {/* ROBOT ASSEMBLY */}
-
               <div className="space-y-5">
                 <div className="bg-app-card border border-app-border rounded-3xl p-5">
                   <div className="flex justify-between items-center mb-4">
                     <div>
-                      <h3 className="font-bold">
-                        Your Robot
-                      </h3>
-
+                      <h3 className="font-bold">Your Robot</h3>
                       <p className="text-xs text-gray-500 mt-1">
                         Assemble the system.
                       </p>
@@ -783,70 +638,46 @@ export const RobotDesigner: React.FC = () => {
                   </div>
 
                   <div className="min-h-[240px] rounded-2xl bg-gray-950 border border-gray-800 p-6">
-                    {selectedPartObjects.length ===
-                    0 ? (
+                    {selectedPartObjects.length === 0 ? (
                       <div className="h-full min-h-[200px] flex items-center justify-center text-center">
                         <div>
-                          <div className="text-6xl mb-4">
-                            🤖
-                          </div>
-
+                          <div className="text-6xl mb-4">🤖</div>
                           <p className="text-sm text-gray-500">
-                            Your robot is waiting
-                            for components.
+                            Your robot is waiting for components.
                           </p>
                         </div>
                       </div>
                     ) : (
                       <div className="flex flex-wrap justify-center gap-4">
-                        {selectedPartObjects.map(
-                          (part) => (
-                            <motion.button
-                              key={part.id}
-                              initial={{
-                                scale: 0,
-                                opacity: 0,
-                              }}
-                              animate={{
-                                scale: 1,
-                                opacity: 1,
-                              }}
-                              whileHover={{
-                                scale: 1.08,
-                              }}
-                              onClick={() =>
-                                inspectPart(
-                                  part
-                                )
-                              }
-                              className="group relative"
-                              title={`Inspect ${part.name}`}
-                            >
-                              <div className="text-5xl">
-                                {part.emoji}
-                              </div>
+                        {selectedPartObjects.map((part) => (
+                          <motion.button
+                            key={part.id}
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            whileHover={{ scale: 1.08 }}
+                            onClick={() => inspectPart(part)}
+                            className="group relative"
+                            title={`Inspect ${part.name}`}
+                          >
+                            <div className="text-5xl">{part.emoji}</div>
 
-                              <div className="absolute -bottom-1 -right-1 opacity-0 group-hover:opacity-100 transition">
-                                <HelpCircle className="w-4 h-4 text-cyan-400" />
-                              </div>
-                            </motion.button>
-                          )
-                        )}
+                            <div className="absolute -bottom-1 -right-1 opacity-0 group-hover:opacity-100 transition">
+                              <HelpCircle className="w-4 h-4 text-cyan-400" />
+                            </div>
+                          </motion.button>
+                        ))}
                       </div>
                     )}
                   </div>
 
                   {/* BUDGET */}
-
                   <div className="mt-4">
                     <div className="flex justify-between text-xs mb-2">
                       <span className="text-gray-500">
                         Engineering budget
                       </span>
-
                       <span className="text-cyan-400">
-                        ${remainingBudget}{' '}
-                        remaining
+                        ${remainingBudget} remaining
                       </span>
                     </div>
 
@@ -855,9 +686,7 @@ export const RobotDesigner: React.FC = () => {
                         className="h-full bg-cyan-500"
                         animate={{
                           width: `${Math.min(
-                            (totalCost /
-                              BUDGET) *
-                              100,
+                            (totalCost / BUDGET) * 100,
                             100
                           )}%`,
                         }}
@@ -875,7 +704,6 @@ export const RobotDesigner: React.FC = () => {
                 </div>
 
                 {/* SYSTEM MODEL */}
-
                 <SystemModel
                   canSense={canSense}
                   canThink={canThink}
@@ -886,37 +714,24 @@ export const RobotDesigner: React.FC = () => {
           </motion.div>
         )}
 
-        {/* =================================================
-            INSPECT
-        ================================================= */}
-
+        {/* INSPECT */}
         {mode === 'inspect' && (
           <motion.div
             key="inspect"
-            initial={{
-              opacity: 0,
-              y: 10,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
             className="bg-app-card border border-app-border rounded-3xl p-6"
           >
             {inspectedPart ? (
               <div className="grid md:grid-cols-[180px_1fr] gap-6">
                 <div className="rounded-2xl bg-gray-950 border border-gray-800 flex items-center justify-center min-h-[180px]">
-                  <div className="text-8xl">
-                    {inspectedPart.emoji}
-                  </div>
+                  <div className="text-8xl">{inspectedPart.emoji}</div>
                 </div>
 
                 <div>
                   <div className="flex items-center gap-3 mb-2">
                     <span className="text-xs uppercase tracking-wider text-cyan-400 font-bold">
-                      {getPartTypeLabel(
-                        inspectedPart.type
-                      )}
+                      {getPartTypeLabel(inspectedPart.type)}
                     </span>
 
                     <span className="text-xs text-gray-500">
@@ -929,39 +744,26 @@ export const RobotDesigner: React.FC = () => {
                   </h3>
 
                   <p className="text-gray-300 leading-7 mb-5">
-                    {
-                      inspectedPart.childDescription
-                    }
+                    {inspectedPart.childDescription}
                   </p>
 
                   <div className="grid md:grid-cols-2 gap-3 mb-5">
                     <InfoBox
                       title="What it does"
-                      text={
-                        inspectedPart.technicalDescription
-                      }
+                      text={inspectedPart.technicalDescription}
                     />
 
                     <InfoBox
                       title="Robot function"
-                      text={
-                        inspectedPart.function
-                      }
+                      text={inspectedPart.function}
                     />
 
                     <InfoBox
                       title="Vocabulary"
-                      text={inspectedPart.vocabulary.join(
-                        ', '
-                      )}
+                      text={inspectedPart.vocabulary.join(', ')}
                     />
 
-                    <InfoBox
-                      title="Reality"
-                      text={
-                        inspectedPart.reality
-                      }
-                    />
+                    <InfoBox title="Reality" text={inspectedPart.reality} />
                   </div>
 
                   {inspectedPart.question && (
@@ -971,11 +773,7 @@ export const RobotDesigner: React.FC = () => {
                       </p>
 
                       <p className="text-sm text-gray-300">
-                        {
-                          inspectedPart
-                            .question
-                            .prompt
-                        }
+                        {inspectedPart.question.prompt}
                       </p>
                     </div>
                   )}
@@ -983,29 +781,19 @@ export const RobotDesigner: React.FC = () => {
                   <div className="flex gap-3 mt-6">
                     <button
                       onClick={() => {
-                        addPart(
-                          inspectedPart
-                        );
+                        addPart(inspectedPart);
                         setMode('build');
                       }}
-                      disabled={
-                        selectedParts.includes(
-                          inspectedPart.id
-                        )
-                      }
+                      disabled={selectedParts.includes(inspectedPart.id)}
                       className="flex-1 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 font-bold"
                     >
-                      {selectedParts.includes(
-                        inspectedPart.id
-                      )
+                      {selectedParts.includes(inspectedPart.id)
                         ? 'Already Added'
                         : 'Add to Robot'}
                     </button>
 
                     <button
-                      onClick={() =>
-                        setMode('build')
-                      }
+                      onClick={() => setMode('build')}
                       className="px-5 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-bold"
                     >
                       Back
@@ -1022,9 +810,7 @@ export const RobotDesigner: React.FC = () => {
                 </p>
 
                 <button
-                  onClick={() =>
-                    setMode('build')
-                  }
+                  onClick={() => setMode('build')}
                   className="mt-5 px-5 py-3 rounded-xl bg-cyan-600 font-bold"
                 >
                   Browse Components
@@ -1034,21 +820,12 @@ export const RobotDesigner: React.FC = () => {
           </motion.div>
         )}
 
-        {/* =================================================
-            VALIDATE
-        ================================================= */}
-
+        {/* VALIDATE */}
         {mode === 'validate' && (
           <motion.div
             key="validate"
-            initial={{
-              opacity: 0,
-              y: 10,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
           >
             <div className="bg-app-card border border-app-border rounded-3xl p-6">
               <div className="flex items-center gap-3 mb-6">
@@ -1058,7 +835,6 @@ export const RobotDesigner: React.FC = () => {
                   <h3 className="text-2xl font-bold">
                     Engineering Validation
                   </h3>
-
                   <p className="text-sm text-gray-400">
                     Can your robot actually function?
                   </p>
@@ -1066,7 +842,6 @@ export const RobotDesigner: React.FC = () => {
               </div>
 
               {/* SYSTEM CHECKS */}
-
               <div className="space-y-3 mb-6">
                 <Requirement
                   label="Robot has a body"
@@ -1101,7 +876,6 @@ export const RobotDesigner: React.FC = () => {
               </div>
 
               {/* SENSE THINK ACT */}
-
               <SystemModel
                 canSense={canSense}
                 canThink={canThink}
@@ -1109,32 +883,31 @@ export const RobotDesigner: React.FC = () => {
               />
 
               {/* FEEDBACK */}
-
               {feedback === 'success' ? (
                 <div className="mt-6 p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
                   <div className="flex items-center gap-2 text-emerald-400 font-bold">
                     <CheckCircle className="w-5 h-5" />
-
-                    Design passes the basic
-                    engineering check.
+                    Design passes the basic engineering check.
                   </div>
 
                   <p className="text-sm text-gray-400 mt-2">
-                    Your robot has the essential
-                    components required for movement.
+                    Your robot has the essential components required for
+                    movement.
                   </p>
 
                   {isSmartRobot && (
                     <p className="text-sm text-cyan-400 mt-3 font-semibold">
-                      ⭐ Bonus: Your robot can
-                      Sense → Think → Act.
+                      ⭐ Bonus: Your robot can Sense → Think → Act.
                     </p>
                   )}
 
                   <button
-                    onClick={() =>
-                      setMode('complete')
-                    }
+                    onClick={() => {
+                      setMode('complete');
+                      speak(
+                        `Robot built successfully! You earned ${engineeringXP} engineering XP.`,
+                      );
+                    }}
                     className="w-full mt-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold"
                   >
                     Complete Build
@@ -1147,14 +920,11 @@ export const RobotDesigner: React.FC = () => {
                   </p>
 
                   <p className="text-sm text-gray-400 mt-2">
-                    Check the missing requirements above,
-                    then return to Build.
+                    Check the missing requirements above, then return to Build.
                   </p>
 
                   <button
-                    onClick={() =>
-                      setMode('build')
-                    }
+                    onClick={() => setMode('build')}
                     className="w-full mt-5 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold"
                   >
                     Improve Robot
@@ -1163,23 +933,16 @@ export const RobotDesigner: React.FC = () => {
               )}
 
               {/* ROBOT SUMMARY */}
-
               <div className="mt-6 p-4 rounded-2xl bg-gray-950 border border-gray-800">
                 <div className="flex justify-between">
-                  <span className="text-xs text-gray-500">
-                    Components
-                  </span>
-
+                  <span className="text-xs text-gray-500">Components</span>
                   <span className="text-sm font-bold">
                     {selectedParts.length}
                   </span>
                 </div>
 
                 <div className="flex justify-between mt-2">
-                  <span className="text-xs text-gray-500">
-                    Build cost
-                  </span>
-
+                  <span className="text-xs text-gray-500">Build cost</span>
                   <span className="text-sm font-bold text-cyan-400">
                     ${totalCost}
                   </span>
@@ -1189,7 +952,6 @@ export const RobotDesigner: React.FC = () => {
                   <span className="text-xs text-gray-500">
                     Remaining budget
                   </span>
-
                   <span className="text-sm font-bold text-emerald-400">
                     ${remainingBudget}
                   </span>
@@ -1212,10 +974,7 @@ interface StatusCardProps {
   complete: boolean;
 }
 
-const StatusCard: React.FC<StatusCardProps> = ({
-  label,
-  complete,
-}) => {
+const StatusCard: React.FC<StatusCardProps> = ({ label, complete }) => {
   return (
     <div
       className={`rounded-xl border p-3 flex items-center gap-2 ${
@@ -1232,9 +991,7 @@ const StatusCard: React.FC<StatusCardProps> = ({
 
       <span
         className={`text-xs font-semibold ${
-          complete
-            ? 'text-emerald-400'
-            : 'text-gray-500'
+          complete ? 'text-emerald-400' : 'text-gray-500'
         }`}
       >
         {label}
@@ -1253,11 +1010,7 @@ interface ModeButtonProps {
   label: string;
 }
 
-const ModeButton: React.FC<ModeButtonProps> = ({
-  active,
-  onClick,
-  label,
-}) => {
+const ModeButton: React.FC<ModeButtonProps> = ({ active, onClick, label }) => {
   return (
     <button
       onClick={onClick}
@@ -1281,19 +1034,11 @@ interface InfoBoxProps {
   text: string;
 }
 
-const InfoBox: React.FC<InfoBoxProps> = ({
-  title,
-  text,
-}) => {
+const InfoBox: React.FC<InfoBoxProps> = ({ title, text }) => {
   return (
     <div className="bg-gray-950 border border-gray-800 rounded-xl p-3">
-      <p className="text-xs text-cyan-400 font-bold mb-1">
-        {title}
-      </p>
-
-      <p className="text-xs text-gray-400">
-        {text}
-      </p>
+      <p className="text-xs text-cyan-400 font-bold mb-1">{title}</p>
+      <p className="text-xs text-gray-400">{text}</p>
     </div>
   );
 };
@@ -1309,9 +1054,7 @@ interface RequirementProps {
   optional?: boolean;
 }
 
-const Requirement: React.FC<
-  RequirementProps
-> = ({
+const Requirement: React.FC<RequirementProps> = ({
   label,
   description,
   complete,
@@ -1323,15 +1066,13 @@ const Requirement: React.FC<
         complete
           ? 'border-emerald-500/20 bg-emerald-500/5'
           : optional
-          ? 'border-gray-800 bg-gray-900'
-          : 'border-amber-500/20 bg-amber-500/5'
+            ? 'border-gray-800 bg-gray-900'
+            : 'border-amber-500/20 bg-amber-500/5'
       }`}
     >
       <div
         className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-          complete
-            ? 'bg-emerald-500/10'
-            : 'bg-gray-800'
+          complete ? 'bg-emerald-500/10' : 'bg-gray-800'
         }`}
       >
         {complete ? (
@@ -1343,9 +1084,7 @@ const Requirement: React.FC<
 
       <div className="flex-1">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-bold">
-            {label}
-          </p>
+          <p className="text-sm font-bold">{label}</p>
 
           {optional && (
             <span className="text-[10px] uppercase tracking-wider text-gray-600">
@@ -1354,9 +1093,7 @@ const Requirement: React.FC<
           )}
         </div>
 
-        <p className="text-xs text-gray-500 mt-1">
-          {description}
-        </p>
+        <p className="text-xs text-gray-500 mt-1">{description}</p>
       </div>
     </div>
   );
@@ -1372,9 +1109,7 @@ interface SystemModelProps {
   canAct: boolean;
 }
 
-const SystemModel: React.FC<
-  SystemModelProps
-> = ({
+const SystemModel: React.FC<SystemModelProps> = ({
   canSense,
   canThink,
   canAct,
@@ -1385,13 +1120,8 @@ const SystemModel: React.FC<
         <Lightbulb className="w-5 h-5 text-yellow-400" />
 
         <div>
-          <h3 className="font-bold">
-            Robot Intelligence
-          </h3>
-
-          <p className="text-xs text-gray-500">
-            Sense → Think → Act
-          </p>
+          <h3 className="font-bold">Robot Intelligence</h3>
+          <p className="text-xs text-gray-500">Sense → Think → Act</p>
         </div>
       </div>
 
@@ -1432,9 +1162,7 @@ interface SystemStepProps {
   complete: boolean;
 }
 
-const SystemStep: React.FC<
-  SystemStepProps
-> = ({
+const SystemStep: React.FC<SystemStepProps> = ({
   icon,
   label,
   description,
@@ -1460,17 +1188,13 @@ const SystemStep: React.FC<
 
       <p
         className={`text-xs font-bold ${
-          complete
-            ? 'text-emerald-400'
-            : 'text-gray-500'
+          complete ? 'text-emerald-400' : 'text-gray-500'
         }`}
       >
         {label}
       </p>
 
-      <p className="text-[10px] text-gray-600 mt-1">
-        {description}
-      </p>
+      <p className="text-[10px] text-gray-600 mt-1">{description}</p>
     </div>
   );
 };

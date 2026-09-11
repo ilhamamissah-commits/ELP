@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   CheckCircle,
@@ -8,7 +8,12 @@ import {
   Ruler,
   Lightbulb,
   ArrowRight,
+  Volume2,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type ActivityStage =
   | 'observe'
@@ -56,6 +61,12 @@ const STAGE_LABELS: Record<ActivityStage, string> = {
 };
 
 export const RedRods: React.FC = () => {
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [stage, setStage] = useState<ActivityStage>('observe');
   const [selectedRods, setSelectedRods] = useState<number[]>([]);
   const [placed, setPlaced] = useState<number[]>([]);
@@ -64,6 +75,83 @@ export const RedRods: React.FC = () => {
 
   const stageIndex = STAGES.indexOf(stage);
 
+  /* =======================================================
+     AUTO-READ — stage prompts
+     Skipped on 'complete' (has its own effect below).
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage === 'complete') return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          'Observe the rods. The Red Rods are the same thickness, but they are different lengths. Look carefully at how far each rod reaches.'
+        );
+      } else if (stage === 'compare') {
+        speak(
+          'Compare two rods. Choose two rods and look carefully at their ends. Which rod is longer?'
+        );
+      } else if (stage === 'order') {
+        speak(
+          'Think about length. The rods can be arranged in a sequence. Start with the longest and finish with the shortest.'
+        );
+      } else if (stage === 'build') {
+        speak(
+          'Build the sequence. Choose the longest remaining rod, then continue with shorter rods.'
+        );
+      } else if (stage === 'check') {
+        speak(
+          'Check your sequence. Look from the longest rod to the shortest. Does each rod become shorter?'
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, autoReadEnabled, speak]);
+
+  /* =======================================================
+     FEEDBACK NARRATION
+     Every non-empty feedback message is spoken. This covers
+     the specific comparison result, correct/wrong
+     placements, and the check-stage verdict.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!feedback) return;
+
+    speak(feedback);
+  }, [feedback, speak]);
+
+  /* =======================================================
+     COMPLETION NARRATION — fires once on stage === 'complete'
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'complete') return;
+
+    if (soundEnabled) playSoundFeedback('correct');
+
+    speak(
+      'Excellent observation. You compared the rods by length and ordered them from longest to shortest.'
+    );
+  }, [stage, speak, soundEnabled]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const nextStage = () => {
     const nextIndex = stageIndex + 1;
 
@@ -71,10 +159,12 @@ export const RedRods: React.FC = () => {
       setStage(STAGES[nextIndex]);
       setSelectedRods([]);
       setFeedback('');
+      if (soundEnabled) playSoundFeedback('move');
     }
   };
 
   const reset = () => {
+    stopSpeaking();
     setStage('observe');
     setSelectedRods([]);
     setPlaced([]);
@@ -83,6 +173,8 @@ export const RedRods: React.FC = () => {
   };
 
   const handleSelectRod = (id: number) => {
+    if (soundEnabled) playSoundFeedback('move');
+
     if (selectedRods.includes(id)) {
       setSelectedRods(
         selectedRods.filter((rodId) => rodId !== id)
@@ -100,6 +192,7 @@ export const RedRods: React.FC = () => {
 
   const handleCompare = () => {
     if (selectedRods.length !== 2) {
+      if (soundEnabled) playSoundFeedback('try-again');
       setFeedback('Choose two rods to compare their lengths.');
       return;
     }
@@ -110,6 +203,8 @@ export const RedRods: React.FC = () => {
     if (!first || !second) return;
 
     setAttempts((value) => value + 1);
+
+    if (soundEnabled) playSoundFeedback('move');
 
     if (first.length > second.length) {
       setFeedback(
@@ -129,11 +224,13 @@ export const RedRods: React.FC = () => {
 
     if (placed.length === 0) {
       if (id === 10) {
+        if (soundEnabled) playSoundFeedback('move');
         setPlaced([id]);
         setFeedback(
           'Excellent. The longest rod starts the sequence.'
         );
       } else {
+        if (soundEnabled) playSoundFeedback('try-again');
         setFeedback(
           'Look carefully. Which rod is the longest?'
         );
@@ -145,11 +242,13 @@ export const RedRods: React.FC = () => {
     const lastPlaced = placed[placed.length - 1];
 
     if (id < lastPlaced) {
+      if (soundEnabled) playSoundFeedback('move');
       setPlaced([...placed, id]);
       setFeedback(
         'Good comparison. The next rod is shorter.'
       );
     } else {
+      if (soundEnabled) playSoundFeedback('try-again');
       setFeedback(
         'Compare the rods again. Choose one that is shorter than the last rod.'
       );
@@ -170,6 +269,7 @@ export const RedRods: React.FC = () => {
         'The rods are ordered correctly from longest to shortest.'
       );
     } else {
+      if (soundEnabled) playSoundFeedback('try-again');
       setFeedback(
         'Look from the longest rod to the shortest. Each rod should become shorter.'
       );
@@ -244,14 +344,27 @@ export const RedRods: React.FC = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={reset}
-            className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition"
-            aria-label="Reset Red Rods"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={reset}
+              className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition"
+              aria-label="Reset Red Rods"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Learning progression */}

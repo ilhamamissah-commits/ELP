@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
@@ -7,7 +7,12 @@ import {
   Palette,
   RotateCcw,
   Sparkles,
+  Volume2,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type ColorId =
   | 'red'
@@ -94,6 +99,12 @@ const STAGE_LABELS: Record<ActivityStage, string> = {
 };
 
 export const ColorTablets: React.FC = () => {
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [stage, setStage] = useState<ActivityStage>('observe');
   const [revealed, setRevealed] = useState<ColorId[]>([]);
   const [matched, setMatched] = useState<ColorId[]>([]);
@@ -112,7 +123,92 @@ export const ColorTablets: React.FC = () => {
 
   const target = COLORS.find((color) => color.id === targetColor);
 
+  /* =======================================================
+     AUTO-READ — stage prompts
+     Fires on stage change. Skipped on 'complete' (has its
+     own effect). The 'match' stage has a per-question
+     prompt handled by a separate effect below.
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage === 'complete') return;
+    if (stage === 'match') return; // handled below
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          'Colors can look different from one another. Take your time and use your eyes to notice the differences.'
+        );
+      } else if (stage === 'identify') {
+        speak(
+          'Discover the color names. Tap a tablet to reveal its name. Look at the color before reading the word.'
+        );
+      } else if (stage === 'discriminate') {
+        speak(
+          'Look and discriminate. Now look at all the colors together. Notice how each one is different.'
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, autoReadEnabled, speak]);
+
+  /* =======================================================
+     AUTO-READ — match prompt whenever the target changes
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage !== 'match') return;
+    if (!target) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        'Find the tablet that is the same color as the one shown.'
+      );
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, targetColor, target, autoReadEnabled, speak]);
+
+  /* =======================================================
+     COMPLETION NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'complete') return;
+
+    if (soundEnabled) playSoundFeedback('correct');
+
+    speak(
+      'Color exploration complete. You explored, identified, matched, and compared different colors. Your eyes helped you notice differences and similarities between colors.'
+    );
+  }, [stage, speak, soundEnabled]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const handleReveal = (id: ColorId) => {
+    if (soundEnabled) playSoundFeedback('move');
+
+    const color = COLORS.find((c) => c.id === id);
+    if (!color) return;
+
+    // Speak the color name on reveal — this is the identification step.
+    speak(color.name);
+
     if (!revealed.includes(id)) {
       setRevealed((current) => [...current, id]);
     }
@@ -127,6 +223,8 @@ export const ColorTablets: React.FC = () => {
       COLORS.find((color) => !matched.includes(color.id)) ?? COLORS[0];
 
     setTargetColor(firstUnmatched.id);
+
+    if (soundEnabled) playSoundFeedback('move');
   };
 
   const selectMatch = (id: ColorId) => {
@@ -136,9 +234,16 @@ export const ColorTablets: React.FC = () => {
     setAttempts((current) => current + 1);
 
     if (id === targetColor) {
+      if (soundEnabled) playSoundFeedback('correct');
+
       setFeedback('That matches! You noticed the same color.');
       setMatched((current) =>
         current.includes(id) ? current : [...current, id]
+      );
+
+      const matchedColor = COLORS.find((c) => c.id === id);
+      speak(
+        `That matches! ${matchedColor ? matchedColor.name + '.' : ''} You noticed the same color.`
       );
 
       setTimeout(() => {
@@ -157,10 +262,23 @@ export const ColorTablets: React.FC = () => {
         setTargetColor(nextUnmatched.id);
         setSelectedColor(null);
         setFeedback(null);
-      }, 900);
+      }, 2200);
     } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+
+      const chosenColor = COLORS.find((c) => c.id === id);
+      const targetColorData = COLORS.find((c) => c.id === targetColor);
+
       setFeedback(
         'Look carefully at the two colors. Are they exactly the same?'
+      );
+
+      speak(
+        `Not quite. You chose ${
+          chosenColor ? chosenColor.name.toLowerCase() : 'a color'
+        }. Look for ${
+          targetColorData ? targetColorData.name.toLowerCase() : 'the matching color'
+        }.`
       );
     }
   };
@@ -170,6 +288,8 @@ export const ColorTablets: React.FC = () => {
   };
 
   const reset = () => {
+    stopSpeaking();
+
     setStage('observe');
     setRevealed([]);
     setMatched([]);
@@ -178,6 +298,10 @@ export const ColorTablets: React.FC = () => {
     setFeedback(null);
     setAttempts(0);
   };
+
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
     <div className="max-w-3xl mx-auto bg-app-card p-5 md:p-7 rounded-3xl border border-app-border shadow-xl">
@@ -199,13 +323,26 @@ export const ColorTablets: React.FC = () => {
           </div>
         </div>
 
-        <button
-          onClick={reset}
-          aria-label="Reset activity"
-          className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
+          </button>
+
+          <button
+            onClick={reset}
+            aria-label="Reset activity"
+            className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* PROGRESS */}
@@ -282,7 +419,7 @@ export const ColorTablets: React.FC = () => {
             onClick={() => setStage('identify')}
             className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-colors"
           >
-            I’m Ready to Explore
+            I'm Ready to Explore
             <ArrowRight className="w-4 h-4 inline ml-2" />
           </button>
         </motion.div>
@@ -347,7 +484,7 @@ export const ColorTablets: React.FC = () => {
               className="p-4 rounded-2xl bg-green-500/10 border border-green-500/20 mb-5"
             >
               <p className="text-green-300 text-sm font-semibold">
-                You explored all the colors. Now let’s practise matching
+                You explored all the colors. Now let's practise matching
                 colors that look the same.
               </p>
             </motion.div>
@@ -484,7 +621,7 @@ export const ColorTablets: React.FC = () => {
             onClick={finishDiscrimination}
             className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-colors"
           >
-            I’m Ready to Finish
+            I'm Ready to Finish
             <ArrowRight className="w-4 h-4 inline ml-2" />
           </button>
         </motion.div>

@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle, RotateCcw, Blocks } from 'lucide-react';
+import { CheckCircle, RotateCcw, Blocks, Volume2 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type PartType = 'plank' | 'pillar' | 'support';
 
@@ -31,9 +35,30 @@ export const BridgeBuilder: React.FC = () => {
   const [passed, setPassed] = useState(false);
   const [attempts, setAttempts] = useState(0);
 
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
+  /* Auto-read the challenge once on mount */
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        'Bridge Builder. Your engineering challenge: build a bridge that can safely hold 3 blocks. You need at least 3 planks, 2 pillars, and 1 support.',
+      );
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [speak, autoReadEnabled]);
+
   const handleBuild = (type: PartType) => {
     setIsTested(false);
     setPassed(false);
+
+    if (soundEnabled) playSoundFeedback('move');
 
     setBuild((previous) => {
       if (type === 'plank') {
@@ -60,6 +85,8 @@ export const BridgeBuilder: React.FC = () => {
   const handleRemove = (type: PartType) => {
     setIsTested(false);
     setPassed(false);
+
+    if (soundEnabled) playSoundFeedback('move');
 
     setBuild((previous) => {
       if (type === 'plank') {
@@ -92,6 +119,18 @@ export const BridgeBuilder: React.FC = () => {
     setPassed(success);
     setIsTested(true);
     setAttempts((previous) => previous + 1);
+
+    if (success) {
+      if (soundEnabled) playSoundFeedback('correct');
+      speak(
+        'Bridge passed! Excellent engineering. Your bridge has enough structural support to carry the challenge load. Engineers design, test, learn from failures, and improve their designs.',
+      );
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(
+        'The bridge needs improvement. Check the requirements and add the missing structural parts. Then test your design again.',
+      );
+    }
   };
 
   const handleReset = () => {
@@ -103,6 +142,8 @@ export const BridgeBuilder: React.FC = () => {
 
     setIsTested(false);
     setPassed(false);
+
+    speak('Bridge reset.');
   };
 
   const progress = Math.min(
@@ -118,20 +159,36 @@ export const BridgeBuilder: React.FC = () => {
 
   return (
     <div className="max-w-lg mx-auto bg-app-card p-6 rounded-2xl border border-app-border shadow-xl">
-      <div className="text-center mb-5">
-        <div className="flex justify-center mb-2">
-          <div className="p-3 rounded-full bg-indigo-500/10 text-indigo-400">
-            <Blocks className="w-7 h-7" />
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 mb-5">
+        <div className="flex-1 text-center">
+          <div className="flex justify-center mb-2">
+            <div className="p-3 rounded-full bg-indigo-500/10 text-indigo-400">
+              <Blocks className="w-7 h-7" />
+            </div>
           </div>
+
+          <h3 className="text-2xl font-bold text-white">
+            🌉 Bridge Builder
+          </h3>
+
+          <p className="text-gray-400 text-sm mt-1">
+            Build a strong bridge using engineering principles.
+          </p>
         </div>
 
-        <h3 className="text-2xl font-bold text-white">
-          🌉 Bridge Builder
-        </h3>
-
-        <p className="text-gray-400 text-sm mt-1">
-          Build a strong bridge using engineering principles.
-        </p>
+        <button
+          type="button"
+          onClick={toggleSound}
+          aria-label="Toggle sound"
+          className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors shrink-0"
+        >
+          <Volume2
+            className={`w-4 h-4 ${
+              soundEnabled ? 'text-amber-300' : 'text-gray-500'
+            }`}
+          />
+        </button>
       </div>
 
       <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 mb-5">
@@ -239,9 +296,7 @@ export const BridgeBuilder: React.FC = () => {
         <div className="flex items-center justify-between bg-gray-900 rounded-xl p-3">
           <div>
             <p className="text-white font-semibold">🪵 Planks</p>
-            <p className="text-gray-500 text-xs">
-              Create the bridge deck
-            </p>
+            <p className="text-gray-500 text-xs">Create the bridge deck</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -270,9 +325,7 @@ export const BridgeBuilder: React.FC = () => {
         <div className="flex items-center justify-between bg-gray-900 rounded-xl p-3">
           <div>
             <p className="text-white font-semibold">🧱 Pillars</p>
-            <p className="text-gray-500 text-xs">
-              Hold the bridge up
-            </p>
+            <p className="text-gray-500 text-xs">Hold the bridge up</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -301,9 +354,7 @@ export const BridgeBuilder: React.FC = () => {
         <div className="flex items-center justify-between bg-gray-900 rounded-xl p-3">
           <div>
             <p className="text-white font-semibold">🔩 Supports</p>
-            <p className="text-gray-500 text-xs">
-              Add extra stability
-            </p>
+            <p className="text-gray-500 text-xs">Add extra stability</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -405,9 +456,7 @@ export const BridgeBuilder: React.FC = () => {
             <>
               <div className="flex items-center justify-center gap-2 mb-2">
                 <CheckCircle className="w-5 h-5 text-green-400" />
-                <p className="font-bold text-green-400">
-                  Bridge Passed!
-                </p>
+                <p className="font-bold text-green-400">Bridge Passed!</p>
               </div>
 
               <p className="text-gray-300 text-sm">
@@ -416,8 +465,8 @@ export const BridgeBuilder: React.FC = () => {
               </p>
 
               <p className="text-gray-500 text-xs mt-2">
-                Engineers design, test, learn from failures, and improve
-                their designs.
+                Engineers design, test, learn from failures, and improve their
+                designs.
               </p>
             </>
           ) : (

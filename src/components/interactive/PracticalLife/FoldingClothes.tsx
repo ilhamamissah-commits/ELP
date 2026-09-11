@@ -5,8 +5,13 @@ import {
   CheckCircle2,
   RotateCcw,
   Sparkles,
+  Volume2,
 } from 'lucide-react';
+
 import { useProgressStore } from '../../../store/useProgressStore';
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 interface FoldingStep {
   readonly id: string;
@@ -69,9 +74,36 @@ export const FoldingClothes: React.FC = () => {
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const completeActivity = useProgressStore(
-    (state) => state.completeActivity,
-  );
+  const completeActivity = useProgressStore((state) => state.completeActivity);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
+
+  /* Auto-read the current step when it changes */
+  useEffect(() => {
+    if (!autoReadEnabled || completed) return;
+
+    const currentStep = STEPS[step];
+    if (!currentStep) return;
+
+    const timer = window.setTimeout(() => {
+      speak(`${currentStep.title}. ${currentStep.description}`);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [step, completed, speak, autoReadEnabled]);
+
+  /* Announce completion */
+  useEffect(() => {
+    if (!completed) return;
+
+    speak(
+      'Fantastic work! You completed the entire folding routine. Keeping clothes neat is an important part of caring for yourself and your environment.',
+    );
+  }, [completed, speak]);
 
   useEffect(() => {
     return () => {
@@ -83,10 +115,12 @@ export const FoldingClothes: React.FC = () => {
 
   const handleNext = (): void => {
     if (step < STEPS.length - 1) {
+      if (soundEnabled) playSoundFeedback('move');
       setStep((currentStep) => currentStep + 1);
       return;
     }
 
+    if (soundEnabled) playSoundFeedback('correct');
     setCompleted(true);
 
     completeActivity({
@@ -106,6 +140,8 @@ export const FoldingClothes: React.FC = () => {
 
     setStep(0);
     setCompleted(false);
+
+    speak("Let's practise folding clothes again!");
   };
 
   const currentStep = STEPS[step];
@@ -120,14 +156,28 @@ export const FoldingClothes: React.FC = () => {
             👕
           </span>
 
-          <h3 className="text-2xl font-bold text-white">
-            Folding Clothes
-          </h3>
+          <h3 className="text-2xl font-bold text-white">Folding Clothes</h3>
         </div>
 
         <p className="text-sm text-gray-400">
           Learn how to fold and care for your clothes neatly.
         </p>
+      </div>
+
+      {/* Mute toggle */}
+      <div className="flex justify-end px-6 pt-3">
+        <button
+          type="button"
+          onClick={toggleSound}
+          aria-label="Toggle sound"
+          className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+        >
+          <Volume2
+            className={`w-4 h-4 ${
+              soundEnabled ? 'text-amber-300' : 'text-gray-500'
+            }`}
+          />
+        </button>
       </div>
 
       {/* Progress */}
@@ -198,9 +248,8 @@ export const FoldingClothes: React.FC = () => {
             </div>
 
             <p className="mb-6 text-sm leading-6 text-gray-400">
-              You completed the entire folding routine. Keeping
-              clothes neat is an important part of caring for
-              yourself and your environment.
+              You completed the entire folding routine. Keeping clothes neat is
+              an important part of caring for yourself and your environment.
             </p>
 
             {/* Skill Evidence */}
@@ -214,8 +263,8 @@ export const FoldingClothes: React.FC = () => {
               </div>
 
               <p className="text-xs leading-5 text-gray-400">
-                Sequencing, order, coordination, clothing care,
-                and independence skills have been practiced.
+                Sequencing, order, coordination, clothing care, and
+                independence skills have been practiced.
               </p>
             </div>
 
@@ -274,9 +323,7 @@ export const FoldingClothes: React.FC = () => {
                     width: index <= step ? 28 : 8,
                   }}
                   className={`h-1.5 rounded-full ${
-                    index <= step
-                      ? 'bg-emerald-500'
-                      : 'bg-gray-700'
+                    index <= step ? 'bg-emerald-500' : 'bg-gray-700'
                   }`}
                   aria-hidden="true"
                 />

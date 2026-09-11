@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Thermometer,
@@ -10,7 +10,12 @@ import {
   CheckCircle,
   ArrowRight,
   Sparkles,
+  Volume2,
 } from 'lucide-react';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type TemperatureId = 'cold' | 'cool' | 'warm' | 'hot';
 
@@ -85,6 +90,12 @@ const STAGE_LABELS: Record<ActivityStage, string> = {
 };
 
 export const ThermicTablets: React.FC = () => {
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [stage, setStage] = useState<ActivityStage>('observe');
   const [selected, setSelected] = useState<TemperatureId | null>(null);
   const [comparePair, setComparePair] = useState<TemperatureId[]>([]);
@@ -100,15 +111,165 @@ export const ThermicTablets: React.FC = () => {
     [selected]
   );
 
+  /* =======================================================
+     AUTO-READ — stage prompts
+     Skipped on 'complete' (has its own effect below).
+  ======================================================= */
+
+  useEffect(() => {
+    if (!autoReadEnabled) return;
+    if (stage === 'complete') return;
+
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          'Look carefully at the temperature words and notice how they change from cold to hot.'
+        );
+      } else if (stage === 'identify') {
+        speak(
+          'Explore each tablet and learn the words we use to describe temperature.'
+        );
+      } else if (stage === 'compare') {
+        speak(
+          'Choose two temperatures and think about how they are different.'
+        );
+      } else if (stage === 'order') {
+        speak(
+          'Arrange the temperatures from coldest to hottest.'
+        );
+      } else if (stage === 'reflect') {
+        speak(
+          'Connect what you learned to a real temperature you have experienced.'
+        );
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, autoReadEnabled, speak]);
+
+  /* =======================================================
+     SELECTED TEMPERATURE NARRATION (identify stage)
+     Fires when the child taps a tablet and reads name +
+     description + sensory words.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'identify') return;
+    if (!selectedTemperature) return;
+
+    const timer = window.setTimeout(() => {
+      speak(
+        `${selectedTemperature.name}. ${selectedTemperature.description}`
+      );
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [selectedTemperature, stage, speak]);
+
+  /* =======================================================
+     COMPARISON RESULT NARRATION
+     When the child has selected two temperatures, read the
+     comparison (e.g. "Cold is colder than Hot").
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'compare') return;
+    if (comparePair.length !== 2) return;
+
+    const first = TEMPERATURES.find((t) => t.id === comparePair[0]);
+    const second = TEMPERATURES.find((t) => t.id === comparePair[1]);
+    if (!first || !second) return;
+    if (first.id === second.id) return;
+
+    const colder =
+      first.relativePosition < second.relativePosition ? first : second;
+    const warmer =
+      first.relativePosition > second.relativePosition ? first : second;
+
+    const timer = window.setTimeout(() => {
+      speak(`${colder.name} is colder than ${warmer.name}.`);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [comparePair, stage, speak]);
+
+  /* =======================================================
+     ORDER — success / failure narration
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'order') return;
+    if (orderAttempt.length !== TEMPERATURES.length) return;
+
+    const correctOrder = [...TEMPERATURES]
+      .sort((a, b) => a.relativePosition - b.relativePosition)
+      .map((temp) => temp.id);
+
+    const isCorrect = orderAttempt.every(
+      (value, index) => value === correctOrder[index]
+    );
+
+    if (isCorrect) {
+      if (soundEnabled) playSoundFeedback('correct');
+      speak(
+        'Correct sequence. Cold, cool, warm, hot. You ordered the temperature scale from coldest to hottest.'
+      );
+    } else {
+      if (soundEnabled) playSoundFeedback('try-again');
+      speak(
+        'Not quite. Start with the coldest and gradually move toward the hottest. The coldest is cold. The hottest is hot.'
+      );
+    }
+  }, [orderAttempt, stage, speak, soundEnabled]);
+
+  /* =======================================================
+     COMPLETION NARRATION
+     Reflection-aware, but never reads back the child's own
+     words.
+  ======================================================= */
+
+  useEffect(() => {
+    if (stage !== 'complete') return;
+
+    speak(
+      `Temperature explored. You observed temperature words, compared them, ordered them, and connected them to real-world experience. ${
+        reflection.trim()
+          ? 'Thank you for writing your reflection.'
+          : 'Think about something you have actually experienced that was cold, cool, warm or hot.'
+      }`
+    );
+  }, [stage, speak, reflection]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
+
   const goNext = () => {
     const nextIndex = currentStageIndex + 1;
 
     if (nextIndex < STAGE_ORDER.length) {
       setStage(STAGE_ORDER[nextIndex]);
+      if (soundEnabled) playSoundFeedback('move');
     }
   };
 
   const handleTemperatureSelect = (id: TemperatureId) => {
+    if (stage === 'compare' && soundEnabled) {
+      playSoundFeedback('move');
+    } else if (stage === 'identify' && soundEnabled) {
+      playSoundFeedback('move');
+    }
+
     setSelected(id);
 
     if (stage === 'identify') {
@@ -133,31 +294,23 @@ export const ThermicTablets: React.FC = () => {
   const handleOrderSelect = (id: TemperatureId) => {
     if (orderAttempt.includes(id)) return;
 
+    if (soundEnabled) playSoundFeedback('move');
+
     const nextOrder = [...orderAttempt, id];
     setOrderAttempt(nextOrder);
     setAttempts((value) => value + 1);
 
-    if (nextOrder.length === TEMPERATURES.length) {
-      const correctOrder = [...TEMPERATURES]
-        .sort((a, b) => a.relativePosition - b.relativePosition)
-        .map((temp) => temp.id);
-
-      const isCorrect = nextOrder.every(
-        (value, index) => value === correctOrder[index]
-      );
-
-      if (isCorrect) {
-        setOrderComplete(true);
-      }
-    }
+    // The order result narration fires from the effect above.
   };
 
   const resetOrder = () => {
+    stopSpeaking();
     setOrderAttempt([]);
     setOrderComplete(false);
   };
 
   const resetActivity = () => {
+    stopSpeaking();
     setStage('observe');
     setSelected(null);
     setComparePair([]);
@@ -208,13 +361,26 @@ export const ThermicTablets: React.FC = () => {
             </p>
           </div>
 
-          <button
-            onClick={resetActivity}
-            className="p-2 rounded-lg border border-app-border text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
-            aria-label="Reset activity"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={toggleSound}
+              aria-label="Toggle sound"
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              <Volume2
+                className={`w-4 h-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+              />
+            </button>
+
+            <button
+              onClick={resetActivity}
+              className="p-2 rounded-lg border border-app-border text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+              aria-label="Reset activity"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Progress */}

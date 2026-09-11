@@ -13,6 +13,7 @@ import {
   Square,
   Target,
   Trophy,
+  Volume2,
   XCircle,
 } from 'lucide-react';
 
@@ -22,7 +23,10 @@ import {
 } from './roboticsChallenges';
 
 import type { SequenceCommand } from './roboticsChallenges';
+
+import { playSoundFeedback } from '../../../services/soundFeedback';
 import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
 
 type Position = {
   x: number;
@@ -93,9 +97,7 @@ const getGridSize = (challenge: RoboticsChallenge): number => {
   return candidate.gridSize ?? DEFAULT_GRID_SIZE;
 };
 
-const getStartPosition = (
-  challenge: RoboticsChallenge
-): Position => {
+const getStartPosition = (challenge: RoboticsChallenge): Position => {
   const candidate = challenge as RoboticsChallenge & {
     robot?: Position;
     start?: Position;
@@ -104,9 +106,7 @@ const getStartPosition = (
   return candidate.robot ?? candidate.start ?? { x: 0, y: 0 };
 };
 
-const getTargetPosition = (
-  challenge: RoboticsChallenge
-): Position => {
+const getTargetPosition = (challenge: RoboticsChallenge): Position => {
   const candidate = challenge as RoboticsChallenge & {
     target?: Position;
   };
@@ -122,10 +122,7 @@ const getTargetEmoji = (challenge: RoboticsChallenge): string => {
   return candidate.targetEmoji ?? '⭐';
 };
 
-const isInsideGrid = (
-  position: Position,
-  gridSize: number
-): boolean => {
+const isInsideGrid = (position: Position, gridSize: number): boolean => {
   return (
     position.x >= 0 &&
     position.x < gridSize &&
@@ -143,8 +140,8 @@ const moveRelativeToFacing = (
 
   const deltas: Position[] = [
     { x: 0, y: -1 }, // North
-    { x: 1, y: 0 },  // East
-    { x: 0, y: 1 },  // South
+    { x: 1, y: 0 }, // East
+    { x: 0, y: 1 }, // South
     { x: -1, y: 0 }, // West
   ];
 
@@ -184,13 +181,17 @@ export const Sequencer: React.FC = () => {
 
   const [score, setScore] = useState(0);
   const [attempts, setAttempts] = useState(0);
-  const [completedChallenges, setCompletedChallenges] = useState<number[]>(
-    []
-  );
+  const [completedChallenges, setCompletedChallenges] = useState<number[]>([]);
 
   const [showHint, setShowHint] = useState(false);
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak } = useReadAloud();
 
   const challenge = ROBOTICS_CHALLENGES[challengeIndex];
 
@@ -224,6 +225,36 @@ export const Sequencer: React.FC = () => {
   }, [challengeIndex]);
 
   /*
+   * Auto-read the challenge description when a new challenge loads.
+   */
+  useEffect(() => {
+    if (!autoReadEnabled || !challenge) return;
+
+    const timer = window.setTimeout(() => {
+      speak(`${challenge.title}. ${challenge.description}`);
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [challengeIndex, challenge, speak, autoReadEnabled]);
+
+  /*
+   * Read the hint when it opens.
+   */
+  useEffect(() => {
+    if (showHint && challenge?.hint) {
+      speak(challenge.hint);
+    }
+  }, [showHint, challenge, speak]);
+
+  /*
+   * Read the failure feedback when it appears.
+   */
+  useEffect(() => {
+    if (!failed || !feedback) return;
+    speak(`Let's debug it. ${feedback}`);
+  }, [failed, feedback, speak]);
+
+  /*
    * Clean up timers.
    */
   useEffect(() => {
@@ -240,6 +271,8 @@ export const Sequencer: React.FC = () => {
   const addCommand = (command: SequenceCommand) => {
     if (isRunning || won) return;
 
+    if (soundEnabled) playSoundFeedback('move');
+
     setSequence((previous) => [...previous, command]);
     setFailed(false);
     setFeedback('');
@@ -251,6 +284,8 @@ export const Sequencer: React.FC = () => {
   const removeLastCommand = () => {
     if (isRunning || won) return;
 
+    if (soundEnabled) playSoundFeedback('move');
+
     setSequence((previous) => previous.slice(0, -1));
     setFailed(false);
     setFeedback('');
@@ -261,6 +296,9 @@ export const Sequencer: React.FC = () => {
    */
   const clearProgram = () => {
     if (isRunning) return;
+
+    if (soundEnabled) playSoundFeedback('move');
+    speak('Program cleared.');
 
     setSequence([]);
     setRobotPos(startPosition);
@@ -292,6 +330,8 @@ export const Sequencer: React.FC = () => {
           currentPosition.y === targetPosition.y;
 
         if (reachedTarget) {
+          if (soundEnabled) playSoundFeedback('correct');
+
           setWon(true);
           setIsRunning(false);
 
@@ -305,13 +345,18 @@ export const Sequencer: React.FC = () => {
             return [...previous, challenge.id];
           });
 
-          setFeedback(
+          const message =
             challenge.successMessage ||
-              'Excellent! Your robot reached its destination.'
-          );
+            'Excellent! Your robot reached its destination.';
+
+          setFeedback(message);
+
+          speak(`Mission successful! ${message}`);
 
           return;
         }
+
+        if (soundEnabled) playSoundFeedback('try-again');
 
         setFailed(true);
         setIsRunning(false);
@@ -333,10 +378,7 @@ export const Sequencer: React.FC = () => {
       if (command === 'Stop') {
         commandIndex += 1;
 
-        timeoutRef.current = setTimeout(
-          executeNext,
-          350
-        );
+        timeoutRef.current = setTimeout(executeNext, 350);
 
         return;
       }
@@ -347,10 +389,7 @@ export const Sequencer: React.FC = () => {
       if (command === 'Wait') {
         commandIndex += 1;
 
-        timeoutRef.current = setTimeout(
-          executeNext,
-          700
-        );
+        timeoutRef.current = setTimeout(executeNext, 700);
 
         return;
       }
@@ -358,23 +397,14 @@ export const Sequencer: React.FC = () => {
       /*
        * TURN
        */
-      if (
-        command === 'TurnLeft' ||
-        command === 'TurnRight'
-      ) {
-        currentFacing = calculateNextFacing(
-          currentFacing,
-          command
-        );
+      if (command === 'TurnLeft' || command === 'TurnRight') {
+        currentFacing = calculateNextFacing(currentFacing, command);
 
         setFacing(currentFacing);
 
         commandIndex += 1;
 
-        timeoutRef.current = setTimeout(
-          executeNext,
-          400
-        );
+        timeoutRef.current = setTimeout(executeNext, 400);
 
         return;
       }
@@ -382,10 +412,7 @@ export const Sequencer: React.FC = () => {
       /*
        * FORWARD / BACKWARD
        */
-      if (
-        command === 'Forward' ||
-        command === 'Backward'
-      ) {
+      if (command === 'Forward' || command === 'Backward') {
         const nextPosition = moveRelativeToFacing(
           currentPosition,
           currentFacing,
@@ -393,6 +420,8 @@ export const Sequencer: React.FC = () => {
         );
 
         if (!isInsideGrid(nextPosition, gridSize)) {
+          if (soundEnabled) playSoundFeedback('try-again');
+
           setFailed(true);
           setIsRunning(false);
 
@@ -412,20 +441,14 @@ export const Sequencer: React.FC = () => {
 
         commandIndex += 1;
 
-        timeoutRef.current = setTimeout(
-          executeNext,
-          400
-        );
+        timeoutRef.current = setTimeout(executeNext, 400);
 
         return;
       }
 
       commandIndex += 1;
 
-      timeoutRef.current = setTimeout(
-        executeNext,
-        400
-      );
+      timeoutRef.current = setTimeout(executeNext, 400);
     };
 
     executeNext();
@@ -437,10 +460,7 @@ export const Sequencer: React.FC = () => {
   const nextChallenge = () => {
     if (isRunning) return;
 
-    if (
-      challengeIndex <
-      ROBOTICS_CHALLENGES.length - 1
-    ) {
+    if (challengeIndex < ROBOTICS_CHALLENGES.length - 1) {
       setChallengeIndex((previous) => previous + 1);
       return;
     }
@@ -467,6 +487,8 @@ export const Sequencer: React.FC = () => {
   const resetChallenge = () => {
     if (isRunning) return;
 
+    if (soundEnabled) playSoundFeedback('move');
+
     setSequence([]);
     setRobotPos(startPosition);
     setFacing(0);
@@ -474,11 +496,12 @@ export const Sequencer: React.FC = () => {
     setFailed(false);
     setFeedback('');
     setShowHint(false);
+
+    speak('Challenge reset.');
   };
 
   return (
     <div className="max-w-2xl mx-auto bg-app-card p-5 md:p-7 rounded-3xl border border-app-border shadow-xl">
-
       {/* HEADER */}
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
@@ -490,31 +513,43 @@ export const Sequencer: React.FC = () => {
             </span>
           </div>
 
-          <h3 className="text-2xl font-bold text-white">
-            Robot Sequencer
-          </h3>
+          <h3 className="text-2xl font-bold text-white">Robot Sequencer</h3>
 
           <p className="text-sm text-gray-400 mt-1">
             Build an algorithm and teach the robot what to do.
           </p>
         </div>
 
-        <button
-          onClick={resetChallenge}
-          disabled={isRunning}
-          aria-label="Reset current challenge"
-          className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-40 transition-colors"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors"
+          >
+            <Volume2
+              className={`w-4 h-4 ${
+                soundEnabled ? 'text-amber-300' : 'text-gray-500'
+              }`}
+            />
+          </button>
+
+          <button
+            onClick={resetChallenge}
+            disabled={isRunning}
+            aria-label="Reset current challenge"
+            className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-40 transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* PROGRESS */}
       <div className="mb-5">
         <div className="flex justify-between items-center text-xs mb-2">
           <span className="text-gray-400">
-            Challenge {challengeIndex + 1} of{' '}
-            {ROBOTICS_CHALLENGES.length}
+            Challenge {challengeIndex + 1} of {ROBOTICS_CHALLENGES.length}
           </span>
 
           <span className="text-emerald-400 font-semibold">
@@ -534,9 +569,7 @@ export const Sequencer: React.FC = () => {
       {/* CHALLENGE INFO */}
       <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 mb-5">
         <div className="flex items-start gap-3">
-          <div className="text-3xl">
-            {challenge.emoji}
-          </div>
+          <div className="text-3xl">{challenge.emoji}</div>
 
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -562,9 +595,7 @@ export const Sequencer: React.FC = () => {
             <div className="flex items-center gap-2 text-xs">
               <Target className="w-4 h-4 text-cyan-400" />
 
-              <span className="text-gray-500">
-                Learning goal:
-              </span>
+              <span className="text-gray-500">Learning goal:</span>
 
               <span className="text-gray-300">
                 {challenge.learningObjective}
@@ -582,19 +613,14 @@ export const Sequencer: React.FC = () => {
             gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
           }}
         >
-          {Array.from({
-            length: gridSize * gridSize,
-          }).map((_, index) => {
+          {Array.from({ length: gridSize * gridSize }).map((_, index) => {
             const x = index % gridSize;
             const y = Math.floor(index / gridSize);
 
-            const isRobot =
-              robotPos.x === x &&
-              robotPos.y === y;
+            const isRobot = robotPos.x === x && robotPos.y === y;
 
             const isTarget =
-              targetPosition.x === x &&
-              targetPosition.y === y;
+              targetPosition.x === x && targetPosition.y === y;
 
             return (
               <div
@@ -608,13 +634,8 @@ export const Sequencer: React.FC = () => {
               >
                 {isTarget && !isRobot && (
                   <motion.span
-                    animate={{
-                      scale: [1, 1.08, 1],
-                    }}
-                    transition={{
-                      repeat: Infinity,
-                      duration: 1.5,
-                    }}
+                    animate={{ scale: [1, 1.08, 1] }}
+                    transition={{ repeat: Infinity, duration: 1.5 }}
                     className="text-2xl"
                   >
                     {targetEmoji}
@@ -625,18 +646,12 @@ export const Sequencer: React.FC = () => {
                   <motion.div
                     layout
                     initial={{ scale: 0.8 }}
-                    animate={{
-                      scale: 1,
-                    }}
+                    animate={{ scale: 1 }}
                     className="relative"
                   >
                     <motion.span
-                      animate={{
-                        rotate: facing * 90,
-                      }}
-                      transition={{
-                        duration: 0.25,
-                      }}
+                      animate={{ rotate: facing * 90 }}
+                      transition={{ duration: 0.25 }}
                       className="text-3xl md:text-4xl block"
                     >
                       🤖
@@ -666,8 +681,7 @@ export const Sequencer: React.FC = () => {
           <span className="text-gray-500">
             Facing:{' '}
             <strong className="text-gray-300">
-              {FACING_ICONS[facing]}{' '}
-              {FACING_NAMES[facing]}
+              {FACING_ICONS[facing]} {FACING_NAMES[facing]}
             </strong>
           </span>
         </div>
@@ -675,9 +689,7 @@ export const Sequencer: React.FC = () => {
 
       {/* GOAL */}
       <div className="p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/10 mb-5 text-center">
-        <span className="text-sm text-gray-400">
-          Goal:{' '}
-        </span>
+        <span className="text-sm text-gray-400">Goal: </span>
 
         <span className="text-sm text-yellow-300 font-semibold">
           Move the robot to {targetEmoji}
@@ -690,9 +702,7 @@ export const Sequencer: React.FC = () => {
           <div className="flex items-center gap-2">
             <Code2 className="w-4 h-4 text-purple-400" />
 
-            <span className="text-sm font-bold text-white">
-              Your Program
-            </span>
+            <span className="text-sm font-bold text-white">Your Program</span>
           </div>
 
           <span className="text-xs text-gray-500">
@@ -716,23 +726,15 @@ export const Sequencer: React.FC = () => {
                 return (
                   <motion.div
                     key={`${command}-${index}`}
-                    initial={{
-                      opacity: 0,
-                      scale: 0.8,
-                    }}
-                    animate={{
-                      opacity: 1,
-                      scale: 1,
-                    }}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700"
                   >
                     <span className="text-[10px] text-gray-600">
                       {index + 1}
                     </span>
 
-                    <span>
-                      {commandInfo?.icon}
-                    </span>
+                    <span>{commandInfo?.icon}</span>
 
                     <span className="text-xs font-semibold text-gray-200">
                       {command}
@@ -755,19 +757,13 @@ export const Sequencer: React.FC = () => {
           {COMMANDS.map((item) => (
             <motion.button
               key={item.command}
-              whileHover={{
-                scale: isRunning ? 1 : 1.02,
-              }}
-              whileTap={{
-                scale: isRunning ? 1 : 0.97,
-              }}
+              whileHover={{ scale: isRunning ? 1 : 1.02 }}
+              whileTap={{ scale: isRunning ? 1 : 0.97 }}
               onClick={() => addCommand(item.command)}
               disabled={isRunning || won}
               className={`p-3 rounded-xl text-white font-bold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed ${item.className}`}
             >
-              <span className="mr-1">
-                {item.icon}
-              </span>
+              <span className="mr-1">{item.icon}</span>
 
               {item.label}
             </motion.button>
@@ -779,11 +775,7 @@ export const Sequencer: React.FC = () => {
       <div className="grid grid-cols-2 gap-2 mb-5">
         <button
           onClick={removeLastCommand}
-          disabled={
-            isRunning ||
-            sequence.length === 0 ||
-            won
-          }
+          disabled={isRunning || sequence.length === 0 || won}
           className="px-4 py-3 rounded-xl bg-red-600/80 hover:bg-red-500 text-white font-bold text-sm disabled:opacity-40"
         >
           Remove Last
@@ -791,10 +783,7 @@ export const Sequencer: React.FC = () => {
 
         <button
           onClick={clearProgram}
-          disabled={
-            isRunning ||
-            sequence.length === 0
-          }
+          disabled={isRunning || sequence.length === 0}
           className="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold text-sm disabled:opacity-40"
         >
           Clear Program
@@ -804,11 +793,7 @@ export const Sequencer: React.FC = () => {
       {/* RUN */}
       <button
         onClick={runProgram}
-        disabled={
-          isRunning ||
-          sequence.length === 0 ||
-          won
-        }
+        disabled={isRunning || sequence.length === 0 || won}
         className="w-full px-5 py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors mb-4"
       >
         {isRunning ? (
@@ -823,7 +808,6 @@ export const Sequencer: React.FC = () => {
             >
               <Code2 className="w-5 h-5" />
             </motion.div>
-
             Running Program...
           </>
         ) : (
@@ -838,35 +822,22 @@ export const Sequencer: React.FC = () => {
       {challenge.hint && (
         <div className="mb-4">
           <button
-            onClick={() =>
-              setShowHint((previous) => !previous)
-            }
+            onClick={() => setShowHint((previous) => !previous)}
             className="w-full p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/10 hover:border-yellow-500/20 transition-colors"
           >
             <div className="flex items-center justify-center gap-2 text-yellow-300 text-sm font-semibold">
               <Lightbulb className="w-4 h-4" />
 
-              {showHint
-                ? 'Hide Hint'
-                : 'Need a Hint?'}
+              {showHint ? 'Hide Hint' : 'Need a Hint?'}
             </div>
           </button>
 
           <AnimatePresence>
             {showHint && (
               <motion.div
-                initial={{
-                  opacity: 0,
-                  height: 0,
-                }}
-                animate={{
-                  opacity: 1,
-                  height: 'auto',
-                }}
-                exit={{
-                  opacity: 0,
-                  height: 0,
-                }}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
                 className="overflow-hidden"
               >
                 <div className="mt-2 p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/10 text-sm text-gray-400">
@@ -882,16 +853,8 @@ export const Sequencer: React.FC = () => {
       <AnimatePresence>
         {won && (
           <motion.div
-            initial={{
-              opacity: 0,
-              y: 10,
-              scale: 0.98,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-              scale: 1,
-            }}
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
             className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 mb-4"
           >
             <div className="flex items-start gap-3">
@@ -902,9 +865,7 @@ export const Sequencer: React.FC = () => {
                   Mission successful!
                 </div>
 
-                <p className="text-sm text-gray-400">
-                  {feedback}
-                </p>
+                <p className="text-sm text-gray-400">{feedback}</p>
 
                 <div className="mt-3 flex items-center gap-2 text-xs text-yellow-300">
                   <Trophy className="w-4 h-4" />
@@ -925,14 +886,8 @@ export const Sequencer: React.FC = () => {
 
         {failed && (
           <motion.div
-            initial={{
-              opacity: 0,
-              y: 10,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
             className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 mb-4"
           >
             <div className="flex items-start gap-3">
@@ -940,12 +895,10 @@ export const Sequencer: React.FC = () => {
 
               <div className="text-left">
                 <div className="font-bold text-red-400 mb-1">
-                  Let's debug it
+                  Let&apos;s debug it
                 </div>
 
-                <p className="text-sm text-gray-400">
-                  {feedback}
-                </p>
+                <p className="text-sm text-gray-400">{feedback}</p>
               </div>
             </div>
 
@@ -963,10 +916,7 @@ export const Sequencer: React.FC = () => {
       <div className="flex items-center justify-between pt-4 border-t border-gray-800">
         <button
           onClick={previousChallenge}
-          disabled={
-            isRunning ||
-            challengeIndex === 0
-          }
+          disabled={isRunning || challengeIndex === 0}
           className="px-3 py-2 rounded-lg text-gray-400 hover:text-white disabled:opacity-30 flex items-center gap-1 text-sm"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -974,9 +924,7 @@ export const Sequencer: React.FC = () => {
         </button>
 
         <div className="text-center">
-          <div className="text-xs text-gray-600">
-            Attempts
-          </div>
+          <div className="text-xs text-gray-600">Attempts</div>
 
           <div className="text-sm text-gray-300 font-semibold">
             {attempts}
@@ -998,9 +946,7 @@ export const Sequencer: React.FC = () => {
         <div className="flex items-center gap-2 text-gray-500">
           <Trophy className="w-4 h-4 text-yellow-400" />
           Score:
-          <strong className="text-yellow-300">
-            {score}
-          </strong>
+          <strong className="text-yellow-300">{score}</strong>
         </div>
 
         <div className="flex items-center gap-2 text-gray-500">

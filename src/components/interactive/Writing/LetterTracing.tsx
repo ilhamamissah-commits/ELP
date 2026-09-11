@@ -10,6 +10,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+import { useReadAloud } from '../../../hooks/useReadAloud';
+import { useSettingsStore } from '../../../store/useSettingsStore';
+
 type LetterStage =
   | 'observe'
   | 'listen'
@@ -126,6 +129,12 @@ const CANVAS_SIZE = 500;
 export const LetterTracing: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const autoReadEnabled = useSettingsStore((s) => s.autoReadEnabled);
+  const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const toggleSound = useSettingsStore((s) => s.toggleSound);
+
+  const { speak, stopSpeaking } = useReadAloud();
+
   const [letterIndex, setLetterIndex] = useState(0);
   const [stage, setStage] = useState<LetterStage>('observe');
   const [isDrawing, setIsDrawing] = useState(false);
@@ -137,12 +146,10 @@ export const LetterTracing: React.FC = () => {
 
   const stageIndex = STAGES.indexOf(stage);
 
-  /**
-   * Draws the handwriting guide.
-   *
-   * The canvas provides a visual tracing aid. It does not
-   * pretend to perform professional handwriting recognition.
-   */
+  /* =======================================================
+     CANVAS DRAWING (unchanged from original)
+  ======================================================= */
+
   const drawTemplate = useCallback(
     (
       ctx: CanvasRenderingContext2D,
@@ -151,35 +158,29 @@ export const LetterTracing: React.FC = () => {
     ) => {
       ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-      // Writing surface
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-      // Handwriting guide lines
       ctx.strokeStyle = '#dbe4ee';
       ctx.lineWidth = 2;
 
-      // Top line
       ctx.beginPath();
       ctx.moveTo(45, 100);
       ctx.lineTo(455, 100);
       ctx.stroke();
 
-      // Midline
       ctx.setLineDash([8, 8]);
       ctx.beginPath();
       ctx.moveTo(45, 250);
       ctx.lineTo(455, 250);
       ctx.stroke();
 
-      // Baseline
       ctx.setLineDash([]);
       ctx.beginPath();
       ctx.moveTo(45, 380);
       ctx.lineTo(455, 380);
       ctx.stroke();
 
-      // Lower guide
       ctx.setLineDash([4, 6]);
       ctx.beginPath();
       ctx.moveTo(45, 430);
@@ -195,7 +196,6 @@ export const LetterTracing: React.FC = () => {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        // Light letter for tracing.
         ctx.strokeStyle = '#94a3b8';
         ctx.lineWidth = 6;
         ctx.setLineDash([7, 7]);
@@ -229,14 +229,6 @@ export const LetterTracing: React.FC = () => {
     redrawCanvas(stage === 'observe' || stage === 'trace');
   }, [currentLetter, redrawCanvas, stage]);
 
-  /**
-   * Convert pointer coordinates to canvas coordinates.
-   *
-   * Pointer events support:
-   * - mouse
-   * - touch
-   * - stylus
-   */
   const getPosition = useCallback(
     (event: React.PointerEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
@@ -271,6 +263,9 @@ export const LetterTracing: React.FC = () => {
 
       canvas.setPointerCapture(event.pointerId);
 
+      // Yield narration as soon as the child starts writing.
+      stopSpeaking();
+
       const { x, y } = getPosition(event);
 
       ctx.beginPath();
@@ -284,7 +279,7 @@ export const LetterTracing: React.FC = () => {
       setIsDrawing(true);
       setHasWritten(true);
     },
-    [getPosition, stage]
+    [getPosition, stage, stopSpeaking]
   );
 
   const draw = useCallback(
@@ -322,40 +317,82 @@ export const LetterTracing: React.FC = () => {
   );
 
   const clearCanvas = useCallback(() => {
+    stopSpeaking();
     redrawCanvas(stage === 'trace');
 
     setHasWritten(false);
     setFeedback(null);
-  }, [redrawCanvas, stage]);
+  }, [redrawCanvas, stage, stopSpeaking]);
 
-  /**
-   * Web Speech API.
-   *
-   * This provides auditory reinforcement without requiring
-   * an external audio dependency.
-   */
-  const speakLetter = useCallback(() => {
-    if (!('speechSynthesis' in window)) return;
+  /* =======================================================
+     AUTO-READ — stage prompts
+     The 'listen' stage reads the letter + example word.
+     The 'form', 'trace', and 'repeat' stages do NOT read
+     the letter itself.
+  ======================================================= */
 
-    window.speechSynthesis.cancel();
+  useEffect(() => {
+    if (!autoReadEnabled) return;
 
-    const utterance = new SpeechSynthesisUtterance(
-      `${currentLetter.letter}. ${currentLetter.example}.`
-    );
+    const timer = window.setTimeout(() => {
+      if (stage === 'observe') {
+        speak(
+          `Look at the letter ${currentLetter.letter}. Notice its shape before you begin.`
+        );
+      } else if (stage === 'listen') {
+        speak(
+          `The letter ${currentLetter.letter}. ${currentLetter.example}.`
+        );
+      } else if (stage === 'trace') {
+        speak(
+          'Trace the letter. Follow the dotted letter with your finger, mouse, or stylus.'
+        );
+      } else if (stage === 'form') {
+        // Deliberately does not speak the letter.
+        speak(
+          'Your turn. Write the letter yourself without tracing over the guide.'
+        );
+      } else if (stage === 'check') {
+        speak(
+          'Compare your letter with the example. Think about its shape, size, and where it sits on the writing lines.'
+        );
+      } else if (stage === 'repeat') {
+        speak(
+          'Let us improve it. Use the formation hint and move slowly. Think about where each stroke begins and ends.'
+        );
+      } else if (stage === 'master') {
+        speak(
+          `Letter practised. You practised recognising, hearing, tracing, and forming the letter ${currentLetter.letter}.`
+        );
+      }
+    }, 450);
 
-    utterance.rate = 0.75;
-    utterance.pitch = 1;
+    return () => window.clearTimeout(timer);
+  }, [stage, currentLetter.letter, currentLetter.example, autoReadEnabled, speak]);
 
-    window.speechSynthesis.speak(utterance);
-  }, [currentLetter]);
+  /* =======================================================
+     FEEDBACK NARRATION
+  ======================================================= */
+
+  useEffect(() => {
+    if (!feedback) return;
+
+    speak(feedback);
+  }, [feedback, speak]);
+
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
 
   useEffect(() => {
     return () => {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopSpeaking();
     };
-  }, []);
+  }, [stopSpeaking]);
+
+  /* =======================================================
+     HANDLERS
+  ======================================================= */
 
   const handleCheck = useCallback(() => {
     if (!hasWritten) {
@@ -390,14 +427,18 @@ export const LetterTracing: React.FC = () => {
   const handleNextLetter = useCallback(() => {
     const nextIndex = (letterIndex + 1) % LETTERS.length;
 
+    stopSpeaking();
+
     setLetterIndex(nextIndex);
     setStage('observe');
     setHasWritten(false);
     setFeedback(null);
     setAttempts(0);
-  }, [letterIndex]);
+  }, [letterIndex, stopSpeaking]);
 
   const handleReset = useCallback(() => {
+    stopSpeaking();
+
     setStage('observe');
     setHasWritten(false);
     setFeedback(null);
@@ -406,7 +447,16 @@ export const LetterTracing: React.FC = () => {
     setTimeout(() => {
       redrawCanvas(true);
     }, 0);
-  }, [redrawCanvas]);
+  }, [redrawCanvas, stopSpeaking]);
+
+  /* =======================================================
+     SPEAK LETTER — now delegates to shared useReadAloud.
+     Replaces the local SpeechSynthesisUtterance wrapper.
+  ======================================================= */
+
+  const speakLetter = useCallback(() => {
+    speak(`${currentLetter.letter}. ${currentLetter.example}.`);
+  }, [currentLetter.letter, currentLetter.example, speak]);
 
   const renderStage = () => {
     switch (stage) {
@@ -739,14 +789,27 @@ export const LetterTracing: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleReset}
-          aria-label="Reset letter tracing"
-          className="rounded-lg bg-gray-800 p-2 text-gray-300 transition hover:bg-gray-700"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="Toggle sound"
+            className="rounded-lg bg-gray-800 p-2 transition-colors hover:bg-gray-700"
+          >
+            <Volume2
+              className={`h-4 w-4 ${soundEnabled ? 'text-amber-300' : 'text-gray-500'}`}
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleReset}
+            aria-label="Reset letter tracing"
+            className="rounded-lg bg-gray-800 p-2 text-gray-300 transition hover:bg-gray-700"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Progress */}
